@@ -22,6 +22,10 @@ type Settings = {
   language: "ar" | "en";
 };
 
+// The app connects to this address by itself. A school using its own copy
+// of the web app can still type another address if this one fails.
+const DEFAULT_SERVER = "https://schools-social.vercel.app";
+
 const data = (name: string) => path.join(app.getPath("userData"), name);
 let settings: JsonStore<Settings>;
 let queue: UploadQueue;
@@ -195,7 +199,7 @@ app.on("second-instance", () => win?.show());
 
 app.whenReady().then(async () => {
   settings = new JsonStore<Settings>(data("settings.json"), {
-    server: "",
+    server: DEFAULT_SERVER,
     supabaseUrl: "",
     supabaseAnonKey: "",
     library: null,
@@ -264,6 +268,7 @@ app.whenReady().then(async () => {
   handle("openWeb", () => shell.openExternal(settings.get().server));
 
   app.setLoginItemSettings({ openAtLogin: settings.get().openAtLogin, openAsHidden: true });
+  if (!settings.get().supabaseUrl) await connect(settings.get().server || DEFAULT_SERVER).catch(() => {});
   createWindow();
   createTray();
   if (process.argv.includes("--hidden") || app.getLoginItemSettings().wasOpenedAsHidden) win?.hide();

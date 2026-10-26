@@ -1,7 +1,7 @@
 {
   "name": "school-social-desktop",
   "productName": "School Social Hub Library",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Watches the school's photo library folder and sends web-sized copies to School Social Hub.",
   "main": "dist/main.js",
   "private": true,
