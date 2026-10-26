@@ -37,12 +37,15 @@ async function graph<T>(path: string, params: Record<string, string>, method: "G
 }
 
 export function loginUrl(redirectUri: string, state: string) {
+  // Apps set up with "Facebook Login for Business" pick permissions in a
+  // configuration on Meta's side and pass its id instead of a scope list.
+  const configId = (process.env.META_CONFIG_ID ?? "").trim();
   const params = new URLSearchParams({
     client_id: metaAppId(),
     redirect_uri: redirectUri,
     state,
-    scope: META_SCOPES.join(","),
     response_type: "code",
+    ...(configId ? { config_id: configId } : { scope: META_SCOPES.join(",") }),
   });
   return `https://www.facebook.com/${VERSION}/dialog/oauth?${params}`;
 }
