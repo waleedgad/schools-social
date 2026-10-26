@@ -1,0 +1,93 @@
+{
+  "app": {
+    "name": "School Social Hub",
+    "tagline": "Your school's photos, safely organized, every child included, and posted professionally in minutes."
+  },
+  "common": {
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "signOut": "Sign out",
+    "email": "Email",
+    "password": "Password",
+    "fullName": "Your full name",
+    "save": "Save",
+    "cancel": "Cancel",
+    "comingSoon": "Coming soon",
+    "language": "العربية",
+    "notConfigured": "The app isn't connected to its database yet. Add the Supabase settings to finish setup."
+  },
+  "roles": {
+    "admin": "School admin",
+    "comms": "Comms",
+    "principal": "Principal",
+    "teacher": "Teacher"
+  },
+  "home": {
+    "getStarted": "Set up your school",
+    "haveAccount": "Already have an account?"
+  },
+  "login": {
+    "title": "Sign in",
+    "noAccount": "New here?",
+    "error": "Email or password is incorrect.",
+    "linkError": "That link has expired or was already used. Sign in or request a new one."
+  },
+  "signup": {
+    "title": "Create your account",
+    "passwordHint": "At least 8 characters.",
+    "haveAccount": "Already have an account?",
+    "error": "Couldn't create the account. Check the email and try a longer password.",
+    "checkEmail": "Check your email",
+    "checkEmailBody": "We sent a confirmation link to {email}. Open it on this device to continue."
+  },
+  "onboarding": {
+    "title": "Set up your school",
+    "intro": "You'll be the school admin. You can invite your staff next.",
+    "schoolName": "School name",
+    "defaultLanguage": "Main language for posts",
+    "create": "Create school",
+    "error": "Couldn't create the school. Check the names and try again."
+  },
+  "dashboard": {
+    "welcome": "Welcome, {name}",
+    "yourRole": "You're signed in as {role} at {school}.",
+    "sections": {
+      "upload": "Upload photos",
+      "library": "Photo library",
+      "posts": "Posts and approvals",
+      "calendar": "Calendar",
+      "students": "Students and consent",
+      "staff": "Staff",
+      "settings": "School settings"
+    }
+  },
+  "staff": {
+    "title": "Staff",
+    "members": "Team members",
+    "you": "you",
+    "remove": "Remove",
+    "invite": "Invite a staff member",
+    "inviteHint": "Create a link and send it by WhatsApp or email. It works once, for that email, for 14 days.",
+    "role": "Role",
+    "createLink": "Create invite link",
+    "pending": "Pending invites",
+    "noPending": "No pending invites.",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "revoke": "Revoke",
+    "expires": "Expires {date}",
+    "inviteError": "Couldn't create the invite. Check the email address.",
+    "back": "Back to dashboard"
+  },
+  "invite": {
+    "title": "You're invited",
+    "body": "{school} invited {email} to join as {role}.",
+    "signInFirst": "Sign in or create an account with {email} to accept.",
+    "accept": "Join the school",
+    "invalid": "This invite link isn't valid.",
+    "expired": "This invite has expired. Ask the school admin for a new link.",
+    "used": "This invite has already been used.",
+    "wrongEmail": "You're signed in as {email}, but this invite is for another address. Sign out and use the invited email.",
+    "error": "Couldn't accept the invite. Ask the school admin for a new link."
+  }
+}
