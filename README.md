@@ -21,7 +21,7 @@ holds the web app (Next.js) and, from phase 2, the desktop library app.
 ### 1. Database (Supabase)
 
 1. In the Supabase project, open **SQL Editor**, click **New query**.
-2. Paste the whole of `supabase/migrations/0001_schools_roles.sql` and click **Run**.
+2. Paste each file in `supabase/migrations/`, in order, and click **Run**.
 3. Under **Authentication > URL Configuration**, set **Site URL** to the app's
    address (for example `https://schools-social.vercel.app`) and add
    `https://schools-social.vercel.app/**` to **Redirect URLs**.
