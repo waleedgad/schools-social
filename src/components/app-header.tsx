@@ -27,9 +27,17 @@ export async function AppHeader({ locale, signedIn }: { locale: string; signedIn
   );
 }
 
-export function PageBody({ children, narrow = false }: { children: React.ReactNode; narrow?: boolean }) {
+export function PageBody({
+  children,
+  narrow = false,
+  wide = false,
+}: {
+  children: React.ReactNode;
+  narrow?: boolean;
+  wide?: boolean;
+}) {
   return (
-    <main className={`mx-auto space-y-6 px-4 py-10 ${narrow ? "max-w-md" : "max-w-4xl"}`}>
+    <main className={`mx-auto space-y-6 px-4 py-10 ${narrow ? "max-w-md" : wide ? "max-w-6xl" : "max-w-4xl"}`}>
       {children}
     </main>
   );

@@ -5,15 +5,16 @@ import { Link } from "@/i18n/navigation";
 import { can, type Permission } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 
-// Each section appears only for roles that may use it. Most arrive in phase 2.
+// Each section appears only for roles that may use it.
 const SECTIONS: { key: string; permission: Permission; href?: string }[] = [
   { key: "upload", permission: "upload", href: "/upload" },
   { key: "library", permission: "viewLibrary", href: "/library" },
-  { key: "posts", permission: "writePosts" },
-  { key: "calendar", permission: "publish" },
+  { key: "posts", permission: "writePosts", href: "/posts" },
+  { key: "calendar", permission: "writePosts", href: "/calendar" },
   { key: "students", permission: "manageConsent", href: "/students" },
   { key: "staff", permission: "manageStaff", href: "/staff" },
-  { key: "settings", permission: "manageSettings" },
+  { key: "settings", permission: "manageSettings", href: "/settings" },
+  { key: "activity", permission: "signOffSensitive", href: "/activity" },
 ];
 
 export default async function DashboardPage({ params }: { params: Promise<{ locale: string }> }) {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
 import { thumbPath } from "@/lib/images";
+import type { EditSettings } from "@/lib/photo-edit";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -49,10 +50,43 @@ export async function deletePhoto(formData: FormData) {
   const { locale, supabase, audit } = await curator(formData);
   const id = String(formData.get("id") ?? "");
 
-  const { data } = await supabase.from("photos").delete().eq("id", id).select("storage_path").maybeSingle();
+  const { data } = await supabase
+    .from("photos")
+    .delete()
+    .eq("id", id)
+    .select("storage_path, edited_path")
+    .maybeSingle();
   if (data) {
-    await supabase.storage.from("photos").remove([data.storage_path, thumbPath(data.storage_path)]);
+    const files = [data.storage_path, data.edited_path].filter(Boolean) as string[];
+    await supabase.storage.from("photos").remove(files.flatMap((f) => [f, thumbPath(f)]));
     await audit("photo.deleted", id);
   }
   revalidatePath(`/${locale}/library`);
+}
+
+async function replaceEdit(locale: string, photoId: string, path: string | null, settings: EditSettings | null) {
+  const fd = new FormData();
+  fd.set("locale", locale);
+  const { schoolId, supabase, audit } = await curator(fd);
+  if (path && !path.startsWith(`${schoolId}/${photoId}_e`)) return;
+
+  const { data: before } = await supabase.from("photos").select("edited_path").eq("id", photoId).maybeSingle();
+  const { error } = await supabase
+    .from("photos")
+    .update({ edited_path: path, edit_settings: settings })
+    .eq("id", photoId);
+  if (error) throw error;
+  if (before?.edited_path) {
+    await supabase.storage.from("photos").remove([before.edited_path, thumbPath(before.edited_path)]);
+  }
+  await audit(path ? "photo.edited" : "photo.edit_cleared", photoId);
+  revalidatePath(`/${locale}/library`);
+}
+
+export async function saveEdit(locale: string, photoId: string, path: string, settings: EditSettings) {
+  await replaceEdit(locale, photoId, path, settings);
+}
+
+export async function clearEdit(locale: string, photoId: string) {
+  await replaceEdit(locale, photoId, null, null);
 }
