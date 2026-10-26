@@ -89,5 +89,56 @@
     "used": "This invite has already been used.",
     "wrongEmail": "You're signed in as {email}, but this invite is for another address. Sign out and use the invited email.",
     "error": "Couldn't accept the invite. Ask the school admin for a new link."
+  },
+  "upload": {
+    "title": "Upload photos",
+    "event": "Event",
+    "noEvent": "No event yet",
+    "note": "A short note (optional)",
+    "notePlaceholder": "For example: Grade 4 science fair, volcano projects",
+    "optedOut": "Some students in these photos must not be posted (their parents said no)",
+    "choose": "Choose photos",
+    "chooseHint": "From your phone's camera roll or your computer. Location data is removed.",
+    "progress": "{done} of {total} uploaded",
+    "failed": "{count} failed",
+    "yourCount": "You've shared {count} photos so far."
+  },
+  "library": {
+    "title": "Photo library",
+    "events": "Events",
+    "newEvent": "New event",
+    "eventTitle": "Event name",
+    "eventDate": "Date",
+    "className": "Class or grade",
+    "createEvent": "Create event",
+    "eventError": "Couldn't create the event. Check the name and date.",
+    "empty": "No photos here yet.",
+    "notForPosting": "Not for posting",
+    "flag": "Mark not for posting",
+    "unflag": "Allow posting",
+    "delete": "Delete"
+  },
+  "students": {
+    "title": "Students and consent",
+    "import": "Import a class list",
+    "importHint": "Upload an Excel (.xlsx) or CSV file with columns: name, class, parent phone, consent (yes or no). Arabic column names work too.",
+    "importError": "Couldn't read any students from that file. Check it has a name column.",
+    "importReady": "{count} students found.",
+    "importButton": "Import them",
+    "imported": "Imported {count} students.",
+    "error": "Something went wrong saving the students. Try again.",
+    "add": "Add a student",
+    "name": "Student name",
+    "phone": "Parent phone",
+    "consentLabel": "Social media consent",
+    "addButton": "Add student",
+    "allClasses": "All classes",
+    "empty": "No students yet. Import a class list or add them one by one.",
+    "unknownRule": "Students with no answer are treated as \"no\" until a parent agrees.",
+    "consent": {
+      "yes": "Agreed",
+      "no": "Said no",
+      "unknown": "No answer yet"
+    }
   }
 }

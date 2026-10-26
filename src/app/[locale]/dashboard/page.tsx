@@ -7,11 +7,11 @@ import { requireMembership } from "@/lib/session";
 
 // Each section appears only for roles that may use it. Most arrive in phase 2.
 const SECTIONS: { key: string; permission: Permission; href?: string }[] = [
-  { key: "upload", permission: "upload" },
-  { key: "library", permission: "viewLibrary" },
+  { key: "upload", permission: "upload", href: "/upload" },
+  { key: "library", permission: "viewLibrary", href: "/library" },
   { key: "posts", permission: "writePosts" },
   { key: "calendar", permission: "publish" },
-  { key: "students", permission: "manageConsent" },
+  { key: "students", permission: "manageConsent", href: "/students" },
   { key: "staff", permission: "manageStaff", href: "/staff" },
   { key: "settings", permission: "manageSettings" },
 ];
