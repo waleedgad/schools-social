@@ -1,0 +1,30 @@
+{
+  "name": "school-social-desktop",
+  "productName": "School Social Hub Library",
+  "version": "0.1.0",
+  "description": "Watches the school's photo library folder and sends web-sized copies to School Social Hub.",
+  "main": "dist/main.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "tsc -p . && node scripts/copy-renderer.mjs",
+    "start": "npm run build && electron .",
+    "test": "npm run build && node --test dist/core/*.test.js",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "chokidar": "^4.0.3",
+    "electron-updater": "^6.6.2",
+    "exifr": "^7.1.3",
+    "sharp": "^0.34.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "electron": "^38.4.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5"
+  }
+}
