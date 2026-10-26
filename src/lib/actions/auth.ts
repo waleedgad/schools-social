@@ -3,11 +3,15 @@
 import { headers } from "next/headers";
 import { redirect } from "@/i18n/navigation";
 import { safeNext } from "@/lib/session";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
 function read(formData: FormData) {
+  const locale = String(formData.get("locale") ?? "ar");
+  // Without the Supabase settings the home page explains what's missing.
+  if (!isSupabaseConfigured) redirect({ href: "/", locale });
   return {
-    locale: String(formData.get("locale") ?? "ar"),
+    locale,
     email: String(formData.get("email") ?? "").trim(),
     password: String(formData.get("password") ?? ""),
   };
