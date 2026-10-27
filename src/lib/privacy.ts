@@ -55,13 +55,15 @@ export async function checkPost(
   const caption = normalise([post.caption_ar, post.caption_en, post.hashtags].join(" "));
   const { data: students } = await supabase
     .from("students")
-    .select("full_name, class_name, consent_social")
+    .select("full_name, name_ar, class_name, consent_social")
     .eq("school_id", post.school_id)
     .limit(5000);
-  const named = (students ?? []).filter((s) => {
-    const name = normalise(s.full_name);
-    return name.includes(" ") && caption.includes(name);
-  });
+  const named = (students ?? []).filter((s) =>
+    [s.full_name, s.name_ar].some((n) => {
+      const name = n ? normalise(n) : "";
+      return name.includes(" ") && caption.includes(name);
+    }),
+  );
   if (named.length) checks.push({ level: "block", key: "studentName", values: { names: named.map((s) => s.full_name).join("، ") } });
 
   if (className) {
