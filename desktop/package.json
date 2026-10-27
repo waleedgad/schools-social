@@ -1,13 +1,13 @@
 {
   "name": "school-social-desktop",
   "productName": "School Social Hub Library",
-  "version": "0.1.1",
-  "description": "Watches the school's photo library folder and sends web-sized copies to School Social Hub.",
+  "version": "0.2.0",
+  "description": "The school's photo library on the Mac: import, faces, picks and posts for School Social Hub.",
   "main": "dist/main.js",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "tsc -p . && node scripts/copy-renderer.mjs",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p . && node scripts/copy-renderer.mjs",
     "start": "npm run build && electron .",
     "test": "npm run build && node --test dist/core/*.test.js",
     "dist": "npm run build && electron-builder",
@@ -15,14 +15,18 @@
     "dist:mac": "npm run build && electron-builder --mac"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
     "chokidar": "^4.0.3",
     "electron-updater": "^6.6.2",
+    "exceljs": "^4.4.0",
     "exifr": "^7.1.3",
+    "onnxruntime-node": "^1.31.1",
     "sharp": "^0.34.4"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "electron": "^38.4.0",
     "electron-builder": "^26.0.12",
     "typescript": "^5"

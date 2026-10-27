@@ -26,6 +26,10 @@ export class UploadQueue {
     return this.store.get().pending.find((j) => j.nextTry <= now) ?? null;
   }
 
+  photoId(hash: string) {
+    return this.store.get().done[hash] || null;
+  }
+
   isDone(hash: string) {
     return hash in this.store.get().done;
   }

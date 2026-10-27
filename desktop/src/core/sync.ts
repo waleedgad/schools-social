@@ -5,6 +5,7 @@ import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { watch, type FSWatcher } from "chokidar";
 import { eventFolder, eventFromPath, isoDate, isPhoto } from "./library";
+import { exclusive } from "./lock";
 import { fileHash, prepare } from "./photo";
 import type { Job, UploadQueue } from "./queue";
 import { JsonStore } from "./store";
@@ -19,6 +20,11 @@ export type SyncOptions = {
   backup: string | null;
   onChange: () => void;
   log?: (message: string) => void;
+  // Off when the app's library decides what to send (see enqueue).
+  watch?: boolean;
+  allow?: (file: string) => boolean;
+  paused?: () => boolean;
+  onUploaded?: (file: string, hash: string, photoId: string | null) => void;
 };
 
 const MAX_ATTEMPTS = 8;
@@ -40,6 +46,8 @@ export class LibrarySync {
   }
 
   start() {
+    this.timer = setInterval(() => this.pump(), 2000);
+    if (this.o.watch === false) return;
     this.watcher = watch(this.o.library, {
       ignoreInitial: false,
       alwaysStat: true,
@@ -48,11 +56,20 @@ export class LibrarySync {
       ignored: (p, stats) => !!stats?.isFile() && !isPhoto(p),
     });
     this.watcher.on("add", (file, stats) => {
+      if (this.o.allow && !this.o.allow(file)) return;
       const signature = stats ? `${stats.size}:${Math.round(stats.mtimeMs)}` : "";
       if (this.o.queue.add(file, signature)) this.o.onChange();
     });
     this.watcher.on("error", (e) => this.o.log?.(`watch error: ${String(e)}`));
-    this.timer = setInterval(() => this.pump(), 2000);
+  }
+
+  // Asks for one photo to be sent; safe to call again for the same file.
+  async enqueue(file: string) {
+    const s = await stat(file).catch(() => null);
+    if (!s) return false;
+    const added = this.o.queue.add(file, `${s.size}:${Math.round(s.mtimeMs)}`);
+    if (added) this.o.onChange();
+    return added;
   }
 
   async stop() {
@@ -62,6 +79,7 @@ export class LibrarySync {
   }
 
   private pump() {
+    if (this.o.paused?.()) return;
     while (this.running < PARALLEL) {
       const job = this.o.queue.next();
       if (!job || this.current.includes(job.file)) return;
@@ -90,6 +108,7 @@ export class LibrarySync {
       // Every original is backed up, even one already sent from another folder.
       if (this.o.backup) await this.backup(job.file);
       queue.finish(job, hash, id);
+      this.o.onUploaded?.(job.file, hash, id ?? queue.photoId(hash));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       this.o.log?.(`${path.basename(job.file)}: ${message}`);
@@ -100,7 +119,7 @@ export class LibrarySync {
 
   private async upload(file: string, hash: string) {
     const { supabase, schoolId, userId } = this.o;
-    const prepared = await prepare(file).catch(() => {
+    const prepared = await exclusive(() => prepare(file)).catch(() => {
       throw new BrokenPhoto("Can't read this photo file");
     });
     const eventId = await this.eventFor(file, prepared.takenAt);
@@ -135,7 +154,7 @@ export class LibrarySync {
     return id;
   }
 
-  private async eventFor(file: string, takenAt: Date | null) {
+  async eventFor(file: string, takenAt: Date | null) {
     const folder = eventFromPath(this.o.library, file);
     if (!folder) return null;
     const cached = this.events.get().map[folder.key];

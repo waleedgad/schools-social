@@ -5,9 +5,15 @@ directories:
 files:
   - dist/**
   - package.json
+  - "!node_modules/onnxruntime-node/bin/napi-v6/{win32,linux}/**"
+  - "!node_modules/@img/*-{linux,linuxmusl,win32}-*/**"
+extraResources:
+  - from: models
+    to: models
 asarUnpack:
   - node_modules/sharp/**
   - node_modules/@img/**
+  - node_modules/onnxruntime-node/**
 win:
   target: nsis
 nsis:

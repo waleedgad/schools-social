@@ -2,13 +2,14 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import exifr from "exifr";
 import sharp from "sharp";
+import { source } from "./media";
 
 export type Prepared = { full: Buffer; thumb: Buffer; width: number; height: number; takenAt: Date | null };
 
 // A web copy (2048 px) and a thumbnail (480 px). sharp drops all metadata
 // unless asked to keep it, so GPS location never leaves the school.
 export async function prepare(file: string): Promise<Prepared> {
-  const base = sharp(file, { failOn: "error" }).rotate();
+  const base = sharp(await source(file), { failOn: "error" }).rotate();
   const full = await base
     .clone()
     .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })

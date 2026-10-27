@@ -2,16 +2,27 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' hub: data:; font-src 'self'; frame-src https:" />
     <title>School Social Hub</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header>
-      <strong data-t="app"></strong>
-      <button id="lang" class="link"></button>
-    </header>
-    <main id="app"></main>
-    <script src="renderer.js"></script>
+    <div id="shell">
+      <aside id="side"></aside>
+      <div id="main"></div>
+    </div>
+    <div id="overlay"></div>
+    <div id="toast"></div>
+    <script src="core.js"></script>
+    <script src="views/today.js"></script>
+    <script src="views/library.js"></script>
+    <script src="views/viewer.js"></script>
+    <script src="views/import.js"></script>
+    <script src="views/faces.js"></script>
+    <script src="views/students.js"></script>
+    <script src="views/posts.js"></script>
+    <script src="views/settings.js"></script>
+    <script src="views/help.js"></script>
+    <script src="start.js"></script>
   </body>
 </html>
