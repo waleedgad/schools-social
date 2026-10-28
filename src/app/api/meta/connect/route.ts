@@ -6,7 +6,7 @@ import { getSession } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   const locale = request.nextUrl.searchParams.get("locale") === "en" ? "en" : "ar";
-  const back = new URL(`/${locale}/settings`, request.url);
+  const back = new URL(`/${locale}/accounts`, request.url);
   const { membership } = await getSession();
   if (!membership || !can(membership.role, "manageSettings")) return NextResponse.redirect(new URL(`/${locale}/login`, request.url));
   if (!isMetaConfigured()) {

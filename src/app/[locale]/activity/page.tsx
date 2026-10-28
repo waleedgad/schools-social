@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { AppHeader, PageBody } from "@/components/app-header";
+import { AppShell } from "@/components/shell";
 import { LocalTime } from "@/components/local-datetime";
 import { Card } from "@/components/ui";
 import { Link, redirect } from "@/i18n/navigation";
@@ -18,8 +18,8 @@ export default async function ActivityPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const { membership } = await requireMembership(locale);
-  if (!can(membership.role, "signOffSensitive")) redirect({ href: "/dashboard", locale });
+  const { membership, workspaces } = await requireMembership(locale);
+  if (!can(membership.role, "viewActivity")) redirect({ href: "/today", locale });
 
   const page = Math.max(0, Number((await searchParams).page ?? 0) || 0);
   const size = 100;
@@ -38,15 +38,7 @@ export default async function ActivityPage({
   const names = new Map((members ?? []).map((m) => [m.user_id as string, m.full_name as string]));
 
   return (
-    <>
-      <AppHeader locale={locale} signedIn />
-      <PageBody>
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold">{t("activity.title")}</h1>
-          <Link href="/dashboard" className="text-sm text-accent hover:underline">
-            {t("staff.back")}
-          </Link>
-        </div>
+    <AppShell locale={locale} membership={membership} workspaces={workspaces} active="activity" title={t("activity.title")}>
         <p className="text-sm text-muted">{t("activity.hint")}</p>
         <Card className="p-0">
           <ul className="divide-y divide-border text-sm">
@@ -77,7 +69,6 @@ export default async function ActivityPage({
             </Link>
           )}
         </div>
-      </PageBody>
-    </>
+    </AppShell>
   );
 }

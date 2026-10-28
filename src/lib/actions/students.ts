@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 
 async function curator(locale: string) {
   const { user, membership } = await requireMembership(locale);
-  if (!can(membership.role, "manageConsent")) redirect({ href: "/dashboard", locale });
+  if (!can(membership.role, "manageConsent")) redirect({ href: "/today", locale });
   const supabase = await createClient();
   const schoolId = membership.school.id;
   const audit = (action: string, target: string, details: Record<string, unknown> = {}) =>

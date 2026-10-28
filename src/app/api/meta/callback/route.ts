@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const state = params.get("state") ?? "";
   const locale = state.startsWith("en.") ? "en" : "ar";
-  const back = new URL(`/${locale}/settings`, request.url);
+  const back = new URL(`/${locale}/accounts`, request.url);
   const done = (result: string) => {
     back.searchParams.set("meta", result);
     const response = NextResponse.redirect(back);

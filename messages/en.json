@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "School Social Hub",
-    "tagline": "Your school's photos, safely organized, every child included, and posted professionally in minutes."
+    "tagline": "Your school's photos, safely organized, every student included, and posted professionally in minutes."
   },
   "common": {
     "signIn": "Sign in",
@@ -20,7 +20,10 @@
     "admin": "School admin",
     "comms": "Comms",
     "principal": "Principal",
-    "teacher": "Teacher"
+    "teacher": "Teacher",
+    "comms_lead": "Comms lead",
+    "staff": "Staff",
+    "photographer": "Photographer"
   },
   "home": {
     "getStarted": "Set up your school",
@@ -63,7 +66,7 @@
     }
   },
   "staff": {
-    "title": "Staff",
+    "title": "People",
     "members": "Team members",
     "you": "you",
     "remove": "Remove",
@@ -78,7 +81,15 @@
     "revoke": "Revoke",
     "expires": "Expires {date}",
     "inviteError": "Couldn't create the invite. Check the email address.",
-    "back": "Back to dashboard"
+    "back": "Back",
+    "paid": "paid",
+    "free": "free",
+    "inactive": "inactive",
+    "lastSeen": "Last seen {date}",
+    "neverSeen": "Hasn't signed in yet",
+    "classesHint": "Classes, for example KG2-A, G3-B",
+    "deactivate": "Deactivate",
+    "activate": "Activate"
   },
   "invite": {
     "title": "You're invited",
@@ -126,7 +137,8 @@
       "cut_off": "cut off",
       "cluttered": "cluttered",
       "faces_hidden": "faces hidden",
-      "sensitive": "sensitive, check before posting"
+      "sensitive": "sensitive, check before posting",
+      "phone_in_hand": "phone in hand"
     },
     "sortNewest": "Newest first",
     "sortAi": "Best first",
@@ -232,7 +244,9 @@
       "publishing": "Publishing…",
       "published": "Published",
       "failed": "Failed",
-      "rejected": "Changes asked"
+      "rejected": "Changes asked",
+      "idea": "Idea",
+      "waiting_extra": "Waiting for the principal"
     },
     "editTitle": "Post",
     "back": "All posts",
@@ -240,10 +254,13 @@
       "checks": "Fix the items marked ⛔ first. Your changes were saved.",
       "role": "Your role can't approve posts.",
       "when": "Choose a date and time first.",
-      "signoff": "This post needs sign-off from the principal or school admin.",
+      "signoff": "This post is waiting for the principal (the extra approver).",
       "save": "Couldn't save. Try again.",
       "locked": "Published posts can't be deleted here.",
-      "server": "Publishing isn't set up on the server yet (service key missing)."
+      "server": "Publishing isn't set up on the server yet (service key missing).",
+      "comms": "This post needs approval from the comms lead (or another comms member, if your school allows it).",
+      "paused": "Posting is paused for the school. Resume it on the Accounts page first.",
+      "label": "Write who the link is for (at least 2 letters)."
     },
     "saved": "Saved.",
     "aiDone": "Captions written. Read them and change anything before sending for review.",
@@ -257,7 +274,7 @@
     "captionEn": "Caption in English",
     "hashtags": "Hashtags",
     "where": "Post on",
-    "sensitive": "Sensitive post (needs the principal or admin to sign off), for example a child's achievement with their name, health, or a special event",
+    "sensitive": "Sensitive post (needs the extra approver), for example a student's achievement with their name, health, or a special event",
     "when": "Date and time to post",
     "rewrite": "✨ Rewrite captions with AI",
     "write": "✨ Write captions with AI",
@@ -273,7 +290,10 @@
       "classConsent": "{count} students in {className} have no consent. Check no one of them appears in the photos.",
       "igRatio": "{count, plural, one {# photo has} other {# photos have}} a shape Instagram won't accept. Edit it to square or portrait.",
       "igTen": "Instagram shows only the first 10 photos.",
-      "aiIssues": "AI found quality issues in {count, plural, one {# photo} other {# photos}}."
+      "aiIssues": "AI found quality issues in {count, plural, one {# photo} other {# photos}}.",
+      "waitingMac": "{count, plural, one {# photo hasn't} other {# photos haven't}} been checked on the Mac yet (faces and privacy). Open the Mac app to check them.",
+      "igLimit": "Instagram takes up to {count} photos; the rest go to Facebook only.",
+      "igHashtags": "Instagram allows up to {count} hashtags. Remove some."
     },
     "next": "Next step",
     "notConnected": "Facebook and Instagram aren't connected yet. The admin connects them in school settings.",
@@ -293,7 +313,17 @@
     "title": "Calendar",
     "previous": "Previous",
     "next": "Next",
-    "hint": "Scheduled and published posts, in {timeZone} time."
+    "hint": "Scheduled and published posts, in {timeZone} time.",
+    "today": "Today",
+    "views": {
+      "month": "Month",
+      "week": "Week"
+    },
+    "spread": "{count, plural, one {# post was} other {# posts were}} given free times.",
+    "paused": "Posting is paused, so nothing goes out until it's resumed.",
+    "newOn": "New post on this day",
+    "eventHint": "Make a post from this event",
+    "freeSlot": "free slot"
   },
   "settings": {
     "title": "School settings",
@@ -334,7 +364,50 @@
       "database": "Server key for publishing and photographer links",
       "ai": "AI key (Gemini) for picks and captions",
       "meta": "Meta app keys for Facebook and Instagram"
-    }
+    },
+    "tabs": {
+      "school": "School",
+      "approvals": "Approvals",
+      "roles": "Roles",
+      "library": "Library",
+      "setup": "Setup status"
+    },
+    "moreOnBrand": "The full brand voice is on the Brand and categories page.",
+    "terms": "Term dates",
+    "termsHint": "Used for the library's Year and Term folders and the calendar.",
+    "termName": "Term name",
+    "approveBy": "Who approves posts inside comms",
+    "approveLead": "The comms lead (or the admin)",
+    "approveAnyOther": "Any other comms member (not the one who wrote it)",
+    "leadSelf": "The comms lead can approve their own posts",
+    "leadSelfHint": "Turn off if someone else must check the lead's posts too.",
+    "extra": "Extra approver",
+    "extraHint": "Optional: after comms approves, someone else (usually the principal) signs off too.",
+    "extraModes": {
+      "off": "No extra approval",
+      "flagged": "Only posts marked sensitive",
+      "categories": "Posts in some categories (choose them on Brand and categories)",
+      "all": "Every post"
+    },
+    "extraWho": "Who signs off",
+    "extraWhoHint": "If no one is ticked, any principal or admin can sign off.",
+    "timeout": "If they don't answer within (hours)",
+    "timeoutHint": "Leave empty to wait for ever.",
+    "timeoutAction": "Then",
+    "timeoutHold": "Keep waiting",
+    "timeoutGo": "Post it anyway",
+    "photoLimit": "Most photos in one post",
+    "photoLimitHint": "Leave empty to follow each platform (Instagram 20).",
+    "rolesTitle": "What each role can do",
+    "rolesHint": "Tick or untick abilities per role. The admin always keeps everything.",
+    "ability": "Ability",
+    "rolesNote": "Approvals are also checked by the database rules, so approving always follows the Approvals tab.",
+    "selfFiling": "File my folder in place",
+    "selfFilingHint": "When on, the Mac app turns the school's own photo folder into the library: it moves photos into Year / Term / Event / Class folders in place, and files new photos as they arrive. Off by default.",
+    "on": "On",
+    "off": "Off",
+    "turnOn": "Turn on",
+    "turnOff": "Turn off"
   },
   "activity": {
     "title": "Activity log",
@@ -377,7 +450,618 @@
       "meta.page_chosen": "chose the Facebook Page",
       "meta.disconnected": "disconnected Facebook and Instagram",
       "portal.link_created": "created a photographer link",
-      "portal.link_revoked": "revoked a photographer link"
+      "portal.link_revoked": "revoked a photographer link",
+      "post.idea": "saved an idea",
+      "post.start": "started a draft",
+      "post.queue": "added a post to the next slot",
+      "post.duplicate": "duplicated a post",
+      "post.duplicated": "duplicated a post",
+      "post.moved": "moved a post",
+      "post.spread": "spread posts over the calendar",
+      "post.review_link": "made an approval link",
+      "post.version_restored": "brought back an earlier caption",
+      "post.extra_timeout": "post went ahead after the extra approver didn't answer",
+      "ai.week_planned": "asked AI to plan a week",
+      "category.created": "added a category",
+      "category.updated": "changed a category",
+      "category.deleted": "deleted a category",
+      "slots.added": "added posting times",
+      "frame.added": "added a frame",
+      "brand.saved": "changed the brand voice",
+      "settings.approvals": "changed the approval rules",
+      "settings.permissions": "changed what roles can do",
+      "posting.paused": "paused posting",
+      "posting.resumed": "resumed posting",
+      "account.paused": "paused an account",
+      "account.resumed": "resumed an account",
+      "library.self_filing_on": "turned on filing in place",
+      "library.self_filing_off": "turned off filing in place",
+      "member.activated": "activated a person",
+      "member.deactivated": "deactivated a person",
+      "inbox.replied": "replied to a comment",
+      "inbox.reply_failed": "reply failed",
+      "support.reported": "reported a problem"
+    }
+  },
+  "nav": {
+    "today": "Today",
+    "posts": "Posts",
+    "calendar": "Calendar",
+    "inbox": "Inbox",
+    "analytics": "Results",
+    "library": "Library",
+    "upload": "Upload",
+    "students": "Students",
+    "categories": "Brand and categories",
+    "accounts": "Accounts",
+    "people": "People",
+    "settings": "Settings",
+    "activity": "Activity",
+    "help": "Help",
+    "goTo": "Go to",
+    "sections": {
+      "main": "",
+      "posting": "Posting",
+      "photos": "Photos",
+      "school": "School"
+    }
+  },
+  "shell": {
+    "newPost": "New post",
+    "createPost": "Create post",
+    "newIdea": "New idea",
+    "makeWeek": "Make a week of posts",
+    "actions": "Actions",
+    "search": "Search or jump to…",
+    "searchPlaceholder": "Type a page or action",
+    "switchSchool": "Switch school",
+    "menu": "Menu",
+    "light": "Light",
+    "dark": "Dark",
+    "auto": "Auto"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "search": "Search and jump",
+    "newPost": "New post",
+    "goToday": "Go to Today",
+    "goPosts": "Go to Posts",
+    "goCalendar": "Go to Calendar",
+    "goLibrary": "Go to Library",
+    "goAnalytics": "Go to Results",
+    "approve": "Approve the open post",
+    "save": "Save",
+    "help": "Show shortcuts"
+  },
+  "permissions": {
+    "upload": "Upload photos",
+    "viewLibrary": "See the photo library",
+    "manageEvents": "Create events",
+    "writePosts": "Write posts",
+    "viewPosts": "See posts",
+    "approvePosts": "Approve posts (comms)",
+    "extraApprove": "Extra approval (principal)",
+    "publish": "Publish now",
+    "urgentPost": "Urgent posts (skip extra approval)",
+    "manageConsent": "Students and consent",
+    "manageCategories": "Brand, categories and slots",
+    "pauseAccounts": "Pause posting",
+    "viewAnalytics": "See results",
+    "manageStaff": "Invite and manage people",
+    "manageSettings": "School settings",
+    "viewActivity": "See the activity log",
+    "confirmFaces": "Confirm faces"
+  },
+  "board": {
+    "title": "Posts",
+    "subtitle": "Ideas, drafts, approvals and what's scheduled, in one board.",
+    "columns": {
+      "idea": "Ideas",
+      "draft": "Drafts",
+      "waiting": "Waiting for approval",
+      "scheduled": "Approved and scheduled",
+      "posted": "Posted"
+    },
+    "views": {
+      "board": "Board",
+      "list": "List",
+      "grid": "Instagram grid"
+    },
+    "urgent": "Urgent",
+    "due": "Due",
+    "emptyColumn": "Nothing here",
+    "addIdea": "Add an idea",
+    "ideaPlaceholder": "What could we post? For example: Science fair winners",
+    "spread": "Spread over the next days",
+    "selected": "selected",
+    "photos": "photos",
+    "gridHint": "How your Instagram profile will look with the scheduled posts (faded) on top.",
+    "moved": "Moved.",
+    "moveFailed": "Couldn't move it. Approval and scheduling happen inside the post.",
+    "all": "All",
+    "mine": "Mine",
+    "makeWeek": "Make a week of posts",
+    "planned": "{count, plural, one {# idea was} other {# ideas were}} added to Ideas for the coming week."
+  },
+  "newPost": {
+    "title": "New post",
+    "subtitle": "Choose how to start.",
+    "forDay": "For {day}",
+    "fromEvent": "From an event",
+    "fromEventHint": "Takes the event's best photos (up to 10) and writes captions for you.",
+    "event": "Event",
+    "pickEvent": "Pick an event",
+    "makeIt": "Make the post",
+    "fromPhotos": "Pick photos yourself",
+    "fromPhotosHint": "Open the library, tick the photos you want, then press Make a post.",
+    "openLibrary": "Open the library",
+    "textOnly": "Text only",
+    "textOnlyHint": "An announcement or reminder without photos (Facebook only).",
+    "about": "What is it about?",
+    "aboutPlaceholder": "For example: school closed on Thursday for the national holiday",
+    "startWriting": "Start writing",
+    "idea": "Save an idea for later",
+    "ideaLabel": "The idea",
+    "saveIdea": "Save idea"
+  },
+  "composer": {
+    "ideaTitle": "Idea",
+    "idea": "The idea",
+    "photos": "Photos",
+    "saveFirst": "Save first, then fix the shapes",
+    "fixing": "Fixing…",
+    "applyFrame": "Apply frame and 4:5 shape",
+    "fixShape": "Fix shape to 4:5",
+    "addPhotos": "Add photos",
+    "noPhotos": "No photos. Text-only posts go to Facebook only.",
+    "waitingMac": "Mac check",
+    "earlier": "Move earlier",
+    "edit": "Edit",
+    "remove": "Remove",
+    "pickMore": "Tap photos to add them. The event's photos come first; numbers are AI scores.",
+    "willAdd": "{count, plural, one {# photo} other {# photos}} will be added when you save.",
+    "translateFrom": "Translate from the other language",
+    "rewrite": "Rewrite",
+    "rewrites": {
+      "shorter": {
+        "label": "Shorter",
+        "prompt": "make it shorter, about half the length"
+      },
+      "longer": {
+        "label": "Longer",
+        "prompt": "make it a little longer with one more detail"
+      },
+      "warmer": {
+        "label": "Warmer",
+        "prompt": "make it warmer and more personal for parents"
+      },
+      "formal": {
+        "label": "More formal",
+        "prompt": "make it more formal"
+      },
+      "emoji": {
+        "label": "Add emoji",
+        "prompt": "add two or three fitting emoji"
+      },
+      "fixSpelling": {
+        "label": "Fix spelling",
+        "prompt": "only fix spelling and grammar, change nothing else"
+      }
+    },
+    "aiLimit": "The free AI plan's limit was reached. Wait a minute and try again.",
+    "aiFailed": "The AI couldn't answer just now. Try again.",
+    "tagCount": "{count}/{max} hashtags",
+    "snippets": "Saved text:",
+    "splitIg": "Different caption for Instagram",
+    "splitIgHint": "Instagram cuts captions after about 125 letters, so a short one with the hashtags often works better.",
+    "firstComment": "First comment",
+    "firstCommentHint": "Posted as the first comment, for example the hashtags or a link.",
+    "details": "Details",
+    "paused": "paused",
+    "category": "Category",
+    "noCategory": "No category",
+    "frame": "Frame",
+    "noFrame": "No frame",
+    "addFrames": "Add frames",
+    "location": "Location",
+    "story": "Also post the cover as an Instagram story",
+    "storyHint": "The first photo goes to the story too.",
+    "sensitive": "Sensitive post",
+    "sensitiveHint": "Names a student, health, a special event… The extra approver checks it.",
+    "urgent": "Urgent",
+    "urgentHint": "Skips the extra approver. For time-critical news only.",
+    "altText": "Photo descriptions (for blind followers)",
+    "panels": {
+      "preview": "Preview",
+      "ai": "AI writer",
+      "comments": "Comments",
+      "history": "History"
+    },
+    "preview": {
+      "justNow": "Just now · 🌍",
+      "sponsoredNot": "Original",
+      "more": "more",
+      "wrongShape": "Instagram will refuse this shape",
+      "needsPhoto": "Instagram needs a photo",
+      "like": "Like",
+      "comment": "Comment",
+      "share": "Share"
+    },
+    "ai": {
+      "hint": "Tell the AI anything extra, choose the style, and it writes three versions. It uses the photos, the event, the category and your brand voice.",
+      "prompt": "Anything to mention? For example: thank Ms Mona's class",
+      "toneAuto": "Tone: our usual",
+      "tones": {
+        "warm": "Warm",
+        "proud": "Proud",
+        "formal": "Formal",
+        "friendly": "Friendly",
+        "fun": "Fun",
+        "informative": "Informative"
+      },
+      "lengthAuto": "Length: usual",
+      "short": "Short",
+      "medium": "Medium",
+      "long": "Long",
+      "emojiOn": "With emoji",
+      "emojiOff": "No emoji",
+      "tagsOn": "With hashtags",
+      "tagsOff": "No hashtags",
+      "again": "Write new versions",
+      "write": "Write captions",
+      "unsaved": "You have unsaved changes. Writing new versions replaces the captions.",
+      "readOnly": "Only the comms team writes captions.",
+      "versions": "Other versions",
+      "useThis": "Use this one",
+      "checking": "Checking…",
+      "check": "Check the caption",
+      "score": "Score {score}/100"
+    },
+    "noComments": "No comments yet.",
+    "commentHint": "Write a note. Type @{name} to tell someone.",
+    "addComment": "Add comment",
+    "reviewLink": "Approval link",
+    "reviewLinkHint": "For someone without an account, for example the owner. They see the post and answer with one tap.",
+    "linkAnswer": {
+      "approved": "approved",
+      "changes": "asked for changes"
+    },
+    "linkExpired": "link expired",
+    "linkWaiting": "no answer yet",
+    "linkFor": "Who is it for?",
+    "makeLink": "Make link",
+    "noVersions": "No earlier versions yet.",
+    "restore": "Bring this back",
+    "checksAfterSave": "Checks update when you save.",
+    "duplicate": "Duplicate",
+    "schoolPaused": "Posting is paused for the school. Scheduled posts wait until it's resumed.",
+    "waitingExtra": "Waiting for the extra approver (usually the principal).",
+    "waitingLead": "Waiting for the comms lead to approve.",
+    "save": "Save",
+    "startDraft": "Start writing this post",
+    "nextSlot": "Add to the next free slot",
+    "confirmDelete": "Delete this post?",
+    "copied": "Copied",
+    "copy": "Copy",
+    "done": {
+      "idea": "Moved back to ideas.",
+      "start": "It's a draft now.",
+      "submit": "Sent for approval.",
+      "approve": "Approved.",
+      "reject": "Sent back with your note.",
+      "draft": "Back to draft.",
+      "schedule": "Scheduled.",
+      "queue": "Added to the next free slot.",
+      "unschedule": "Unscheduled.",
+      "publish": "Publishing now."
+    }
+  },
+  "review": {
+    "title": "{school} would like your approval",
+    "for": "Link for {label}",
+    "invalid": "This link doesn't work.",
+    "comment": "Anything to change? (optional)",
+    "changes": "Ask for changes",
+    "approve": "Approve",
+    "used": "This link has already been answered or has expired.",
+    "answered": {
+      "approved": "Thank you, you approved the post.",
+      "changes": "Thank you, your note was sent to the team.",
+      "error": "Couldn't send your answer. The link may have expired."
+    }
+  },
+  "brandPage": {
+    "title": "Brand and categories",
+    "subtitle": "Make every post look and sound like your school.",
+    "tabs": {
+      "categories": "Categories",
+      "slots": "Posting times",
+      "frames": "Frames",
+      "snippets": "Saved text",
+      "brand": "Brand voice"
+    },
+    "errors": {
+      "name": "Write a name.",
+      "save": "Couldn't save. Try again.",
+      "slot": "Pick at least one day and a time.",
+      "snippet": "Write a title and the text.",
+      "source": "Paste at least a few sentences about the school."
+    },
+    "drafted": "The AI filled in your brand voice. Read it and change anything that isn't right.",
+    "categories": "Categories",
+    "categoriesHint": "Every post gets a category, so you can keep a good mix. The bar shows each one's share of the last 30 days.",
+    "share": "{share}% of posts",
+    "extra": "extra approval",
+    "edit": "Edit",
+    "editCategory": "Edit category",
+    "newCategory": "New category",
+    "nameAr": "Name in Arabic",
+    "nameEn": "Name in English",
+    "description": "What goes in it",
+    "color": "Colour",
+    "needsExtra": "Needs the extra approver",
+    "needsExtraHint": "Used when extra approval is set to \"some categories\" in Settings.",
+    "delete": "Delete",
+    "slots": "Weekly posting times",
+    "slotsHint": "Fixed times each week, for example Sunday 6pm for Achievements. \"Add to the next free slot\" and \"Spread\" use them.",
+    "suggestSlots": "Suggest a week for me",
+    "anyCategory": "Any category",
+    "addSlot": "Add posting time",
+    "time": "Time",
+    "frames": "Frames and logo",
+    "framesHint": "Upload a PNG the size of a 4:5 photo (1080×1350) with a see-through middle. It's laid over the photos when you apply it in a post.",
+    "frameName": "Name",
+    "uploading": "Uploading…",
+    "addFrame": "Add frame",
+    "frameError": "Choose a PNG file and try again.",
+    "snippets": "Saved text and hashtag sets",
+    "snippetsHint": "Hashtag sets, sign-offs and sentences you use often appear as one-tap buttons in the post editor. \"Words to avoid\" are checked by the AI.",
+    "kinds": {
+      "text": "Text",
+      "hashtags": "Hashtags",
+      "signoff": "Sign-off",
+      "avoid": "Words to avoid"
+    },
+    "kind": "Kind",
+    "newSnippet": "New saved text",
+    "snippetTitle": "Title",
+    "snippetBody": "Text",
+    "voice": "How your school sounds",
+    "motto": "Motto or values",
+    "stages": "Stages (for example KG to G12)",
+    "curriculum": "Curriculum",
+    "audience": "Who reads your posts",
+    "tone": "Tone (for example warm, proud, welcoming)",
+    "dialect": "Arabic style",
+    "msa": "Modern Standard Arabic",
+    "egyptian": "Egyptian Arabic",
+    "emoji": "Emoji",
+    "emojiNone": "None",
+    "emojiFew": "A few",
+    "emojiMany": "Many",
+    "signoff": "Sign-off line",
+    "useWords": "Words we like to use",
+    "avoidWords": "Words to avoid (commas between)",
+    "draftTitle": "Let AI fill it in",
+    "source": "Paste text about the school",
+    "sourceHint": "Your website's About page, a brochure or a few past posts. The AI drafts the voice and suggests categories.",
+    "draft": "Draft my brand voice",
+    "learnt": "What the AI learnt",
+    "learntHint": "The last {count} approved captions are used as examples of your voice."
+  },
+  "today": {
+    "morning": "Good morning, {name}",
+    "afternoon": "Good afternoon, {name}",
+    "evening": "Good evening, {name}",
+    "customise": "Customise",
+    "customiseHint": "Tick the sections you want and number them in the order you like. Only you see this layout.",
+    "order": "Order",
+    "nothing": "Nothing to show",
+    "seeAll": "See all",
+    "paused": "Posting is paused until {until}.",
+    "resume": "Resume",
+    "sections": {
+      "approvals": "Waiting for your approval",
+      "extra": "Waiting for your sign-off",
+      "next": "Going out this week",
+      "ideas": "Ideas to write",
+      "problems": "Needs attention",
+      "waitingMac": "Photos waiting for the Mac",
+      "balance": "Category mix",
+      "numbers": "Last 30 days",
+      "upload": "Upload",
+      "mine": "My photos"
+    },
+    "empty": {
+      "approvals": "Nothing waiting. 🎉",
+      "extra": "Nothing waiting for you.",
+      "next": "Nothing scheduled this week.",
+      "ideas": "No ideas yet. Try \"Make a week of posts\".",
+      "problems": "No failed or returned posts.",
+      "waitingMac": "All uploads are checked.",
+      "balance": "Not enough posts yet.",
+      "mine": "You haven't uploaded photos yet."
+    },
+    "waitingMac": "{count, plural, one {# photo is} other {# photos are}} waiting. They'll be checked when the Mac app is open.",
+    "tooMuch": "Most recent posts are {name}. Mix in other categories.",
+    "missing": "Nothing lately from: {names}",
+    "uploadTitle": "Took photos today?",
+    "uploadHint": "Upload them and the comms team takes it from there.",
+    "photoNo": "not for posting",
+    "photoWaiting": "checking",
+    "photoReady": "ready"
+  },
+  "setup": {
+    "title": "Set up your school",
+    "progress": "{done} of {total} done",
+    "banner": "Finish setting up: {done} of {total} done",
+    "steps": {
+      "accounts": {
+        "title": "Connect Facebook and Instagram",
+        "body": "So approved posts go out on their own."
+      },
+      "brand": {
+        "title": "Describe your school's voice",
+        "body": "Paste your About page and the AI drafts it."
+      },
+      "categories": {
+        "title": "Check the categories",
+        "body": "Nine are ready; rename or add your own."
+      },
+      "slots": {
+        "title": "Choose weekly posting times",
+        "body": "Or let us suggest a week."
+      },
+      "team": {
+        "title": "Invite your team",
+        "body": "Comms, the principal and teachers."
+      },
+      "mac": {
+        "title": "Install the Mac app",
+        "body": "It keeps the photo library, faces and privacy checks at school."
+      },
+      "students": {
+        "title": "Import class lists",
+        "body": "From Excel, PowerSchool, Classera or Edunation."
+      },
+      "firstPost": {
+        "title": "Publish your first post",
+        "body": "Start from an event and let the AI write it."
+      }
+    }
+  },
+  "analytics": {
+    "title": "Results",
+    "subtitle": "How your posts are doing on Facebook and Instagram.",
+    "lastDays": "Last {count} days",
+    "empty": "No results yet",
+    "emptyHint": "Numbers appear a few hours after your first posts go out.",
+    "posts": "Posts",
+    "reach": "Reach",
+    "likes": "Likes",
+    "comments": "Comments",
+    "shares": "Shares",
+    "best": "Best posts",
+    "byCategory": "By category",
+    "noCategories": "Give posts a category to compare them.",
+    "avg": "{avg} avg · {count} posts",
+    "bestTime": "Best time to post",
+    "bestHour": "Your posts around {hour} do best.",
+    "needMore": "Post at a few different times to find your best one.",
+    "followers": "Followers",
+    "growth": "{n, number} in this period"
+  },
+  "accounts": {
+    "title": "Accounts",
+    "subtitle": "Where your posts go, and pausing them.",
+    "pauseAll": "Pause all posting",
+    "pausedUntil": "Paused until {until}. {count, plural, one {# post is} other {# posts are}} waiting.",
+    "resume": "Resume",
+    "for": "For",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "reason": "Reason (optional)",
+    "reasonHint": "For example: day of mourning",
+    "pause": "Pause",
+    "pauseHint": "Nothing is lost: scheduled posts wait and go out after you resume (late ones go out straight away).",
+    "connected": "Connected accounts",
+    "askAdmin": "Ask the school admin to connect the accounts.",
+    "notLinked": "not linked",
+    "paused": "paused",
+    "healthy": "working",
+    "expiresSoon": "The connection expires on {date}. Reconnect before then."
+  },
+  "inbox": {
+    "title": "Inbox",
+    "subtitle": "Comments on your posts from the last 3 weeks.",
+    "sent": "Reply sent.",
+    "failed": "Couldn't send the reply. Check the account connection.",
+    "notConnected": "Connect Facebook and Instagram first",
+    "notConnectedHint": "Comments appear here once the accounts are connected.",
+    "filters": {
+      "open": "To answer",
+      "questions": "Questions",
+      "all": "All"
+    },
+    "clear": "All answered",
+    "someone": "Someone",
+    "question": "question",
+    "replied": "replied",
+    "hidden": "hidden",
+    "hide": "Hide",
+    "unhide": "Show",
+    "replyPlaceholder": "Write a reply…",
+    "suggest": "Suggest replies",
+    "send": "Reply",
+    "aiError": "No suggestions right now."
+  },
+  "help": {
+    "title": "Help",
+    "subtitle": "Guides, what's new, and help when something goes wrong.",
+    "search": "Search the guides",
+    "searchButton": "Search",
+    "yourRole": "What you can do as {role}",
+    "news": "What's new",
+    "report": "Report a problem or share an idea",
+    "kind": "What is it?",
+    "kinds": {
+      "problem": "Something doesn't work",
+      "idea": "An idea",
+      "question": "A question"
+    },
+    "what": "Tell us what happened",
+    "send": "Send",
+    "whatsapp": "Or message us on WhatsApp",
+    "reported": "Thank you. We got your message.",
+    "roles": {
+      "admin": "You can do everything: invite people, connect Facebook and Instagram, set the approval rules and pause posting.\nYou can also approve and publish any post.",
+      "comms_lead": "You approve the comms team's posts, look after categories, posting times and the brand voice, and can pause posting.\nUrgent posts you mark skip the extra approver.",
+      "comms": "You write posts from the photo library, send them for approval and answer comments in the Inbox.\nYour school may let you approve a colleague's post.",
+      "principal": "You see every post and sign off the ones that need your approval (they appear on Today).\nYou can also see the results and the activity log.",
+      "teacher": "You upload photos from your phone or computer. They're checked on the school's Mac before anyone can post them.",
+      "staff": "You upload photos. They're checked on the school's Mac before anyone can post them.",
+      "photographer": "You upload event photos. They're checked on the school's Mac before anyone can post them."
+    },
+    "guides": {
+      "start": {
+        "title": "Getting started",
+        "body": "Follow the set-up checklist on Today: connect the accounts, describe your school's voice, check the categories and posting times, invite the team and install the Mac app."
+      },
+      "post": {
+        "title": "Making a post",
+        "body": "Press Create post (or N). Start from an event and the AI picks the best photos and writes three versions of the caption. Change anything, look at the Facebook and Instagram preview, then send it for approval."
+      },
+      "approve": {
+        "title": "Approving posts",
+        "body": "The comms lead approves the team's posts. If your school uses an extra approver (usually the principal), the post goes to them next. They can approve from their phone on Today, or from an approval link."
+      },
+      "calendar": {
+        "title": "The calendar",
+        "body": "Drag a post to another day to move it. Dashed spots are your weekly posting times; tap one to make a post for that day. Events and occasions show on top of each day."
+      },
+      "brand": {
+        "title": "Brand voice and categories",
+        "body": "Brand and categories holds your school's voice, the categories, posting times, frames and saved text. The AI learns from every caption you approve."
+      },
+      "mac": {
+        "title": "The Mac app",
+        "body": "The Mac app keeps the school's photo library, recognises faces on the Mac itself, checks privacy and sends small copies to the website. Photos uploaded on the website wait for the Mac check before they can be posted."
+      },
+      "upload": {
+        "title": "Uploading photos",
+        "body": "Open Upload on your phone, choose the event and pick the photos. Location and other hidden details are removed before upload."
+      },
+      "pause": {
+        "title": "Pausing posting",
+        "body": "On Accounts, pause all posting for a few days (for example a day of mourning) or just one account. Scheduled posts wait and nothing is lost."
+      }
+    },
+    "whatsNew": {
+      "n1": "A new look with a sidebar, dark mode and keyboard shortcuts (press ? to see them).",
+      "n2": "The posts board: ideas, drafts, approvals and scheduled posts in one place, plus the Instagram grid view.",
+      "n3": "The AI writes three versions of each caption, rewrites, translates and checks them, and learns your school's voice.",
+      "n4": "Live Facebook and Instagram preview, first comment, story and a separate Instagram caption.",
+      "n5": "The comms lead approves inside the team, with an optional extra approver and approval links.",
+      "n6": "Today, Results, Inbox, posting times, frames and pausing posting."
     }
   }
 }

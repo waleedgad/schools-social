@@ -1,4 +1,5 @@
 import "server-only";
+import { LIMITS } from "./posting";
 
 // Facebook Pages and Instagram publishing through the Meta Graph API.
 // Docs: developers.facebook.com/docs/pages-api and
@@ -14,6 +15,12 @@ export const META_SCOPES = [
   "business_management",
   "instagram_basic",
   "instagram_content_publish",
+  // First comments, results and the inbox.
+  "pages_manage_engagement",
+  "pages_read_user_content",
+  "read_insights",
+  "instagram_manage_comments",
+  "instagram_manage_insights",
 ];
 
 export const metaAppId = () => (process.env.META_APP_ID ?? "").trim();
@@ -84,7 +91,11 @@ export async function pagesFromCode(code: string, redirectUri: string): Promise<
 }
 
 // imageUrls must be reachable by Meta's servers (signed storage links are).
+// No photos makes a text-only post.
 export async function publishToFacebook(pageId: string, token: string, imageUrls: string[], message: string) {
+  if (!imageUrls.length) {
+    return (await graph<{ id: string }>(`${pageId}/feed`, { message, access_token: token }, "POST")).id;
+  }
   if (imageUrls.length === 1) {
     const r = await graph<{ id: string; post_id?: string }>(`${pageId}/photos`, { url: imageUrls[0], message, access_token: token }, "POST");
     return r.post_id ?? r.id;
@@ -108,11 +119,12 @@ async function waitUntilReady(containerId: string, token: string) {
   throw new MetaError("Instagram took too long to process the photos");
 }
 
-export async function publishToInstagram(igUserId: string, token: string, imageUrls: string[], caption: string) {
-  const urls = imageUrls.slice(0, 10);
+export async function publishToInstagram(igUserId: string, token: string, imageUrls: string[], caption: string, collaborators: string[] = []) {
+  const urls = imageUrls.slice(0, LIMITS.instagram.photos);
+  const extra: Record<string, string> = collaborators.length ? { collaborators: JSON.stringify(collaborators.slice(0, 3)) } : {};
   let container: string;
   if (urls.length === 1) {
-    container = (await graph<{ id: string }>(`${igUserId}/media`, { image_url: urls[0], caption, access_token: token }, "POST")).id;
+    container = (await graph<{ id: string }>(`${igUserId}/media`, { image_url: urls[0], caption, ...extra, access_token: token }, "POST")).id;
   } else {
     const children = [];
     for (const url of urls) {
@@ -123,7 +135,7 @@ export async function publishToInstagram(igUserId: string, token: string, imageU
     container = (
       await graph<{ id: string }>(
         `${igUserId}/media`,
-        { media_type: "CAROUSEL", children: children.join(","), caption, access_token: token },
+        { media_type: "CAROUSEL", children: children.join(","), caption, ...extra, access_token: token },
         "POST",
       )
     ).id;
@@ -131,4 +143,80 @@ export async function publishToInstagram(igUserId: string, token: string, imageU
   await waitUntilReady(container, token);
   const r = await graph<{ id: string }>(`${igUserId}/media_publish`, { creation_id: container, access_token: token }, "POST");
   return r.id;
+}
+
+// The cover photo as an Instagram story too.
+export async function publishStory(igUserId: string, token: string, imageUrl: string) {
+  const container = (await graph<{ id: string }>(`${igUserId}/media`, { image_url: imageUrl, media_type: "STORIES", access_token: token }, "POST")).id;
+  await waitUntilReady(container, token);
+  return (await graph<{ id: string }>(`${igUserId}/media_publish`, { creation_id: container, access_token: token }, "POST")).id;
+}
+
+// First comment (usually the hashtags) on a Facebook post or Instagram media.
+export async function addComment(objectId: string, token: string, message: string) {
+  return (await graph<{ id: string }>(`${objectId}/comments`, { message, access_token: token }, "POST")).id;
+}
+
+// Likes, comments, reach for the analytics page. Missing numbers are 0.
+export async function fetchPostMetrics(platform: "facebook" | "instagram", objectId: string, token: string) {
+  try {
+    if (platform === "facebook") {
+      const r = await graph<{ reactions?: { summary?: { total_count: number } }; comments?: { summary?: { total_count: number } }; shares?: { count: number } }>(objectId, {
+        fields: "reactions.summary(true).limit(0),comments.summary(true).limit(0),shares",
+        access_token: token,
+      });
+      return { likes: r.reactions?.summary?.total_count ?? 0, comments: r.comments?.summary?.total_count ?? 0, shares: r.shares?.count ?? 0, reach: 0, saves: 0 };
+    }
+    const r = await graph<{ like_count?: number; comments_count?: number }>(objectId, { fields: "like_count,comments_count", access_token: token });
+    let reach = 0;
+    let saves = 0;
+    try {
+      const ins = await graph<{ data: { name: string; values: { value: number }[] }[] }>(`${objectId}/insights`, { metric: "reach,saved", access_token: token });
+      reach = ins.data.find((d) => d.name === "reach")?.values[0]?.value ?? 0;
+      saves = ins.data.find((d) => d.name === "saved")?.values[0]?.value ?? 0;
+    } catch {}
+    return { likes: r.like_count ?? 0, comments: r.comments_count ?? 0, shares: 0, reach, saves };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchAccountNumbers(pageId: string, igUserId: string | null, token: string) {
+  const fb = await graph<{ followers_count?: number; fan_count?: number }>(pageId, { fields: "followers_count,fan_count", access_token: token }).catch(() => null);
+  const ig = igUserId ? await graph<{ followers_count?: number }>(igUserId, { fields: "followers_count", access_token: token }).catch(() => null) : null;
+  return { facebook: fb ? fb.followers_count ?? fb.fan_count ?? 0 : null, instagram: ig ? ig.followers_count ?? 0 : null };
+}
+
+export type InboxComment = { id: string; platform: "facebook" | "instagram"; objectId: string; text: string; author: string; at: string; replied: boolean; hidden: boolean };
+
+// Comments on one published post, newest first.
+export async function listComments(platform: "facebook" | "instagram", objectId: string, token: string): Promise<InboxComment[]> {
+  try {
+    if (platform === "facebook") {
+      const r = await graph<{ data: { id: string; message?: string; from?: { name: string; id: string }; created_time: string; is_hidden?: boolean; comment_count?: number }[] }>(`${objectId}/comments`, {
+        fields: "id,message,from,created_time,is_hidden,comment_count",
+        order: "reverse_chronological",
+        limit: "25",
+        access_token: token,
+      });
+      return r.data.map((c) => ({ id: c.id, platform, objectId, text: c.message ?? "", author: c.from?.name ?? "", at: c.created_time, replied: (c.comment_count ?? 0) > 0, hidden: !!c.is_hidden }));
+    }
+    const r = await graph<{ data: { id: string; text: string; username?: string; timestamp: string; hidden?: boolean; replies?: { data: unknown[] } }[] }>(`${objectId}/comments`, {
+      fields: "id,text,username,timestamp,hidden,replies{id}",
+      limit: "25",
+      access_token: token,
+    });
+    return r.data.map((c) => ({ id: c.id, platform, objectId, text: c.text, author: c.username ?? "", at: c.timestamp, replied: !!c.replies?.data?.length, hidden: !!c.hidden }));
+  } catch {
+    return [];
+  }
+}
+
+export async function replyToComment(platform: "facebook" | "instagram", commentId: string, token: string, message: string) {
+  const path = platform === "facebook" ? `${commentId}/comments` : `${commentId}/replies`;
+  return (await graph<{ id: string }>(path, { message, access_token: token }, "POST")).id;
+}
+
+export async function hideComment(platform: "facebook" | "instagram", commentId: string, token: string, hide: boolean) {
+  await graph(commentId, platform === "facebook" ? { is_hidden: String(hide), access_token: token } : { hide: String(hide), access_token: token }, "POST");
 }

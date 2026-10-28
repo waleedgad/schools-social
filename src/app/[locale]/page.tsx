@@ -9,7 +9,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   setRequestLocale(locale);
   const { user } = await getSession();
-  if (user) redirect({ href: "/dashboard", locale });
+  if (user) redirect({ href: "/today", locale });
 
   const t = await getTranslations();
 

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 async function adminContext(formData: FormData) {
   const locale = String(formData.get("locale") ?? "ar");
   const { user, membership } = await requireMembership(locale);
-  if (membership.role !== "admin") redirect({ href: "/dashboard", locale });
+  if (membership.role !== "admin") redirect({ href: "/today", locale });
   const supabase = await createClient();
 
   const audit = (action: string, target: string, details: Record<string, unknown> = {}) =>
@@ -60,6 +60,27 @@ export async function changeRole(formData: FormData) {
   revalidatePath(`/${locale}/staff`);
 }
 
+// Someone on leave keeps their history but can't sign in to the school.
+export async function setActive(formData: FormData) {
+  const { locale, user, schoolId, supabase, audit } = await adminContext(formData);
+  const userId = String(formData.get("userId") ?? "");
+  const active = formData.get("active") === "1";
+  if (userId !== user.id) {
+    await supabase.from("memberships").update({ active }).eq("school_id", schoolId).eq("user_id", userId);
+    await audit(active ? "member.activated" : "member.deactivated", userId);
+  }
+  revalidatePath(`/${locale}/staff`);
+}
+
+// A teacher's classes help the Mac guess the class in their photos.
+export async function setClasses(formData: FormData) {
+  const { locale, schoolId, supabase } = await adminContext(formData);
+  const userId = String(formData.get("userId") ?? "");
+  const classes = String(formData.get("classes") ?? "").split(/[,،]/).map((c) => c.trim().slice(0, 60)).filter(Boolean).slice(0, 20);
+  await supabase.from("memberships").update({ classes }).eq("school_id", schoolId).eq("user_id", userId);
+  revalidatePath(`/${locale}/staff`);
+}
+
 export async function removeMember(formData: FormData) {
   const { locale, user, schoolId, supabase, audit } = await adminContext(formData);
   const userId = String(formData.get("userId") ?? "");
@@ -82,5 +103,5 @@ export async function acceptInvite(formData: FormData) {
   });
   if (error) redirect({ href: { pathname: `/invite/${token}`, query: { error: "1" } }, locale });
 
-  redirect({ href: "/dashboard", locale });
+  redirect({ href: "/today", locale });
 }

@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 async function admin(formData: FormData) {
   const locale = String(formData.get("locale") ?? "ar");
   const { user, membership } = await requireMembership(locale);
-  if (!can(membership.role, "manageSettings")) redirect({ href: "/dashboard", locale });
+  if (!can(membership.role, "manageSettings")) redirect({ href: "/today", locale });
   const supabase = await createClient();
   const schoolId = membership.school.id;
   const audit = (action: string, target: string) =>
@@ -31,7 +31,6 @@ export async function saveSettings(formData: FormData) {
       brand_voice: String(formData.get("brandVoice") ?? "").trim().slice(0, 500) || null,
       hashtags: String(formData.get("hashtags") ?? "").trim().slice(0, 300) || null,
       caption_languages: ["ar", "en", "ar_en"].includes(languages) ? languages : "ar_en",
-      require_signoff: formData.get("requireSignoff") === "on",
     })
     .eq("id", schoolId);
   if (error) redirect({ href: { pathname: "/settings", query: { error: "save" } }, locale });
@@ -55,12 +54,12 @@ export async function choosePage(formData: FormData) {
       .eq("school_id", schoolId);
     await audit("meta.page_chosen", page.name);
   }
-  redirect({ href: "/settings", locale });
+  redirect({ href: "/accounts", locale });
 }
 
 export async function disconnectMeta(formData: FormData) {
   const { locale, schoolId, audit } = await admin(formData);
   await createAdminClient().from("meta_connections").delete().eq("school_id", schoolId);
   await audit("meta.disconnected", schoolId);
-  redirect({ href: "/settings", locale });
+  redirect({ href: "/accounts", locale });
 }

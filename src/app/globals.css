@@ -1,42 +1,168 @@
 @import "tailwindcss";
 
+/* Same look as the Mac app: calm greys, one accent, status colours. The
+   school's own colour replaces --accent when set (see the shell). */
 :root {
-  --background: #f7f6f3;
+  --background: #f5f6f8;
   --surface: #ffffff;
-  --foreground: #1c1b19;
-  --muted: #6b6862;
-  --border: #e3e0da;
-  --accent: #1f6feb;
+  --surface-2: #fafbfc;
+  --foreground: #1b1d22;
+  --muted: #6b7180;
+  --faint: #9aa0ad;
+  --border: #e3e6eb;
+  --accent: #2f6fdf;
+  --accent-bg: #eaf1fe;
+  --accent-ink: #1f55b5;
   --accent-foreground: #ffffff;
-  --danger: #c0392b;
+  --danger: #b3261e;
+  --danger-bg: #fde8e6;
+  --good: #1f6b43;
+  --good-bg: #e3f5ea;
+  --warn: #8a5a00;
+  --warn-bg: #fff3d9;
+  --info: #1f55b5;
+  --info-bg: #e7efff;
+  --violet: #5b3cc4;
+  --violet-bg: #efe9ff;
+  --grey-bg: #eef0f3;
+  --shadow: 0 10px 30px rgba(20, 25, 35, 0.14);
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #141413;
-    --surface: #1e1e1c;
-    --foreground: #f1efea;
-    --muted: #a19e97;
-    --border: #34332f;
-    --accent: #4c8dff;
-    --danger: #ff6b5b;
+  :root:not([data-theme="light"]) {
+    --background: #15171b;
+    --surface: #1d2025;
+    --surface-2: #22252b;
+    --foreground: #e9ebef;
+    --muted: #a3a9b6;
+    --faint: #737a88;
+    --border: #2f333b;
+    --accent-bg: #1d2b45;
+    --accent-ink: #8db4ff;
+    --danger: #ff8b80;
+    --danger-bg: #3d1f1c;
+    --good: #7fd3a2;
+    --good-bg: #17342a;
+    --warn: #f0c46a;
+    --warn-bg: #3a2f14;
+    --info: #8db4ff;
+    --info-bg: #1a2a48;
+    --violet: #b9a6ff;
+    --violet-bg: #2a2348;
+    --grey-bg: #2a2e35;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --background: #15171b;
+  --surface: #1d2025;
+  --surface-2: #22252b;
+  --foreground: #e9ebef;
+  --muted: #a3a9b6;
+  --faint: #737a88;
+  --border: #2f333b;
+  --accent-bg: #1d2b45;
+  --accent-ink: #8db4ff;
+  --danger: #ff8b80;
+  --danger-bg: #3d1f1c;
+  --good: #7fd3a2;
+  --good-bg: #17342a;
+  --warn: #f0c46a;
+  --warn-bg: #3a2f14;
+  --info: #8db4ff;
+  --info-bg: #1a2a48;
+  --violet: #b9a6ff;
+  --violet-bg: #2a2348;
+  --grey-bg: #2a2e35;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-ink: var(--accent-ink);
   --color-accent-foreground: var(--accent-foreground);
   --color-danger: var(--danger);
-  --font-sans: var(--font-cairo), system-ui, sans-serif;
+  --color-danger-bg: var(--danger-bg);
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-violet: var(--violet);
+  --color-violet-bg: var(--violet-bg);
+  --color-grey-bg: var(--grey-bg);
+  --font-sans: var(--font-inter), var(--font-plex), system-ui, sans-serif;
+  --font-arabic: var(--font-plex), var(--font-inter), system-ui, sans-serif;
+  --shadow-pop: var(--shadow);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+[dir="rtl"] body {
+  font-family: var(--font-arabic);
+}
+
+/* Smooth motion, unless the person asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in {
+    animation: fade-in 0.18s ease-out;
+  }
+  .slide-in {
+    animation: slide-in 0.2s ease-out;
+  }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Loading placeholder shimmer. */
+.skeleton {
+  background: linear-gradient(90deg, var(--grey-bg), var(--surface-2), var(--grey-bg));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite linear;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  background: var(--surface);
+  font: 600 11px/17px var(--font-sans);
+  text-align: center;
+  color: var(--muted);
+}
+
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
 }

@@ -1,244 +1,166 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { AppHeader, PageBody } from "@/components/app-header";
-import { LocalDateTime, LocalTime } from "@/components/local-datetime";
-import { Button, Card, Notice } from "@/components/ui";
-import { Link, redirect } from "@/i18n/navigation";
-import { movePostPhoto, postAction, removePostPhoto, writeCaptions } from "@/lib/actions/posts";
-import { loadPost } from "@/lib/posts";
+import { Composer, type ComposerData } from "@/components/composer";
+import { AppShell } from "@/components/shell";
+import { Chip, Notice } from "@/components/ui";
+import { redirect } from "@/i18n/navigation";
 import { thumbPath } from "@/lib/images";
-import { STATUS_STYLE } from "@/lib/post-status";
+import { categoryName, isPaused, photoLimit, STATUS_TONE, type PostStatus } from "@/lib/posting";
+import { loadPost, signedThumbs } from "@/lib/posts";
 import { checkPost } from "@/lib/privacy";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
-
-const textarea = "w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-accent";
+import type { Captions } from "@/lib/ai/types";
 
 export default async function PostPage({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ error?: string; ai?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; ai?: string; saved?: string; done?: string; link?: string; tab?: string; generate?: string }>;
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
-  const { membership } = await requireMembership(locale);
-  if (!can(membership.role, "writePosts")) redirect({ href: "/dashboard", locale });
+  const { user, membership, workspaces } = await requireMembership(locale);
+  const perms = membership.school.permissions;
+  if (!can(membership.role, "viewPosts", perms)) redirect({ href: "/today", locale });
 
-  const { error, ai, saved } = await searchParams;
+  const sp = await searchParams;
   const t = await getTranslations();
   const supabase = await createClient();
+  const schoolId = membership.school.id;
   const loaded = await loadPost(supabase, id);
   if (!loaded) redirect({ href: "/posts", locale });
   const { post, photos } = loaded!;
 
-  const checks = await checkPost(supabase, post, photos, post.event?.class_name ?? null);
-  const blocked = checks.some((c) => c.level === "block");
-  const { data: meta } = await supabase.rpc("meta_status", { p_school: membership.school.id });
-  const connected = !!(meta as { page_id: string | null }[] | null)?.[0]?.page_id;
+  const [checks, { data: meta }, { data: school }, { data: categories }, { data: frames }, { data: snippets }, { data: comments }, { data: versions }, { data: links }, { data: people }] = await Promise.all([
+    checkPost(supabase, post, photos, post.event?.class_name ?? null),
+    supabase.rpc("meta_status", { p_school: schoolId }),
+    supabase.from("schools").select("photo_limit, posting_paused_until, caption_languages, extra_approval, approve_by, lead_self_publish").eq("id", schoolId).single(),
+    supabase.from("categories").select("id, name_ar, name_en, color, hashtags, frame_id").eq("school_id", schoolId).order("position"),
+    supabase.from("frames").select("id, name, kind, storage_path, shape").eq("school_id", schoolId).order("created_at"),
+    supabase.from("snippets").select("id, kind, title, body").eq("school_id", schoolId).neq("kind", "avoid").order("title"),
+    supabase.from("post_comments").select("id, author_name, kind, body, created_at, user_id").eq("post_id", id).order("created_at"),
+    supabase.from("post_versions").select("id, caption_ar, caption_en, created_at").eq("post_id", id).order("created_at", { ascending: false }).limit(15),
+    supabase.from("review_links").select("token, label, answer, comment, answered_at, expires_at").eq("post_id", id).order("created_at", { ascending: false }),
+    supabase.from("memberships").select("user_id, full_name, role").eq("school_id", schoolId).eq("active", true),
+  ]);
 
-  const paths = photos.map((p) => thumbPath(p.edited_path ?? p.storage_path));
-  const { data: signed } = paths.length ? await supabase.storage.from("photos").createSignedUrls(paths, 3600) : { data: [] };
-  const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl ?? undefined]));
+  // Photos to add: the same event first, then the newest checked ones.
+  let extraQuery = supabase
+    .from("photos")
+    .select("id, storage_path, edited_path, width, height, ai_score")
+    .eq("school_id", schoolId)
+    .eq("contains_opted_out", false)
+    .eq("check_status", "ready")
+    .order("created_at", { ascending: false })
+    .limit(48);
+  if (post.event_id) extraQuery = extraQuery.eq("event_id", post.event_id);
+  const { data: more } = await extraQuery;
 
-  const status: string = post.status;
-  const locked = status === "publishing" || status === "published";
-  const approver = can(membership.role, "approvePosts");
-  const needsSignoff = post.sensitive && !can(membership.role, "signOffSensitive");
-  const hidden = (
-    <>
-      <input type="hidden" name="locale" value={locale} />
-      <input type="hidden" name="id" value={post.id} />
-    </>
-  );
+  const shown = (p: { storage_path: string; edited_path: string | null }) => thumbPath(p.edited_path ?? p.storage_path);
+  const thumbs = await signedThumbs(supabase, [...photos.map(shown), ...(more ?? []).map(shown), ...(frames ?? []).map((f) => f.storage_path as string)]);
+  const full = await signedThumbs(supabase, photos.map((p) => p.storage_path));
+
+  const m = (meta as { page_id: string | null; page_name: string | null; ig_username: string | null; fb_paused: boolean; ig_paused: boolean }[] | null)?.[0];
+  const status = post.status as PostStatus;
+  const role = membership.role;
+  const author = post.created_by === user.id;
+
+  const data: ComposerData = {
+    locale,
+    schoolName: membership.school.name,
+    pageName: m?.page_name ?? membership.school.name,
+    igName: m?.ig_username ?? membership.school.name.replace(/\s+/g, "").toLowerCase(),
+    connected: !!m?.page_id,
+    accountsPaused: { facebook: !!m?.fb_paused, instagram: !!m?.ig_paused },
+    schoolPaused: school ? isPaused(school) : false,
+    post: {
+      id: post.id,
+      status,
+      idea: post.idea,
+      caption_ar: post.caption_ar ?? "",
+      caption_en: post.caption_en ?? "",
+      caption_ig: post.caption_ig ?? "",
+      hashtags: post.hashtags ?? "",
+      first_comment: post.first_comment ?? "",
+      location: post.location ?? "",
+      platforms: post.platforms,
+      sensitive: post.sensitive,
+      make_story: post.make_story,
+      urgent: post.urgent,
+      category_id: post.category_id,
+      frame_id: post.frame_id,
+      scheduled_at: post.scheduled_at,
+      review_note: post.review_note,
+      publish_error: post.publish_error,
+      published_at: post.published_at,
+      fb_post_id: post.fb_post_id,
+      ig_media_id: post.ig_media_id,
+      alt_ar: (post.alt_text as { ar?: string })?.ar ?? "",
+      alt_en: (post.alt_text as { en?: string })?.en ?? "",
+      variations: (post.variations ?? []) as Captions[],
+    },
+    photos: photos.map((p) => ({
+      id: p.id,
+      thumb: thumbs.get(shown(p)) ?? "",
+      full: full.get(p.storage_path) ?? "",
+      storagePath: p.storage_path,
+      width: p.width,
+      height: p.height,
+      crop: p.edit_settings?.crop ?? "original",
+      waiting: p.check_status === "waiting",
+      issues: p.ai_issues,
+      settings: p.edit_settings,
+    })),
+    more: (more ?? []).filter((p) => !photos.some((x) => x.id === p.id)).map((p) => ({ id: p.id as string, thumb: thumbs.get(shown(p as { storage_path: string; edited_path: string | null })) ?? "", score: p.ai_score as number | null })),
+    checks: checks.map((c) => ({ level: c.level, text: t(`posts.check.${c.key}`, c.values ?? {}) })),
+    categories: (categories ?? []).map((c) => ({ id: c.id as string, name: categoryName(c as { name_ar: string; name_en: string }, locale), color: c.color as string, hashtags: (c.hashtags as string) ?? "", frame_id: c.frame_id as string | null })),
+    frames: (frames ?? []).map((f) => ({ id: f.id as string, name: f.name as string, kind: f.kind as string, url: thumbs.get(f.storage_path as string) ?? "", shape: f.shape as string })),
+    snippets: (snippets ?? []).map((s) => ({ id: s.id as string, kind: s.kind as string, title: s.title as string, body: s.body as string })),
+    comments: (comments ?? []).map((c) => ({ id: c.id as string, author: (c.author_name as string) ?? "", kind: c.kind as string, body: c.body as string, at: c.created_at as string, mine: c.user_id === user.id })),
+    versions: (versions ?? []).map((v) => ({ id: v.id as number, text: (v.caption_ar || v.caption_en || "") as string, at: v.created_at as string })),
+    links: (links ?? []).map((l) => ({ token: l.token as string, label: l.label as string, answer: l.answer as string | null, comment: l.comment as string | null, expired: Date.parse(l.expires_at as string) < Date.now() })),
+    people: (people ?? []).map((p) => ({ name: p.full_name as string, role: p.role as string })),
+    photoLimit: photoLimit(post.platforms, school?.photo_limit ?? null),
+    languages: (school?.caption_languages as "ar" | "en" | "ar_en") ?? "ar_en",
+    can: {
+      write: can(role, "writePosts", perms),
+      approve: can(role, "approvePosts", perms) && (school?.approve_by === "any_other" || role === "admin" || role === "comms_lead") && (!author || role === "admin" || !!school?.lead_self_publish),
+      approveAny: can(role, "writePosts", perms) && school?.approve_by === "any_other" && !author,
+      extra: can(role, "extraApprove", perms),
+      urgent: can(role, "urgentPost", perms),
+      publish: can(role, "publish", perms),
+    },
+    openGenerator: sp.generate === "1",
+    tab: sp.tab ?? null,
+    newLink: sp.link ?? null,
+  };
+
+  const notice =
+    sp.error ? <Notice>{t(`posts.errors.${sp.error}`)}</Notice>
+    : sp.saved ? <Notice tone="good">{t("posts.saved")}</Notice>
+    : sp.done ? <Notice tone="good">{t(`composer.done.${sp.done}`)}</Notice>
+    : sp.ai === "done" ? <Notice tone="good">{t("posts.aiDone")}</Notice>
+    : sp.ai === "demo" ? <Notice tone="info">{t("posts.aiDemo")}</Notice>
+    : sp.ai === "limit" ? <Notice>{t("library.aiLimit", { count: 0 })}</Notice>
+    : sp.ai === "error" ? <Notice>{t("library.aiError")}</Notice>
+    : null;
 
   return (
-    <>
-      <AppHeader locale={locale} signedIn />
-      <PageBody wide>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{t("posts.editTitle")}</h1>
-            <span className={`rounded px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[status]}`}>{t(`posts.status.${status}`)}</span>
-          </div>
-          <Link href="/posts" className="text-sm text-accent hover:underline">
-            {t("posts.back")}
-          </Link>
-        </div>
-
-        {post.event && (
-          <p className="text-sm text-muted">
-            {post.event.title} · {post.event.event_date}
-            {post.event.class_name ? ` · ${post.event.class_name}` : ""}
-          </p>
-        )}
-        {error && <Notice>{t(`posts.errors.${error}`)}</Notice>}
-        {saved && <Notice tone="info">{t("posts.saved")}</Notice>}
-        {ai === "done" && <Notice tone="info">{t("posts.aiDone")}</Notice>}
-        {ai === "demo" && <Notice tone="info">{t("posts.aiDemo")}</Notice>}
-        {ai === "limit" && <Notice>{t("library.aiLimit", { count: 0 })}</Notice>}
-        {ai === "error" && <Notice>{t("library.aiError")}</Notice>}
-        {status === "rejected" && post.review_note && <Notice>{t("posts.changesAsked", { note: post.review_note })}</Notice>}
-        {status === "failed" && post.publish_error && <Notice>{t("posts.failedBecause", { error: post.publish_error })}</Notice>}
-        {status === "published" && (
-          <Notice tone="info">
-            {t("posts.publishedAt")} <LocalTime iso={post.published_at} />
-            {post.fb_post_id && (
-              <>
-                {" · "}
-                <a className="text-accent hover:underline" href={`https://www.facebook.com/${post.fb_post_id}`} target="_blank" rel="noreferrer">
-                  Facebook
-                </a>
-              </>
-            )}
-            {post.ig_media_id && " · Instagram ✓"}
-          </Notice>
-        )}
-
-        <div className="grid gap-6 md:grid-cols-[1fr_20rem]">
-          <section className="space-y-4">
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {photos.map((p, i) => (
-                <li key={p.id} className="overflow-hidden rounded-lg border border-border bg-surface text-xs">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
-                  <img src={url.get(thumbPath(p.edited_path ?? p.storage_path))} alt="" className="aspect-square w-full object-cover" />
-                  {!locked && (
-                    <div className="flex justify-between p-1">
-                      {i > 0 ? (
-                        <form action={movePostPhoto}>
-                          {hidden}
-                          <input type="hidden" name="photo" value={p.id} />
-                          <button className="text-accent">{t("posts.moveFirst")}</button>
-                        </form>
-                      ) : (
-                        <span className="text-muted">{t("posts.cover")}</span>
-                      )}
-                      <Link href={`/library/${p.id}`} className="text-accent">
-                        {t("library.edit")}
-                      </Link>
-                      <form action={removePostPhoto}>
-                        {hidden}
-                        <input type="hidden" name="photo" value={p.id} />
-                        <button className="text-danger">✕</button>
-                      </form>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-
-            <form id="post" action={postAction} className="space-y-4">
-              {hidden}
-              <label className="block space-y-1">
-                <span className="text-sm font-semibold">{t("posts.captionAr")}</span>
-                <textarea name="captionAr" dir="rtl" rows={5} maxLength={2200} defaultValue={post.caption_ar ?? ""} disabled={locked} className={textarea} />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm font-semibold">{t("posts.captionEn")}</span>
-                <textarea name="captionEn" dir="ltr" rows={4} maxLength={2200} defaultValue={post.caption_en ?? ""} disabled={locked} className={textarea} />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm font-semibold">{t("posts.hashtags")}</span>
-                <input name="hashtags" maxLength={300} defaultValue={post.hashtags ?? ""} disabled={locked} className={textarea} />
-              </label>
-              <fieldset className="flex flex-wrap gap-4 text-sm">
-                <legend className="mb-1 font-semibold">{t("posts.where")}</legend>
-                {["facebook", "instagram"].map((p) => (
-                  <label key={p} className="flex items-center gap-2">
-                    <input type="checkbox" name="platform" value={p} defaultChecked={post.platforms.includes(p)} disabled={locked} />
-                    {p === "facebook" ? "Facebook" : "Instagram"}
-                  </label>
-                ))}
-              </fieldset>
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" name="sensitive" defaultChecked={post.sensitive} disabled={locked} className="mt-1" />
-                <span>{t("posts.sensitive")}</span>
-              </label>
-              <LocalDateTime name="scheduledAt" label={t("posts.when")} value={post.scheduled_at} disabled={locked} />
-            </form>
-            {!locked && (
-              <form action={writeCaptions}>
-                {hidden}
-                <Button variant="quiet">{post.caption_ar || post.caption_en ? t("posts.rewrite") : t("posts.write")}</Button>
-              </form>
-            )}
-          </section>
-
-          <aside className="space-y-4">
-            <Card className="space-y-2 p-4">
-              <h2 className="text-sm font-semibold">{t("posts.checks")}</h2>
-              {!checks.length && <p className="text-sm text-muted">{t("posts.allClear")}</p>}
-              <ul className="space-y-2 text-sm">
-                {checks.map((c) => (
-                  <li key={c.key} className={c.level === "block" ? "text-danger" : "text-muted"}>
-                    {c.level === "block" ? "⛔ " : "⚠️ "}
-                    {t(`posts.check.${c.key}`, c.values ?? {})}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-
-            {!locked && (
-              <Card className="space-y-3 p-4">
-                <h2 className="text-sm font-semibold">{t("posts.next")}</h2>
-                {!connected && <p className="text-xs text-muted">{t("posts.notConnected")}</p>}
-                {needsSignoff && ["in_review", "draft", "rejected"].includes(status) && (
-                  <p className="text-xs text-muted">{t("posts.needsSignoff")}</p>
-                )}
-                <div className="flex flex-col gap-2" role="group">
-                  <Button form="post" name="intent" value="save" variant="quiet">
-                    {t("common.save")}
-                  </Button>
-                  {["draft", "rejected"].includes(status) && (
-                    <Button form="post" name="intent" value="submit" disabled={blocked}>
-                      {t("posts.submit")}
-                    </Button>
-                  )}
-                  {approver && ["draft", "in_review", "rejected"].includes(status) && !needsSignoff && (
-                    <Button form="post" name="intent" value="approve" variant={status === "in_review" ? "primary" : "quiet"} disabled={blocked}>
-                      {t("posts.approve")}
-                    </Button>
-                  )}
-                  {approver && ["approved", "in_review", "failed"].includes(status) && !needsSignoff && (
-                    <Button form="post" name="intent" value="schedule" variant={status === "approved" ? "primary" : "quiet"} disabled={blocked || !connected}>
-                      {t("posts.schedule")}
-                    </Button>
-                  )}
-                  {approver && ["approved", "scheduled", "failed"].includes(status) && !needsSignoff && (
-                    <Button form="post" name="intent" value="publish" variant="quiet" disabled={blocked || !connected}>
-                      {status === "failed" ? t("posts.retry") : t("posts.publishNow")}
-                    </Button>
-                  )}
-                  {status === "scheduled" && (
-                    <Button form="post" name="intent" value="unschedule" variant="quiet">
-                      {t("posts.unschedule")}
-                    </Button>
-                  )}
-                  {["approved", "in_review", "failed"].includes(status) && (
-                    <Button form="post" name="intent" value="draft" variant="quiet">
-                      {t("posts.toDraft")}
-                    </Button>
-                  )}
-                </div>
-                {approver && status === "in_review" && (
-                  <div className="space-y-2 border-t border-border pt-3">
-                    <textarea form="post" name="reviewNote" rows={2} maxLength={500} placeholder={t("posts.notePlaceholder")} className={textarea} />
-                    <Button form="post" name="intent" value="reject" variant="quiet" className="w-full">
-                      {t("posts.reject")}
-                    </Button>
-                  </div>
-                )}
-                <div className="border-t border-border pt-3">
-                  <Button form="post" name="intent" value="delete" variant="danger">
-                    {t("posts.delete")}
-                  </Button>
-                </div>
-              </Card>
-            )}
-          </aside>
-        </div>
-      </PageBody>
-    </>
+    <AppShell
+      locale={locale}
+      membership={membership}
+      workspaces={workspaces}
+      active="posts"
+      title={status === "idea" ? t("composer.ideaTitle") : t("posts.editTitle")}
+      subtitle={[post.event?.title, post.event?.event_date, post.category ? categoryName(post.category, locale) : null].filter(Boolean).join(" · ")}
+      actions={<Chip tone={STATUS_TONE[status]}>{t(`posts.status.${status}`)}</Chip>}
+    >
+      {notice}
+      {status === "rejected" && post.review_note && <Notice tone="warn">{t("posts.changesAsked", { note: post.review_note })}</Notice>}
+      {status === "failed" && post.publish_error && <Notice>{t("posts.failedBecause", { error: post.publish_error })}</Notice>}
+      <Composer data={data} />
+    </AppShell>
   );
 }

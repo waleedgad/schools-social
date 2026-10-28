@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { AppHeader, PageBody } from "@/components/app-header";
+import { AppShell } from "@/components/shell";
 import { StudentImport } from "@/components/student-import";
 import { Button, Card, Field, Notice, Select } from "@/components/ui";
 import { Link, redirect } from "@/i18n/navigation";
@@ -31,8 +31,8 @@ export default async function StudentsPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const { membership } = await requireMembership(locale);
-  if (!can(membership.role, "manageConsent")) redirect({ href: "/dashboard", locale });
+  const { membership, workspaces } = await requireMembership(locale);
+  if (!can(membership.role, "manageConsent")) redirect({ href: "/today", locale });
 
   const { class: classFilter, error, imported } = await searchParams;
   const t = await getTranslations();
@@ -56,15 +56,7 @@ export default async function StudentsPage({
   };
 
   return (
-    <>
-      <AppHeader locale={locale} signedIn />
-      <PageBody>
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold">{t("students.title")}</h1>
-          <Link href="/dashboard" className="text-sm text-accent hover:underline">
-            {t("staff.back")}
-          </Link>
-        </div>
+    <AppShell locale={locale} membership={membership} workspaces={workspaces} active="students" title={t("students.title")}>
 
         {imported && <Notice tone="info">{t("students.imported", { count: Number(imported) })}</Notice>}
         {error && <Notice>{t("students.error")}</Notice>}
@@ -159,7 +151,6 @@ export default async function StudentsPage({
             ))}
           </ul>
         </Card>
-      </PageBody>
-    </>
+    </AppShell>
   );
 }

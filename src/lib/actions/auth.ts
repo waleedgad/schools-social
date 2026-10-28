@@ -19,7 +19,7 @@ function read(formData: FormData) {
 
 export async function signIn(formData: FormData) {
   const { locale, email, password } = read(formData);
-  const next = safeNext(formData.get("next"), "/dashboard");
+  const next = safeNext(formData.get("next"), "/today");
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });

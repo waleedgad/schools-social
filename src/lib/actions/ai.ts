@@ -17,7 +17,7 @@ export async function checkPhotos(formData: FormData) {
   const locale = String(formData.get("locale") ?? "ar");
   const event = String(formData.get("event") ?? "none");
   const { user, membership } = await requireMembership(locale);
-  if (!can(membership.role, "viewLibrary")) redirect({ href: "/dashboard", locale });
+  if (!can(membership.role, "viewLibrary")) redirect({ href: "/today", locale });
   const supabase = await createClient();
   const schoolId = membership.school.id;
   const back = (query: Record<string, string>) =>

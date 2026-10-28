@@ -15,5 +15,5 @@ export async function createSchool(formData: FormData) {
   });
   if (error) redirect({ href: { pathname: "/onboarding", query: { error: "1" } }, locale });
 
-  redirect({ href: "/dashboard", locale });
+  redirect({ href: "/today", locale });
 }

@@ -16,7 +16,7 @@ export default async function LoginPage({
   setRequestLocale(locale);
   const { error, next } = await searchParams;
   const t = await getTranslations();
-  const nextPath = safeNext(next, "/dashboard");
+  const nextPath = safeNext(next, "/today");
 
   return (
     <>

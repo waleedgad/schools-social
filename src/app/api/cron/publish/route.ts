@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { refreshMetrics } from "@/lib/metrics";
 import { publishDue } from "@/lib/publish";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
 
@@ -14,7 +15,10 @@ async function run(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!isAdminConfigured) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY missing" }, { status: 500 });
-  const published = await publishDue(createAdminClient());
+  const admin = createAdminClient();
+  const published = await publishDue(admin);
+  // Results for the analytics page; never let it stop publishing.
+  await refreshMetrics(admin).catch(() => null);
   return NextResponse.json({ published });
 }
 

@@ -1,15 +1,15 @@
 import { headers } from "next/headers";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
-import { AppHeader, PageBody } from "@/components/app-header";
+import { AppShell } from "@/components/shell";
 import { CopyButton } from "@/components/copy-button";
 import { Button, Card, Field, Notice, Select } from "@/components/ui";
-import { Link, redirect } from "@/i18n/navigation";
-import { changeRole, createInvite, removeMember, revokeInvite } from "@/lib/actions/staff";
-import { ROLES, type Role } from "@/lib/roles";
+import { redirect } from "@/i18n/navigation";
+import { changeRole, createInvite, removeMember, revokeInvite, setActive, setClasses } from "@/lib/actions/staff";
+import { PAID_ROLES, ROLES, type Role } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
-type Member = { user_id: string; full_name: string; role: Role };
+type Member = { user_id: string; full_name: string; role: Role; active: boolean; last_seen_at: string | null; classes: string[] };
 type Invite = { id: string; email: string; role: Role; token: string; expires_at: string };
 
 export default async function StaffPage({
@@ -21,8 +21,8 @@ export default async function StaffPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const { user, membership } = await requireMembership(locale);
-  if (membership.role !== "admin") redirect({ href: "/dashboard", locale });
+  const { user, membership, workspaces } = await requireMembership(locale);
+  if (membership.role !== "admin") redirect({ href: "/today", locale });
 
   const { error } = await searchParams;
   const t = await getTranslations();
@@ -33,7 +33,7 @@ export default async function StaffPage({
   const [{ data: members }, { data: invites }] = await Promise.all([
     supabase
       .from("memberships")
-      .select("user_id, full_name, role")
+      .select("user_id, full_name, role, active, last_seen_at, classes")
       .eq("school_id", schoolId)
       .order("created_at")
       .returns<Member[]>(),
@@ -56,25 +56,33 @@ export default async function StaffPage({
   ));
 
   return (
-    <>
-      <AppHeader locale={locale} signedIn />
-      <PageBody>
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold">{t("staff.title")}</h1>
-          <Link href="/dashboard" className="text-sm text-accent hover:underline">
-            {t("staff.back")}
-          </Link>
-        </div>
+    <AppShell locale={locale} membership={membership} workspaces={workspaces} active="people" title={t("staff.title")}>
 
         <Card className="space-y-4">
           <h2 className="font-semibold">{t("staff.members")}</h2>
           <ul className="divide-y divide-border">
             {(members ?? []).map((m) => (
               <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <span>
-                  {m.full_name}
+                <div className={m.active ? "" : "opacity-60"}>
+                  <span className="font-semibold">{m.full_name}</span>
                   {m.user_id === user.id && <span className="text-muted"> ({t("staff.you")})</span>}
-                </span>
+                  <span className={`ms-2 rounded-full px-1.5 text-[10px] font-semibold ${PAID_ROLES.includes(m.role) ? "bg-accent-bg text-accent-ink" : "bg-grey-bg text-muted"}`}>
+                    {PAID_ROLES.includes(m.role) ? t("staff.paid") : t("staff.free")}
+                  </span>
+                  {!m.active && <span className="ms-2 text-xs text-warn">{t("staff.inactive")}</span>}
+                  <p className="text-xs text-muted">
+                    {m.last_seen_at ? t("staff.lastSeen", { date: format.relativeTime(new Date(m.last_seen_at)) }) : t("staff.neverSeen")}
+                    {m.classes.length > 0 && ` · ${m.classes.join("، ")}`}
+                  </p>
+                  {m.role === "teacher" && m.user_id !== user.id && (
+                    <form action={setClasses} className="mt-1 flex gap-1">
+                      <input type="hidden" name="locale" value={locale} />
+                      <input type="hidden" name="userId" value={m.user_id} />
+                      <input name="classes" defaultValue={m.classes.join(", ")} placeholder={t("staff.classesHint")} className="w-48 rounded border border-border bg-surface-2 px-2 py-0.5 text-xs" />
+                      <button className="text-xs text-accent">{t("common.save")}</button>
+                    </form>
+                  )}
+                </div>
                 {m.user_id === user.id ? (
                   <span className="text-sm text-muted">{t(`roles.${m.role}`)}</span>
                 ) : (
@@ -92,6 +100,14 @@ export default async function StaffPage({
                       </select>
                       <Button variant="quiet" className="px-3 py-1">
                         {t("common.save")}
+                      </Button>
+                    </form>
+                    <form action={setActive}>
+                      <input type="hidden" name="locale" value={locale} />
+                      <input type="hidden" name="userId" value={m.user_id} />
+                      <input type="hidden" name="active" value={m.active ? "0" : "1"} />
+                      <Button variant="quiet" className="px-2 py-1">
+                        {m.active ? t("staff.deactivate") : t("staff.activate")}
                       </Button>
                     </form>
                     <form action={removeMember}>
@@ -155,7 +171,6 @@ export default async function StaffPage({
             ))}
           </ul>
         </Card>
-      </PageBody>
-    </>
+    </AppShell>
   );
 }

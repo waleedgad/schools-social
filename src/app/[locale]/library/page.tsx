@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { AppHeader, PageBody } from "@/components/app-header";
+import { AppShell } from "@/components/shell";
 import { CopyButton } from "@/components/copy-button";
 import { Button, Card, Field, Notice } from "@/components/ui";
 import { Link, redirect } from "@/i18n/navigation";
@@ -43,7 +43,7 @@ export default async function LibraryPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const { membership } = await requireMembership(locale);
+  const { membership, workspaces } = await requireMembership(locale);
   if (!can(membership.role, "viewLibrary")) redirect({ href: "/upload", locale });
 
   const { event, error, sort, ai, checked } = await searchParams;
@@ -90,15 +90,7 @@ export default async function LibraryPage({
   const origin = await appOrigin();
 
   return (
-    <>
-      <AppHeader locale={locale} signedIn />
-      <PageBody wide>
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold">{t("library.title")}</h1>
-          <Link href="/dashboard" className="text-sm text-accent hover:underline">
-            {t("staff.back")}
-          </Link>
-        </div>
+    <AppShell locale={locale} membership={membership} workspaces={workspaces} active="library" title={t("library.title")}>
 
         <div className="grid gap-6 md:grid-cols-[16rem_1fr]">
           <aside className="space-y-4">
@@ -278,7 +270,6 @@ export default async function LibraryPage({
             </ul>
           </section>
         </div>
-      </PageBody>
-    </>
+    </AppShell>
   );
 }

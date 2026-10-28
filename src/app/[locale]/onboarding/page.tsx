@@ -16,7 +16,7 @@ export default async function OnboardingPage({
   setRequestLocale(locale);
   const { user, membership } = await getSession();
   if (!user) redirect({ href: "/login", locale });
-  if (membership) redirect({ href: "/dashboard", locale });
+  if (membership) redirect({ href: "/today", locale });
 
   const { error } = await searchParams;
   const t = await getTranslations();
