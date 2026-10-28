@@ -447,11 +447,11 @@ function renameEvent() {
 }
 
 // "Best photos": the app's own picks from this event or class, checked on
-// this Mac (sharpness, light, faces, one per burst, many different children).
+// this Mac (sharpness, light, faces, one per burst, many different students).
 function bestPicker() {
   if (!lib.list.length) return;
   const m = modal(`<h2>✦ ${L("Best photos", "أفضل الصور")}</h2>
-    <p class="muted">${L("The Mac picks the sharpest, best-lit shots, one from each burst, with as many different children as possible. Nothing is sent anywhere.", "يختار الماك أوضح اللقطات وأفضلها إضاءة، لقطة من كل مجموعة متتابعة، وبأكبر عدد من الأطفال المختلفين. لا يُرسل شيء لأي مكان.")}</p>
+    <p class="muted">${L("The Mac picks the sharpest, best-lit shots, one from each burst, with as many different students as possible. Nothing is sent anywhere.", "يختار الماك أوضح اللقطات وأفضلها إضاءة، لقطة من كل مجموعة متتابعة، وبأكبر عدد من الطلاب المختلفين. لا يُرسل شيء لأي مكان.")}</p>
     <label class="field">${L("How many", "العدد")}<select id="bp-n">${[4, 6, 8, 10].map((n) => `<option ${n === 6 ? "selected" : ""}>${n}</option>`).join("")}</select></label>
     <div class="row"><span class="grow"></span><button class="btn" id="bp-no">${L("Cancel", "إلغاء")}</button><button class="btn primary" id="bp-yes">${L("Choose", "اختيار")}</button></div>`);
   $("#bp-no", m).onclick = closeOverlay;
@@ -470,7 +470,7 @@ async function newPostFromSelection() {
   if (!ids.length) return toast(L("Select photos first, then press New post.", "حدد الصور أولًا، ثم اضغط منشور جديد."));
   if (!S.signedIn) return toast(L(ERRORS["not-signed-in"][0], ERRORS["not-signed-in"][1]));
   const nopost = lib.list.filter((p) => ids.includes(p.id) && p.no_post);
-  if (nopost.length) toast(L(`${nopost.length} of these photos show a child who can't appear in posts. The website will stop the post until they are removed.`, `${num(nopost.length)} من هذه الصور فيها طفل لا يظهر في المنشورات. سيمنع الموقع النشر حتى إزالتها.`), { ms: 8000 });
+  if (nopost.length) toast(L(`${nopost.length} of these photos show a student who can't appear in posts. The website will stop the post until they are removed.`, `${num(nopost.length)} من هذه الصور فيها طالب لا يظهر في المنشورات. سيمنع الموقع النشر حتى إزالتها.`), { ms: 8000 });
   const m = modal(`<h2>✎ ${L("Making the post…", "جارٍ إنشاء المنشور…")}</h2><p class="muted" id="np-msg">${L("Sending web copies of the photos. Originals stay on this Mac.", "تُرسل نسخ ويب من الصور، وتبقى الأصول على هذا الماك.")}</p><div class="bar"><i id="np-bar" style="width: 5%"></i></div>`, { sticky: true });
   try {
     const id = await call("newPost", ids.slice(0, 20));

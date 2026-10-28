@@ -38,7 +38,7 @@ App.views.faces = {
     if (!$("#fc")) return;
     if (!groups.length) {
       box.innerHTML = `<div class="empty"><span class="big">☺</span><b>${L("No suggestions right now", "لا توجد اقتراحات الآن")}</b>
-        <span>${S.counts.tagged ? L("Name a few more faces in “Who is this?” and the Mac will find the same children in other photos.", "سمِّ بعض الوجوه في «من هذا؟» وسيجد الماك نفس الأطفال في صور أخرى.") : L("Start in “Who is this?”: name a child once and the Mac finds them in the other photos.", "ابدأ من «من هذا؟»: سمِّ الطفل مرة واحدة وسيجده الماك في الصور الأخرى.")}</span>
+        <span>${S.counts.tagged ? L("Name a few more faces in “Who is this?” and the Mac will find the same students in other photos.", "سمِّ بعض الوجوه في «من هذا؟» وسيجد الماك نفس الطلاب في صور أخرى.") : L("Start in “Who is this?”: name a student once and the Mac finds them in the other photos.", "ابدأ من «من هذا؟»: سمِّ الطالب مرة واحدة وسيجده الماك في الصور الأخرى.")}</span>
         <button class="btn primary" id="to-unknown">${L("Who is this?", "من هذا؟")}</button></div>`;
       $("#to-unknown", box).onclick = () => { FC.tab = "unknown"; go("faces"); };
       return;
@@ -91,8 +91,8 @@ App.views.faces = {
       box.innerHTML = `<div class="empty"><span class="big">✓</span><b>${L("No groups of unknown faces", "لا توجد مجموعات وجوه مجهولة")}</b><span>${L("When the Mac sees the same new face in several photos, it groups them here so you name them once.", "عندما يرى الماك نفس الوجه الجديد في عدة صور، يجمعها هنا لتسمّيها مرة واحدة.")}</span></div>`;
       return;
     }
-    box.innerHTML = `<p class="muted">${L("Each group looks like one child. Click faces that don't belong, then give the group a name.", "كل مجموعة تبدو لطفل واحد. اضغط على الوجوه التي لا تنتمي، ثم سمِّ المجموعة.")}</p>` +
-      groups.map((g, gi) => `<div class="card" data-g="${gi}"><div class="row"><b class="grow">${L(`Same child? ${g.ids.length} faces in ${g.photos} photos`, `نفس الطفل؟ ${num(g.ids.length)} وجه في ${num(g.photos)} صورة`)}</b>
+    box.innerHTML = `<p class="muted">${L("Each group looks like one student. Click faces that don't belong, then give the group a name.", "كل مجموعة تبدو لطالب واحد. اضغط على الوجوه التي لا تنتمي، ثم سمِّ المجموعة.")}</p>` +
+      groups.map((g, gi) => `<div class="card" data-g="${gi}"><div class="row"><b class="grow">${L(`Same student? ${g.ids.length} faces in ${g.photos} photos`, `نفس الطالب؟ ${num(g.ids.length)} وجه في ${num(g.photos)} صورة`)}</b>
         <button class="btn small" data-hide="${gi}">${L("Not faces", "ليست وجوهًا")}</button><button class="btn small" data-skip="${gi}">${L("Skip", "تخطٍّ")}</button><button class="btn small primary" data-name="${gi}">${L("Name…", "تسمية…")}</button></div>
         <div class="faces">${g.ids.slice(0, 40).map((id) => `<div class="face ${FC.groupOff.has(id) ? "off" : ""}" data-f="${id}"><img loading="lazy" src="hub://face/${id}" /></div>`).join("")}</div></div>`).join("");
     $$(".face", box).forEach((el) => (el.onclick = () => {

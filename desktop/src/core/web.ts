@@ -3,7 +3,7 @@ import type { StudentRow } from "./students";
 
 // What the Mac app tells the website. Tags and face data stay on this
 // computer; the website only learns the class list (for the privacy check)
-// and which sent photos show a child who must not appear in posts.
+// and which sent photos show a student who must not appear in posts.
 
 export async function pushStudents(sb: SupabaseClient, schoolId: string, students: StudentRow[]) {
   const rows = students.map((s) => ({
@@ -47,19 +47,63 @@ export async function createDraft(sb: SupabaseClient, o: { schoolId: string; use
   return post.id as string;
 }
 
+// Photos uploaded on the website (phones, teachers, photographers) wait
+// for this Mac's face check before they can go into a post.
+export type WaitingPhoto = { id: string; storage_path: string; original_name: string | null; taken_at: string | null; created_at: string; note: string | null; event: { title: string; event_date: string } | null };
+
+export async function waitingPhotos(sb: SupabaseClient, schoolId: string, limit = 10) {
+  const { data, error } = await sb
+    .from("photos")
+    .select("id, storage_path, original_name, taken_at, created_at, note, event:events(title, event_date)")
+    .eq("school_id", schoolId)
+    .eq("check_status", "waiting")
+    .order("created_at")
+    .limit(limit)
+    .returns<WaitingPhoto[]>();
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function downloadPhoto(sb: SupabaseClient, storagePath: string) {
+  const { data, error } = await sb.storage.from("photos").download(storagePath);
+  if (error || !data) throw new Error(error?.message ?? "download");
+  return Buffer.from(await data.arrayBuffer());
+}
+
+export async function finishCheck(sb: SupabaseClient, remoteId: string, optedOut: boolean) {
+  const { error } = await sb.from("photos").update({ check_status: "ready", contains_opted_out: optedOut }).eq("id", remoteId);
+  if (error) throw new Error(error.message);
+}
+
+// Deleting a photo on the Mac removes its web copy too, unless it is part of
+// a post that went out (the post's record keeps it).
+export async function removeWebCopies(sb: SupabaseClient, remoteIds: string[]) {
+  if (!remoteIds.length) return [];
+  const { data: used } = await sb.from("post_photos").select("photo_id, post:posts(status)").in("photo_id", remoteIds).returns<{ photo_id: string; post: { status: string } | null }[]>();
+  const keep = new Set((used ?? []).filter((u) => ["published", "publishing"].includes(u.post?.status ?? "")).map((u) => u.photo_id));
+  const gone = remoteIds.filter((id) => !keep.has(id));
+  if (!gone.length) return [];
+  const { data: rows } = await sb.from("photos").select("id, storage_path").in("id", gone);
+  const { error } = await sb.from("photos").delete().in("id", gone);
+  if (error) throw new Error(error.message);
+  const paths = (rows ?? []).flatMap((r) => [r.storage_path as string, (r.storage_path as string).replace(/\.jpg$/, "_t.jpg")]);
+  if (paths.length) await sb.storage.from("photos").remove(paths);
+  return gone;
+}
+
 // Numbers for the Today screen.
 export async function summary(sb: SupabaseClient, schoolId: string) {
   const count = async (status: string[]) => {
     const { count } = await sb.from("posts").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("status", status);
     return count ?? 0;
   };
-  const [drafts, review, scheduled, failed] = await Promise.all([count(["draft"]), count(["in_review", "approved"]), count(["scheduled"]), count(["failed"])]);
+  const [drafts, review, scheduled, failed] = await Promise.all([count(["draft"]), count(["in_review", "waiting_extra"]), count(["scheduled"]), count(["failed"])]);
   const { data: meta } = await sb.rpc("meta_status", { p_school: schoolId });
   const { data: upcoming } = await sb
     .from("posts")
     .select("id, status, caption_ar, caption_en, scheduled_at")
     .eq("school_id", schoolId)
-    .in("status", ["scheduled", "in_review", "approved"])
+    .in("status", ["scheduled", "in_review", "waiting_extra", "approved"])
     .order("scheduled_at", { ascending: true, nullsFirst: false })
     .limit(6);
   return {

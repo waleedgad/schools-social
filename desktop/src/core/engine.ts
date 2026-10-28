@@ -391,7 +391,7 @@ export class Engine {
     return changed;
   }
 
-  // Groups of unnamed faces that look like the same child, biggest first,
+  // Groups of unnamed faces that look like the same student, biggest first,
   // so one name can be given to many photos at once.
   unknownGroups(limit = 60) {
     const rows = this.db
@@ -421,7 +421,7 @@ export class Engine {
       .map((g) => g.ids);
   }
 
-  // Portraits from the class list: the first known face of each child.
+  // Portraits from the class list: the first known face of each student.
   async addPortraits(folder: string, students: StudentRow[]) {
     let added = 0;
     const files = await readdir(folder).catch(() => [] as string[]);
@@ -553,7 +553,7 @@ export class Engine {
   }
 
   // The best few photos of an event or class: quality first, one per burst,
-  // and spread across different children where faces are known.
+  // and spread across different students where faces are known.
   bestPhotos(ids: number[], count: number) {
     if (!ids.length) return [];
     const rows = this.db

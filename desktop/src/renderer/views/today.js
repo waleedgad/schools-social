@@ -25,7 +25,7 @@ App.views.today = {
       { done: !!S.library, en: "Choose the photo library folder", ar: "اختر مجلد مكتبة الصور", go: "settings" },
       { done: c.students > 0, en: "Import the class lists", ar: "استورد قوائم الفصول", go: "students", params: { import: true } },
       { done: c.photos > 0, en: "Import or add photos", ar: "استورد أو أضف صورًا", go: "import" },
-      { done: c.tagged >= 10, en: "Name 10 faces so the app learns the children", ar: "سمِّ 10 وجوه ليتعرف التطبيق على الأطفال", go: "faces" },
+      { done: c.tagged >= 10, en: "Name 10 faces so the app learns the students", ar: "سمِّ 10 وجوه ليتعرف التطبيق على الطلاب", go: "faces" },
       { done: !!server?.facebook || !!server?.instagram, en: "Connect Facebook and Instagram (website settings)", ar: "اربط فيسبوك وإنستجرام (إعدادات الموقع)", web: "/settings" },
       { done: c.picks > 0, en: "Pick your best photos (press P)", ar: "اختر أفضل الصور (اضغط P)", go: "library" },
     ];

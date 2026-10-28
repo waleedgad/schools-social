@@ -58,6 +58,21 @@ export class UploadQueue {
     this.store.set({ pending: pending.filter((j) => j.file !== job.file), failed: [...failed, { ...job, error }].slice(-500) });
   }
 
+  // A photo that reached the website another way (an upload checked by
+  // this Mac), so it is never sent back.
+  markSent(hash: string, photoId: string) {
+    this.store.set({ done: { ...this.store.get().done, [hash]: photoId } });
+  }
+
+  // The web copy was removed; a restored original may be sent again.
+  unmark(hash: string) {
+    const { done } = this.store.get();
+    if (!(hash in done)) return;
+    const next = { ...done };
+    delete next[hash];
+    this.store.set({ done: next });
+  }
+
   retryFailed() {
     const { pending, failed } = this.store.get();
     this.store.set({ pending: [...pending, ...failed.map((j) => ({ ...j, attempts: 0, nextTry: 0 }))], failed: [] });

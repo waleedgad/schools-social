@@ -3,7 +3,7 @@ import sharp from "sharp";
 
 // Local face finding and matching. Nothing here leaves the computer.
 //   YuNet  finds faces and five landmarks (eyes, nose, mouth corners).
-//   SFace  turns an aligned 112×112 face into 128 numbers; the same child
+//   SFace  turns an aligned 112×112 face into 128 numbers; the same student
 //          gives close numbers in different photos.
 // Both are OpenCV Zoo models run with ONNX Runtime.
 

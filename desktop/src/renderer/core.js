@@ -138,7 +138,7 @@ function palette() {
     { grp: L("Do", "إجراء"), label: S.paused ? L("Resume the library", "استئناف المكتبة") : L("Pause the library", "إيقاف المكتبة مؤقتًا"), icon: "⏯", run: () => call("set", "paused", !S.paused) },
     { grp: L("Albums", "ألبومات"), label: L("Picks", "المختارة"), icon: "✓", run: () => go("library", { album: "picks" }) },
     { grp: L("Albums", "ألبومات"), label: L("Faces to name", "وجوه بلا أسماء"), icon: "☺", run: () => go("library", { album: "untagged" }) },
-    { grp: L("Albums", "ألبومات"), label: L("Children who can't appear in posts", "أطفال لا يظهرون في المنشورات"), icon: "⛔", run: () => go("library", { album: "nopost" }) },
+    { grp: L("Albums", "ألبومات"), label: L("Students who can't appear in posts", "طلاب لا يظهرون في المنشورات"), icon: "⛔", run: () => go("library", { album: "nopost" }) },
   ];
   const draw = () => {
     res.replaceChildren();

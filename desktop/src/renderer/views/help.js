@@ -3,8 +3,8 @@ const GUIDES = () => [
   {
     id: "start", icon: "◎", title: L("Getting started", "البداية"),
     body: L(
-      `<ol><li>Sign in with your website account (Settings → Account).</li><li>Choose the photo library folder or drive. The app reads it in place: nothing is moved or changed.</li><li>Import the class lists (Students → Import class list). Excel files from PowerSchool, Classera and Edunation work as they are.</li><li>Name a few children in <b>Faces → Who is this?</b>. The Mac then finds them in the other photos and asks you to confirm.</li><li>Pick your best photos with <span class="k">P</span> and make a post.</li></ol>`,
-      `<ol><li>سجّل الدخول بحساب الموقع (الإعدادات ← الحساب).</li><li>اختر مجلد أو قرص مكتبة الصور. يقرؤه التطبيق في مكانه دون نقل أو تغيير أي شيء.</li><li>استورد قوائم الفصول (الطلاب ← استيراد قائمة الفصول). ملفات Excel من PowerSchool وClassera وEdunation تعمل كما هي.</li><li>سمِّ بعض الأطفال في <b>الوجوه ← من هذا؟</b>. سيجدهم الماك في باقي الصور ويطلب تأكيدك.</li><li>اختر أفضل الصور بـ <span class="k">P</span> وأنشئ منشورًا.</li></ol>`,
+      `<ol><li>Sign in with your website account (Settings → Account).</li><li>Choose the photo library folder or drive. The app reads it in place: nothing is moved or changed.</li><li>Import the class lists (Students → Import class list). Excel files from PowerSchool, Classera and Edunation work as they are.</li><li>Name a few students in <b>Faces → Who is this?</b>. The Mac then finds them in the other photos and asks you to confirm.</li><li>Pick your best photos with <span class="k">P</span> and make a post.</li></ol>`,
+      `<ol><li>سجّل الدخول بحساب الموقع (الإعدادات ← الحساب).</li><li>اختر مجلد أو قرص مكتبة الصور. يقرؤه التطبيق في مكانه دون نقل أو تغيير أي شيء.</li><li>استورد قوائم الفصول (الطلاب ← استيراد قائمة الفصول). ملفات Excel من PowerSchool وClassera وEdunation تعمل كما هي.</li><li>سمِّ بعض الطلاب في <b>الوجوه ← من هذا؟</b>. سيجدهم الماك في باقي الصور ويطلب تأكيدك.</li><li>اختر أفضل الصور بـ <span class="k">P</span> وأنشئ منشورًا.</li></ol>`,
     ),
   },
   {
@@ -21,7 +21,7 @@ const GUIDES = () => [
       <tr><td><span class="k">X</span></td><td>${L("Reject", "رفض")}</td></tr>
       <tr><td><span class="k">U</span></td><td>${L("Clear pick or reject", "إلغاء الاختيار أو الرفض")}</td></tr>
       <tr><td><span class="k">1</span>–<span class="k">5</span></td><td>${L("Stars (0 clears)", "النجوم (0 يمسح)")}</td></tr>
-      <tr><td><span class="k">T</span></td><td>${L("Tag a child", "وسم طفل")}</td></tr>
+      <tr><td><span class="k">T</span></td><td>${L("Tag a student", "وسم طالب")}</td></tr>
       <tr><td><span class="k">Y</span> / <span class="k">N</span></td><td>${L("Yes or no to the names the Mac suggests", "نعم أو لا للأسماء التي يقترحها الماك")}</td></tr>
       <tr><td><span class="k">B</span></td><td>${L("Before and after (edited copies)", "قبل وبعد (النسخ المعدّلة)")}</td></tr>
       <tr><td><span class="k">C</span></td><td>${L("Compare with the next shot", "مقارنة مع اللقطة التالية")}</td></tr>
@@ -33,8 +33,8 @@ const GUIDES = () => [
   {
     id: "faces", icon: "☺", title: L("Faces and privacy", "الوجوه والخصوصية"),
     body: L(
-      `<ul><li>Faces are found and matched on this Mac. Face data is never sent to the website or to any AI service.</li><li>Portraits named by student ID (S24001.jpg) teach the Mac each child's face from day one.</li><li>Every name the Mac suggests waits for your yes. A wrong suggestion you say no to is never suggested again for that face.</li><li>Children marked “can't appear in posts” are flagged on their photos (⛔). The website blocks a post with one of those photos.</li></ul>`,
-      `<ul><li>تُكتشف الوجوه وتُطابق على هذا الماك. لا تُرسل بيانات الوجوه إلى الموقع أو أي خدمة ذكاء اصطناعي أبدًا.</li><li>الصور الشخصية بأسماء أرقام الطلاب (S24001.jpg) تعلّم الماك وجه كل طفل من اليوم الأول.</li><li>كل اسم يقترحه الماك ينتظر موافقتك. الاقتراح الخاطئ الذي ترفضه لا يُقترح مرة أخرى لذلك الوجه.</li><li>الأطفال المحددون «لا يظهرون في المنشورات» تُعلَّم صورهم (⛔)، ويمنع الموقع نشر أي منها.</li></ul>`,
+      `<ul><li>Faces are found and matched on this Mac. Face data is never sent to the website or to any AI service.</li><li>Portraits named by student ID (S24001.jpg) teach the Mac each student's face from day one.</li><li>Every name the Mac suggests waits for your yes. A wrong suggestion you say no to is never suggested again for that face.</li><li>Students marked “can't appear in posts” are flagged on their photos (⛔). The website blocks a post with one of those photos.</li></ul>`,
+      `<ul><li>تُكتشف الوجوه وتُطابق على هذا الماك. لا تُرسل بيانات الوجوه إلى الموقع أو أي خدمة ذكاء اصطناعي أبدًا.</li><li>الصور الشخصية بأسماء أرقام الطلاب (S24001.jpg) تعلّم الماك وجه كل طالب من اليوم الأول.</li><li>كل اسم يقترحه الماك ينتظر موافقتك. الاقتراح الخاطئ الذي ترفضه لا يُقترح مرة أخرى لذلك الوجه.</li><li>الطلاب المحددون «لا يظهرون في المنشورات» تُعلَّم صورهم (⛔)، ويمنع الموقع نشر أي منها.</li></ul>`,
     ),
   },
   {

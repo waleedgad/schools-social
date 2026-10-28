@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statfsSync, writeFileSync } from "node:fs";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,12 +9,12 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, 
 import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
 import { Engine, importPhotos, listFiles } from "./core/engine";
-import { isLibraryFile } from "./core/library";
+import { eventFolder, isLibraryFile, safeName } from "./core/library";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
 import { LibrarySync } from "./core/sync";
-import { pushStudents, setOptedOut, summary } from "./core/web";
+import { downloadPhoto, finishCheck, pushStudents, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 
 type Watched = { path: string; label: string };
 type Settings = {
@@ -58,6 +58,7 @@ let settings: JsonStore<Settings>;
 let queue: UploadQueue;
 let db: Db;
 let engine: Engine | null = null;
+let webChecks: JsonStore<{ pending: Record<string, string> }>;
 let supabase: SupabaseClient | null = null;
 let sync: LibrarySync | null = null;
 let win: BrowserWindow | null = null;
@@ -247,6 +248,8 @@ async function photoReady(id: number) {
     id,
   );
   if (!p) return;
+  const fromWeb = webChecks.get().pending[p.path];
+  if (fromWeb) queue.markSent(p.hash, fromWeb);
   const known = queue.photoId(p.hash);
   if (known && !p.remote_id) db.prepare("update photos set remote_id = ? where id = ?").run(known, id);
   if (s.backup && s.library && existsSync(s.backup)) {
@@ -510,7 +513,7 @@ function restoreFaces(rows: ReturnType<typeof faceRowsFor>, inserted: number[] =
   syncOptedOut([...new Set(rows.map((r) => r.photo_id))]);
 }
 
-// The website blocks a post with a photo of a child who can't appear.
+// The website blocks a post with a photo of a student who can't appear.
 function syncOptedOut(photoIds: number[]) {
   const sb = client();
   if (!sb || !settings.get().userId || !photoIds.length) return;
@@ -553,7 +556,7 @@ function hideFaces(faceIds: number[]) {
   push("faces");
 }
 
-// Tag a child in photos where no face was found (from behind, in costume).
+// Tag a student in photos where no face was found (from behind, in costume).
 function tagPhotos(photoIds: number[], studentId: string) {
   const inserted: number[] = [];
   tx(db, () => {
@@ -662,6 +665,79 @@ function coverage(f: { year?: string; term?: string }) {
     byClass.set(k, c);
   }
   return [...byClass.values()];
+}
+
+// ---------- Website uploads and deletes ----------
+
+// Photos uploaded on the website come down into the library, get the same
+// face check as the school's own photos, and only then can go into posts.
+let checking = false;
+async function checkWebUploads() {
+  const sb = client();
+  const s = settings.get();
+  if (checking || !sb || !s.userId || !s.schoolId || !s.library || !existsSync(s.library) || s.paused) return;
+  if (!["admin", "comms_lead", "comms"].includes(s.role ?? "")) return;
+  checking = true;
+  try {
+    const pending = { ...webChecks.get().pending };
+    const waiting = Object.values(pending);
+    for (const w of await waitingPhotos(sb, s.schoolId, 10)) {
+      if (waiting.includes(w.id)) continue;
+      const bytes = await downloadPhoto(sb, w.storage_path);
+      const date = new Date(w.event?.event_date ?? w.taken_at ?? w.created_at);
+      const folder = eventFolder(s.library, date, w.event?.title ?? "Website uploads");
+      await mkdir(folder, { recursive: true });
+      const base = safeName(path.basename(w.original_name ?? w.id, path.extname(w.original_name ?? ""))) || w.id;
+      for (let n = 1; n < 1000; n++) {
+        const file = path.join(folder, n === 1 ? `${base}.jpg` : `${base} (${n}).jpg`);
+        const ok = await writeFile(file, bytes, { flag: "wx" }).then(() => true, (e) => (e.code === "EEXIST" ? false : Promise.reject(e)));
+        if (ok) {
+          pending[file] = w.id;
+          break;
+        }
+      }
+    }
+    // Finish the ones the Mac has read and scanned for faces.
+    for (const [file, remoteId] of Object.entries(pending)) {
+      const p = one<{ id: number; hash: string | null; faces_scanned: number; missing: number }>("select id, hash, faces_scanned, missing from photos where path = ?", file);
+      if (!p) {
+        if (!existsSync(file)) delete pending[file];
+        continue;
+      }
+      if (!p.hash || (s.faces && p.faces_scanned === 0)) continue;
+      // Suggested matches count too: a likely match with a student who can't
+      // appear blocks the photo until someone looks.
+      const opted = one<{ n: number }>(
+        "select count(*) n from faces f join students st on st.id = coalesce(f.student_id, f.suggest_id) where f.photo_id = ? and f.status in ('confirmed', 'manual', 'suggested') and st.can_post = 0",
+        p.id,
+      );
+      await finishCheck(sb, remoteId, (opted?.n ?? 0) > 0);
+      db.prepare("update photos set remote_id = ? where id = ?").run(remoteId, p.id);
+      queue.markSent(p.hash, remoteId);
+      delete pending[file];
+    }
+    webChecks.set({ pending });
+    push("photos");
+  } catch (e) {
+    lastMessage = `web check: ${e instanceof Error ? e.message : String(e)}`;
+  } finally {
+    checking = false;
+  }
+}
+
+// Deleting on the Mac removes the web copy too (kept when it was posted).
+function removeWebCopiesOf(rows: { id: number; hash: string | null; remote_id: string | null }[]) {
+  const sb = client();
+  const sent = rows.filter((r) => r.remote_id);
+  if (!sb || !sent.length) return;
+  removeWebCopies(sb, sent.map((r) => r.remote_id!))
+    .then((gone) => {
+      for (const r of sent.filter((x) => gone.includes(x.remote_id!))) {
+        db.prepare("update photos set remote_id = null where id = ?").run(r.id);
+        if (r.hash) queue.unmark(r.hash);
+      }
+    })
+    .catch((e) => (lastMessage = String(e)));
 }
 
 // ---------- Posts ----------
@@ -878,6 +954,7 @@ app.whenReady().then(async () => {
     lastBackup: null,
   });
   queue = new UploadQueue(data("queue.json"));
+  webChecks = new JsonStore(data("web-checks.json"), { pending: {} as Record<string, string> });
   db = openDb(data("library.db"));
 
   // hub://thumb/12, hub://preview/12, hub://face/40, hub://portrait/S24001
@@ -986,11 +1063,12 @@ app.whenReady().then(async () => {
     },
     clearEditor: () => settings.set({ editor: null }),
     bin: async (ids: number[]) => {
-      const rows = all<{ id: number; path: string }>(`select id, path from photos where id in (${marks(ids.length)})`, ...ids);
+      const rows = all<{ id: number; path: string; hash: string | null; remote_id: string | null }>(`select id, path, hash, remote_id from photos where id in (${marks(ids.length)})`, ...ids);
       for (const r of rows) {
         await shell.trashItem(r.path).catch(() => {});
         db.prepare("update photos set missing = 1 where id = ?").run(r.id);
       }
+      removeWebCopiesOf(rows);
       remember("bin", `${rows.length}`, null);
       push("photos");
       return rows.length;
@@ -1142,6 +1220,8 @@ app.whenReady().then(async () => {
   if (process.argv.includes("--hidden") || app.getLoginItemSettings().wasOpenedAsHidden) win?.hide();
   await restart();
   setInterval(() => push(), 3000);
+  setInterval(() => checkWebUploads(), 60_000);
+  setTimeout(() => checkWebUploads(), 8000);
 
   if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify().catch(() => {});
 });

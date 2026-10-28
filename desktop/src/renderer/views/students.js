@@ -1,6 +1,6 @@
-// Students: class lists by Stage → Grade → Class, the import, each child's page, and coverage.
+// Students: class lists by Stage → Grade → Class, the import, each student's page, and coverage.
 const ST = { className: null, search: "" };
-const STAGES = () => ({ KG: L("KG", "رياض الأطفال"), Primary: L("Primary", "ابتدائي"), Prep: L("Prep", "إعدادي"), Secondary: L("Secondary", "ثانوي") });
+const STAGES = () => ({ KG: L("KG", "KG"), Primary: L("Primary", "ابتدائي"), Prep: L("Prep", "إعدادي"), Secondary: L("Secondary", "ثانوي") });
 
 App.views.students = {
   render(main, params) {
@@ -103,7 +103,7 @@ async function importList(file) {
     <table class="list small"><thead><tr><th>${L("ID", "الرقم")}</th><th>${L("English", "بالإنجليزية")}</th><th>${L("Arabic", "بالعربية")}</th><th>${L("Class", "الفصل")}</th><th>${L("In posts", "في المنشورات")}</th></tr></thead>
       <tbody>${p.sample.map((s) => `<tr><td class="ltr">${esc(s.id)}</td><td>${esc(s.name_en ?? "")}</td><td dir="rtl">${esc(s.name_ar ?? "")}</td><td>${esc(s.class_name ?? "")}</td><td>${s.can_post ? "✓" : "⛔"}</td></tr>`).join("")}</tbody></table>
     <div class="card tight"><div class="row"><div class="grow"><b>${L("Portraits (optional)", "الصور الشخصية (اختياري)")}</b><div class="small muted" id="pf">${L("A folder of student photos named by ID, like S24001.jpg. The Mac learns each face from them.", "مجلد صور الطلاب بأسماء أرقامهم، مثل S24001.jpg. يتعلّم الماك كل وجه منها.")}</div></div><button class="btn small" id="pick-pf">${L("Choose folder", "اختيار مجلد")}</button></div></div>
-    <p class="muted small">${L("The list stays on this Mac. Names and “in posts” are also sent to your website so it can stop a post with a child who mustn't appear.", "تبقى القائمة على هذا الماك. تُرسل الأسماء و«في المنشورات» إلى موقعك أيضًا ليمنع نشر صورة طفل لا يجب أن يظهر.")}</p>
+    <p class="muted small">${L("The list stays on this Mac. Names and “in posts” are also sent to your website so it can stop a post with a student who mustn't appear.", "تبقى القائمة على هذا الماك. تُرسل الأسماء و«في المنشورات» إلى موقعك أيضًا ليمنع نشر صورة طالب لا يجب أن يظهر.")}</p>
     <div class="row"><span class="grow"></span><button class="btn" id="i-no">${L("Cancel", "إلغاء")}</button><button class="btn primary" id="i-yes" ${p.count ? "" : "disabled"}>${L(`Import ${p.count} students`, `استيراد ${num(p.count)} طالب`)}</button></div>`, { wide: true });
   $("#i-no", m).onclick = closeOverlay;
   $("#pick-pf", m).onclick = async () => {
@@ -129,7 +129,7 @@ async function importList(file) {
   };
 }
 
-// One child: portrait, class, whether they can appear in posts, and their photos.
+// One student: portrait, class, whether they can appear in posts, and their photos.
 App.views.student = {
   async render(main, params) {
     const s = await call("student", params.id);
@@ -143,9 +143,9 @@ App.views.student = {
           <span class="muted">${L("ID", "الرقم")} <span class="ltr">${esc(s.id)}</span> · ${plural(photos.length, "photo", "photos", "صورة")}</span></div>
           <div class="col gap4" style="align-items: flex-end">
             <label class="check"><input type="checkbox" id="sp-post" ${s.can_post ? "checked" : ""} /> <b>${L("Can appear in posts", "يمكن أن يظهر في المنشورات")}</b></label>
-            <span class="small muted" style="max-width: 280px; text-align: end">${L("If off, the website blocks any post with a photo of this child.", "إذا أُوقف، يمنع الموقع أي منشور فيه صورة لهذا الطفل.")}</span>
+            <span class="small muted" style="max-width: 280px; text-align: end">${L("If off, the website blocks any post with a photo of this student.", "إذا أُوقف، يمنع الموقع أي منشور فيه صورة لهذا الطالب.")}</span>
             <button class="btn small danger" id="sp-del">${L("Remove from the list", "إزالة من القائمة")}</button></div></div></div>
-        ${!photos.length ? `<div class="note warn">${L("No photos of this child yet. Tag them in a photo, or add their portrait so the Mac can find them.", "لا توجد صور لهذا الطفل بعد. سمّه في صورة، أو أضف صورته الشخصية ليجده الماك.")}</div>` : ""}
+        ${!photos.length ? `<div class="note warn">${L("No photos of this student yet. Tag them in a photo, or add their portrait so the Mac can find them.", "لا توجد صور لهذا الطالب بعد. سمّه في صورة، أو أضف صورته الشخصية ليجده الماك.")}</div>` : ""}
         <div class="photos" style="padding: 0; overflow: visible">${photos.map((p, i) => tileHtml(p, i)).join("")}</div></div></div>`;
     $("#sp-back", main).onclick = () => go("students");
     $("#sp-lib", main).onclick = () => go("library", { student: s.id });
@@ -161,7 +161,7 @@ App.views.student = {
   },
 };
 
-// Coverage: which children are missing from this term's photos, class by class.
+// Coverage: which students are missing from this term's photos, class by class.
 const COV = { year: null, term: null, open: null };
 App.views.coverage = {
   async render(main) {
@@ -170,7 +170,7 @@ App.views.coverage = {
       COV.year = periods[0].year;
       COV.term = periods[0].term;
     }
-    main.innerHTML = topbar(L("Coverage", "التغطية"), L("Every child should appear in the school's photos", "يجب أن يظهر كل طفل في صور المدرسة"),
+    main.innerHTML = topbar(L("Coverage", "التغطية"), L("Every student should appear in the school's photos", "يجب أن يظهر كل طالب في صور المدرسة"),
       `<select id="cv-p"><option value="">${L("All time", "كل الأوقات")}</option>${periods.map((p, i) => `<option value="${i}" ${p.year === COV.year && p.term === COV.term ? "selected" : ""}>${esc(p.year)} · ${esc(p.term)}</option>`).join("")}</select>`) +
       `<div class="content"><div class="col gap16" id="cv"></div></div>`;
     $("#cv-p", main).onchange = (e) => {
@@ -194,7 +194,7 @@ App.views.coverage = {
     const all = rows.reduce((s, r) => s + r.students, 0);
     const zero = rows.reduce((s, r) => s + r.zero, 0);
     const low = rows.reduce((s, r) => s + r.low, 0);
-    box.innerHTML = `<div class="grid3"><div class="card stat"><b>${num(all - zero)}<span class="muted" style="font-size: 14px"> / ${num(all)}</span></b><span>${L("children with at least one photo", "طفل لديه صورة واحدة على الأقل")}</span></div>
+    box.innerHTML = `<div class="grid3"><div class="card stat"><b>${num(all - zero)}<span class="muted" style="font-size: 14px"> / ${num(all)}</span></b><span>${L("students with at least one photo", "طالب لديه صورة واحدة على الأقل")}</span></div>
       <div class="card stat"><b style="color: var(--bad)">${num(zero)}</b><span>${L("with no photos", "بلا صور")}</span></div>
       <div class="card stat"><b style="color: #b9850f">${num(low)}</b><span>${L("with only 1 or 2", "لديهم صورة أو اثنتان فقط")}</span></div></div>
       <p class="muted small">${L("Counts named faces only. Confirm suggestions in Faces to make this complete.", "يحسب الوجوه المسمّاة فقط. أكّد الاقتراحات في الوجوه ليكتمل.")} <span class="tag good">■ 3+</span> <span class="tag warn">■ 1-2</span> <span class="tag bad">■ 0</span></p>
@@ -210,7 +210,7 @@ App.views.coverage = {
     kids.sort((a, b) => a.photos - b.photos);
     el.innerHTML = `<div class="card"><div class="row"><h2 class="grow">${L("Class", "فصل")} ${esc(COV.open)}</h2><button class="btn small" id="cv-lib">▦ ${L("Class photos", "صور الفصل")}</button></div>
       <div class="grid3">${kids.map((k) => `<div class="row nowrap" style="cursor: pointer" data-id="${esc(k.id)}">${avatar(k)}<span class="grow">${esc(name(k))}</span>${k.photos === 0 ? `<span class="tag bad">0</span>` : k.photos < 3 ? `<span class="tag warn">${num(k.photos)}</span>` : `<span class="tag good">${num(k.photos)}</span>`}</div>`).join("")}</div>
-      <p class="muted small">${L("Tip: share the list of children with no photos with the class teacher before the next event.", "تلميح: شارك قائمة الأطفال بلا صور مع معلم الفصل قبل الفعالية القادمة.")}</p></div>`;
+      <p class="muted small">${L("Tip: share the list of students with no photos with the class teacher before the next event.", "تلميح: شارك قائمة الطلاب بلا صور مع معلم الفصل قبل الفعالية القادمة.")}</p></div>`;
     $$("[data-id]", el).forEach((r) => (r.onclick = () => go("student", { id: r.dataset.id })));
     $("#cv-lib", el).onclick = () => go("library", { className: COV.open });
     el.scrollIntoView({ behavior: "smooth", block: "start" });
