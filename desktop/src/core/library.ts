@@ -89,3 +89,18 @@ export function placeFromPath(library: string, file: string): Place {
     },
   };
 }
+
+// Reads an event name and date from a folder name such as "20201012",
+// "2020-10-12 Sports day", "12-10-2020 Trip" or "Sports day 2020_10_12".
+export function guessEvent(folderName: string): { title: string; date: string | null } {
+  const name = folderName.trim();
+  const valid = (y: number, m: number, d: number) => y > 1990 && y < 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31;
+  const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  let m = /(\d{4})[-_. ]?(\d{2})[-_. ]?(\d{2})/.exec(name);
+  if (m && valid(+m[1], +m[2], +m[3])) return { title: clean(name.replace(m[0], "")), date: iso(+m[1], +m[2], +m[3]) };
+  m = /(\d{1,2})[-_.](\d{1,2})[-_.](\d{4})/.exec(name);
+  if (m && valid(+m[3], +m[2], +m[1])) return { title: clean(name.replace(m[0], "")), date: iso(+m[3], +m[2], +m[1]) };
+  return { title: clean(name), date: null };
+}
+
+const clean = (s: string) => s.replace(/^[\s_\-.]+|[\s_\-.]+$/g, "").replace(/[_]+/g, " ").replace(/^DCIM$/i, "");

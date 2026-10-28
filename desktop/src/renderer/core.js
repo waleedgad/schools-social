@@ -194,7 +194,7 @@ const NAV = [
       { id: "faces", icon: "☺", label: () => L("Faces", "الوجوه"), count: () => S.counts.suggested },
       { id: "students", icon: "☷", label: () => L("Students", "الطلاب") },
       { id: "coverage", icon: "◔", label: () => L("Coverage", "التغطية") },
-      { id: "duplicates", icon: "⧉", label: () => L("Duplicates", "المكررات"), count: () => S.counts.duplicates },
+      { id: "cleanup", icon: "✧", label: () => L("Clean up", "تنظيف"), count: () => S.counts.duplicates },
     ],
   },
   {
@@ -321,9 +321,10 @@ document.addEventListener("drop", (e) => {
   e.preventDefault();
   dragDepth = 0;
   document.body.classList.remove("dragging");
-  const file = e.dataTransfer?.files?.[0];
-  if (!file) return;
-  const p = window.hub.pathFor(file);
-  if (/\.(xlsx|csv)$/i.test(p)) return go("students", { import: true, file: p });
-  go("import", { source: p });
+  const files = [...(e.dataTransfer?.files ?? [])];
+  if (!files.length) return;
+  const paths = files.map((f) => window.hub.pathFor(f));
+  if (/\.(xlsx|csv)$/i.test(paths[0])) return go("students", { import: true, file: paths[0] });
+  // Several folders dropped together: one event each.
+  go("import", paths.length > 1 ? { sources: paths } : { source: paths[0] });
 });

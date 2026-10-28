@@ -8,7 +8,7 @@ import sharp from "sharp";
 import { openDb } from "./db";
 import { importPhotos, listFiles } from "./engine";
 import { similarity } from "./faces";
-import { placeFromPath } from "./library";
+import { guessEvent, placeFromPath } from "./library";
 import { fileHash } from "./photo";
 import { classFrom, gradeLabel, parseRows } from "./students";
 
@@ -76,4 +76,11 @@ test("import files photos by event and class and leaves out copies already there
   const again = await importPhotos({ db, library: lib, files, title: "Science fair", date: "2026-10-20", className: "4B", byDay: false, skipDuplicates: true, onProgress: () => {} });
   assert.equal(again.duplicates, 1);
   assert.equal(again.copied, 1);
+});
+
+test("folder names give the event name and date", () => {
+  assert.deepEqual(guessEvent("20201012"), { title: "", date: "2020-10-12" });
+  assert.deepEqual(guessEvent("2020-10-12 Sports day"), { title: "Sports day", date: "2020-10-12" });
+  assert.deepEqual(guessEvent("12-10-2020 Trip"), { title: "Trip", date: "2020-10-12" });
+  assert.deepEqual(guessEvent("Science_fair"), { title: "Science fair", date: null });
 });

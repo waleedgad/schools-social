@@ -1,4 +1,4 @@
-// Settings, Duplicates and History.
+// Settings and History.
 App.views.settings = {
   render(main) {
     main.innerHTML = topbar(L("Settings", "الإعدادات"), L(`Version ${S.version}`, `الإصدار ${S.version}`)) + `<div class="content"><div class="col gap16" style="max-width: 860px" id="set"></div></div>`;
@@ -121,25 +121,6 @@ window.hub.onState((s) => {
   lastNotice = s.message;
   if (w && !quietNow()) new Notification("School Social Hub", { body: L(`New photos from ${w[1]} are in the library`, `صور جديدة من ${w[1]} في المكتبة`) });
 });
-
-App.views.duplicates = {
-  async render(main) {
-    const rows = (await quiet("duplicates")) ?? [];
-    const size = rows.reduce((s, r) => s + r.size, 0);
-    main.innerHTML = topbar(L("Duplicates", "المكررات"), rows.length ? L(`${rows.length} extra copies · ${fmtBytes(size)}`, `${num(rows.length)} نسخة زائدة · ${fmtBytes(size)}`) : "",
-      rows.length ? `<button class="btn primary" id="dp-all">${L("Move all extra copies to the Bin", "نقل كل النسخ الزائدة إلى السلة")}</button>` : "") +
-      `<div class="content">${rows.length ? `<p class="muted" style="margin-bottom: 12px">${L("These files are exact copies of a photo that is already in the library. The first copy is kept with all its tags.", "هذه الملفات نسخ مطابقة لصورة موجودة في المكتبة. تُحفظ النسخة الأولى بكل أسمائها.")}</p>
-        <table class="list"><thead><tr><th></th><th>${L("Extra copy", "النسخة الزائدة")}</th><th>${L("Kept", "المحفوظة")}</th><th></th></tr></thead><tbody>
-        ${rows.slice(0, 500).map((r) => `<tr><td style="width: 60px"><img src="hub://thumb/${r.dup_of}" style="width: 48px; height: 48px; object-fit: cover; border-radius: 6px" /></td><td class="small ltr">${esc(r.path)}</td><td class="small muted ltr">${esc(r.original)}</td><td><button class="btn small" data-bin="${r.id}">${L("Bin", "السلة")}</button></td></tr>`).join("")}</tbody></table>`
-        : `<div class="empty"><span class="big">✓</span><b>${L("No duplicates", "لا توجد مكررات")}</b><span>${L("The same photo copied twice shows up here.", "تظهر هنا الصورة المنسوخة مرتين.")}</span></div>`}</div>`;
-    $("#dp-all", main)?.addEventListener("click", async () => {
-      const n = await call("bin", rows.map((r) => r.id));
-      toast(L(`${n} copies moved to the Bin`, `نُقلت ${num(n)} نسخة إلى السلة`));
-      go("duplicates");
-    });
-    $$("[data-bin]", main).forEach((b) => (b.onclick = async () => { await call("bin", [Number(b.dataset.bin)]); b.closest("tr").remove(); }));
-  },
-};
 
 const ACTIONS = () => ({
   rating: L("Rated", "تقييم"), flag: L("Picked / rejected", "اختيار / رفض"), label: L("Label", "تصنيف"), tag: L("Named faces", "تسمية وجوه"), untag: L("Removed names", "إزالة أسماء"),

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statfsSync, writeFileSync } from "node:fs";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -8,8 +8,9 @@ import { watch, type FSWatcher } from "chokidar";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, safeStorage, shell, Tray } from "electron";
 import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
+import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
-import { eventFolder, isLibraryFile, safeName } from "./core/library";
+import { eventFolder, guessEvent, isLibraryFile, safeName } from "./core/library";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
@@ -44,6 +45,9 @@ type Settings = {
   alerts: boolean;
   setupDone: boolean;
   lastBackup: number | null;
+  cleanStrict: "gentle" | "normal" | "strict";
+  rejectMonths: number;
+  selfFiling: boolean;
 };
 
 // The app connects to this address by itself. A school using its own copy
@@ -156,6 +160,10 @@ function state() {
     quietTo: s.quietTo,
     alerts: s.alerts,
     setupDone: s.setupDone,
+    cleanStrict: s.cleanStrict,
+    rejectMonths: s.rejectMonths,
+    selfFiling: s.selfFiling,
+    webChecking: Object.keys(webChecks.get().pending).length,
     queue: queue.stats(),
     uploading: sync?.current.map((f) => path.basename(f)) ?? [],
     engine: engine?.status ?? null,
@@ -740,6 +748,51 @@ function removeWebCopiesOf(rows: { id: number; hash: string | null; remote_id: s
     .catch((e) => (lastMessage = String(e)));
 }
 
+// ---------- Clean up ----------
+
+// The Bin is the Mac's Trash: nothing is deleted outright, and the web copy
+// goes too (see removeWebCopiesOf).
+async function binPhotos(ids: number[]) {
+  const rows = all<{ id: number; path: string; hash: string | null; remote_id: string | null }>(`select id, path, hash, remote_id from photos where id in (${marks(ids.length)})`, ...ids);
+  for (const r of rows) {
+    await shell.trashItem(r.path).catch(() => {});
+    db.prepare("update photos set missing = 1 where id = ?").run(r.id);
+  }
+  removeWebCopiesOf(rows);
+  remember("bin", `${rows.length}`, null);
+  push("photos");
+  return rows.length;
+}
+
+
+async function cleanupReport() {
+  const s = settings.get();
+  const pack = (groups: { extra: number[]; size: number }[]) => ({ count: groups.reduce((n, g) => n + g.extra.length, 0), size: groups.reduce((n, g) => n + g.size, 0) });
+  const bad = badPhotos(db, s.cleanStrict);
+  const rejected = oldRejected(db, s.rejectMonths);
+  const empty = s.library && existsSync(s.library) ? await emptyFolders(s.library) : [];
+  return {
+    exact: pack(exactCopies(db)),
+    sizes: pack(otherSizes(db)),
+    bursts: pack(nearIdentical(db)),
+    bad: { count: bad.length, size: bad.reduce((n, p) => n + p.size, 0) },
+    rejected: { count: rejected.length, size: rejected.reduce((n, p) => n + p.size, 0), months: s.rejectMonths },
+    empty: empty.length,
+    cache: await folderSize(path.join(data("cache"), "previews")),
+    strict: s.cleanStrict,
+  };
+}
+
+function cleanupList(kind: string) {
+  const s = settings.get();
+  if (kind === "exact") return { groups: exactCopies(db) };
+  if (kind === "sizes") return { groups: otherSizes(db) };
+  if (kind === "bursts") return { groups: nearIdentical(db).slice(0, 300) };
+  if (kind === "bad") return { photos: badPhotos(db, s.cleanStrict).slice(0, 600) };
+  if (kind === "rejected") return { photos: oldRejected(db, s.rejectMonths).slice(0, 600) };
+  return {};
+}
+
 // ---------- Posts ----------
 
 async function newPost(ids: number[]) {
@@ -952,6 +1005,9 @@ app.whenReady().then(async () => {
     alerts: true,
     setupDone: false,
     lastBackup: null,
+    cleanStrict: "normal",
+    rejectMonths: 6,
+    selfFiling: false,
   });
   queue = new UploadQueue(data("queue.json"));
   webChecks = new JsonStore(data("web-checks.json"), { pending: {} as Record<string, string> });
@@ -1000,7 +1056,7 @@ app.whenReady().then(async () => {
     },
     clearBackup: () => settings.set({ backup: null }),
     set: (key: keyof Settings, value: never) => {
-      const allowed: (keyof Settings)[] = ["language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone"];
+      const allowed: (keyof Settings)[] = ["language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "cleanStrict", "rejectMonths", "selfFiling"];
       if (!allowed.includes(key)) throw new Error("bad-setting");
       settings.set({ [key]: value } as Partial<Settings>);
       if (key === "openAtLogin") app.setLoginItemSettings({ openAtLogin: !!value, openAsHidden: true });
@@ -1062,18 +1118,26 @@ app.whenReady().then(async () => {
       push();
     },
     clearEditor: () => settings.set({ editor: null }),
-    bin: async (ids: number[]) => {
-      const rows = all<{ id: number; path: string; hash: string | null; remote_id: string | null }>(`select id, path, hash, remote_id from photos where id in (${marks(ids.length)})`, ...ids);
-      for (const r of rows) {
-        await shell.trashItem(r.path).catch(() => {});
-        db.prepare("update photos set missing = 1 where id = ?").run(r.id);
-      }
-      removeWebCopiesOf(rows);
-      remember("bin", `${rows.length}`, null);
-      push("photos");
-      return rows.length;
-    },
+    bin: (ids: number[]) => binPhotos(ids),
     duplicates: () => engine?.duplicates() ?? [],
+    cleanup: () => cleanupReport(),
+    cleanupList: (kind: string) => cleanupList(kind),
+    cleanSafe: async () => {
+      const r = await cleanupReport();
+      const ids = exactCopies(db).flatMap((g) => g.extra);
+      if (ids.length) await binPhotos(ids);
+      const s = settings.get();
+      const folders = s.library ? await removeEmptyFolders(await emptyFolders(s.library)) : 0;
+      await rm(path.join(data("cache"), "previews"), { recursive: true, force: true });
+      push("photos");
+      return { copies: ids.length, folders, freed: r.exact.size + r.cache };
+    },
+    removeEmptyFolders: async () => {
+      const s = settings.get();
+      return s.library ? removeEmptyFolders(await emptyFolders(s.library)) : 0;
+    },
+    clearPreviews: () => rm(path.join(data("cache"), "previews"), { recursive: true, force: true }),
+    openBin: () => shell.openPath(path.join(app.getPath("home"), ".Trash")),
 
     importSource: async (dir?: string) => {
       if (!dir) dir = (await chooseFolder("Photos to import (memory card, phone or photographer's folder)")) ?? undefined;
@@ -1095,6 +1159,70 @@ app.whenReady().then(async () => {
       }
       importFiles = files;
       return { dir, name: path.basename(dir), count: files.length, firstDate: first, days: [...days].sort(), raw: files.filter((f) => /\.(cr2|cr3|nef|arw|dng|raf|orf|rw2)$/i.test(f)).length };
+    },
+    // Several folders at once: each becomes its own event, named and dated
+    // from the folder name where it can be read.
+    importSources: async (dirs?: string[]) => {
+      if (!dirs?.length) {
+        const r = await dialog.showOpenDialog(win!, { title: "Folders to import (choose several with ⌘ or ⇧)", properties: ["openDirectory", "multiSelections"] });
+        if (r.canceled) return null;
+        dirs = r.filePaths;
+      }
+      const lib = settings.get().library;
+      const { default: exifr } = await import("exifr");
+      importBatch = new Map();
+      const out = [];
+      for (const dir of dirs) {
+        if (lib && path.resolve(dir).startsWith(path.resolve(lib) + path.sep)) continue;
+        const files = await listFiles(dir);
+        const guess = guessEvent(path.basename(dir));
+        let first: string | null = guess.date;
+        if (!first) {
+          for (const f of files.slice(0, 40)) {
+            const t = await exifr.parse(f, ["DateTimeOriginal"]).catch(() => null);
+            const d = t?.DateTimeOriginal;
+            if (d instanceof Date && !Number.isNaN(d.getTime())) {
+              const iso = d.toISOString().slice(0, 10);
+              if (!first || iso < first) first = iso;
+            }
+          }
+        }
+        importBatch.set(dir, files);
+        out.push({ dir, name: path.basename(dir), count: files.length, title: guess.title || (guess.date ? "Event" : path.basename(dir)), date: first });
+      }
+      return out;
+    },
+    runImports: async (o: { items: { dir: string; title: string; date: string | null; className: string | null }[]; skipDuplicates: boolean; archive: boolean }) => {
+      const lib = settings.get().library;
+      if (!lib) throw new Error("no-library");
+      const total = o.items.reduce((n, it) => n + (importBatch.get(it.dir)?.length ?? 0), 0);
+      let before = 0;
+      const sum = { copied: 0, duplicates: 0, failed: 0, events: 0 };
+      for (const it of o.items) {
+        const files = importBatch.get(it.dir) ?? [];
+        if (!files.length || it.title.trim().length < 2) continue;
+        const r = await importPhotos({
+          db,
+          library: lib,
+          files,
+          title: it.title.trim(),
+          date: it.date,
+          className: it.className,
+          byDay: false,
+          skipDuplicates: o.skipDuplicates,
+          onProgress: (done) => win?.webContents.send("progress", { done: before + done, total }),
+        });
+        before += files.length;
+        if (o.archive) for (const f of r.folders) db.prepare("insert into folders (path, archive) values (?, 1) on conflict (path) do update set archive = 1").run(f);
+        sum.copied += r.copied;
+        sum.duplicates += r.duplicates;
+        sum.failed += r.failed;
+        sum.events++;
+      }
+      remember("import", `${sum.copied}:${sum.events} events`, null);
+      importBatch = new Map();
+      push("photos");
+      return sum;
     },
     volumes: async () => {
       if (process.platform !== "darwin") return [];
@@ -1200,6 +1328,7 @@ app.whenReady().then(async () => {
       shell.openExternal(`mailto:?subject=${encodeURIComponent(`School Social Hub ${app.getVersion()} problem`)}&body=${encodeURIComponent(`${text}\n\n---\n${process.platform} ${process.arch} · ${app.getVersion()}`)}`),
   };
   let importFiles: string[] = [];
+  let importBatch = new Map<string, string[]>();
 
   ipcMain.handle("call", async (_e, name: string, ...args: unknown[]) => {
     const fn = api[name];

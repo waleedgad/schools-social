@@ -1,12 +1,14 @@
 // Import wizard: a card, a phone, a photographer's folder or an old archive.
-const IMP = { src: null, running: false, result: null };
+const IMP = { src: null, batch: null, running: false, result: null };
 
 App.views.import = {
   render(main, params) {
     main.innerHTML = topbar(L("Import photos", "استيراد صور"), L("Photos are copied into the library, filed by year, term, event and class", "تُنسخ الصور إلى المكتبة، مرتبة حسب السنة والفصل الدراسي والفعالية والفصل")) +
       `<div class="content"><div class="col gap16" style="max-width: 820px" id="imp"></div></div>`;
     IMP.result = null;
-    if (params.source) this.pick(params.source);
+    IMP.batch = null;
+    if (params.sources?.length > 1) this.pickMany(params.sources);
+    else if (params.source || params.sources?.length) this.pick(params.source ?? params.sources[0]);
     else {
       IMP.src = null;
       this.draw();
@@ -27,6 +29,47 @@ App.views.import = {
     }
     this.draw();
   },
+  async pickMany(dirs) {
+    const items = await call("importSources", dirs);
+    if (items?.length === 1) return this.pick(items[0].dir);
+    if (items?.length) {
+      IMP.batch = items.map((it) => ({ ...it, className: "", on: it.count > 0 }));
+      IMP.src = null;
+    }
+    this.draw();
+  },
+  drawBatch(box) {
+    const b = IMP.batch;
+    const count = () => b.filter((x) => x.on).reduce((n, x) => n + x.count, 0);
+    box.innerHTML = `<div class="card">
+      <div class="row"><h2 class="grow">📁 ${L(`${b.length} folders`, `${num(b.length)} مجلدات`)}</h2><button class="link" id="other">${L("Choose other folders", "اختيار مجلدات أخرى")}</button></div>
+      <p class="muted small">${L("Each folder becomes its own event. Names and dates were read from the folder names; check them before importing.", "يصبح كل مجلد فعالية مستقلة. قُرئت الأسماء والتواريخ من أسماء المجلدات؛ راجعها قبل الاستيراد.")}</p>
+      <table class="list"><thead><tr><th></th><th>${L("Folder", "المجلد")}</th><th>${L("Event name", "اسم الفعالية")}</th><th>${L("Date", "التاريخ")}</th><th>${L("Class", "الفصل")}</th><th>${L("Photos", "الصور")}</th></tr></thead><tbody>
+      ${b.map((x, i) => `<tr><td><input type="checkbox" data-on="${i}" ${x.on ? "checked" : ""} ${x.count ? "" : "disabled"} /></td><td class="small muted ltr">${esc(x.name)}</td>
+        <td><input data-title="${i}" value="${esc(x.title)}" style="width: 100%" /></td><td><input type="date" data-date="${i}" value="${esc(x.date ?? "")}" /></td>
+        <td><input data-class="${i}" value="${esc(x.className)}" placeholder="—" style="width: 70px" /></td><td>${num(x.count)}</td></tr>`).join("")}</tbody></table>
+      <label class="check"><input type="checkbox" id="i-dup" checked /> ${L("Leave out photos that are already in the library", "تجاهل الصور الموجودة بالفعل في المكتبة")}</label>
+      <label class="check"><input type="checkbox" id="i-arch" /> ${L("Keep on this Mac only (old archive: never sent to the website)", "على هذا الماك فقط (أرشيف قديم: لا يُرسل للموقع أبدًا)")}</label>
+      <div class="row" id="i-go"><span class="grow"></span><button class="btn primary" id="i-run">⤓ <span id="i-n">${L(`Import ${count()} photos`, `استيراد ${num(count())} صورة`)}</span></button></div>
+      <div class="col hide" id="i-prog"><div class="row"><b class="grow">${L("Copying…", "جارٍ النسخ…")}</b><span id="imp-count" class="muted"></span></div><div class="bar"><i id="imp-bar" style="width: 0%"></i></div></div></div>`;
+    $$("[data-on]", box).forEach((c) => (c.onchange = () => { b[c.dataset.on].on = c.checked; $("#i-n", box).textContent = L(`Import ${count()} photos`, `استيراد ${num(count())} صورة`); }));
+    $$("[data-title]", box).forEach((c) => (c.oninput = () => (b[c.dataset.title].title = c.value)));
+    $$("[data-date]", box).forEach((c) => (c.oninput = () => (b[c.dataset.date].date = c.value || null)));
+    $$("[data-class]", box).forEach((c) => (c.oninput = () => (b[c.dataset.class].className = c.value)));
+    $("#other", box).onclick = () => this.pickMany();
+    $("#i-run", box).onclick = async () => {
+      const items = b.filter((x) => x.on && x.title.trim().length >= 2).map((x) => ({ dir: x.dir, title: x.title.trim(), date: x.date, className: x.className.trim() || null }));
+      if (!items.length) return;
+      $("#i-go", box).classList.add("hide");
+      $("#i-prog", box).classList.remove("hide");
+      try {
+        IMP.result = await call("runImports", { items, skipDuplicates: $("#i-dup", box).checked, archive: $("#i-arch", box).checked });
+      } finally {
+        IMP.batch = null;
+        this.draw();
+      }
+    };
+  },
   async draw() {
     const box = $("#imp");
     if (!box) return;
@@ -38,7 +81,7 @@ App.views.import = {
     if (IMP.result) {
       const r = IMP.result;
       box.innerHTML = `<div class="card"><h2>✓ ${L("Import finished", "انتهى الاستيراد")}</h2>
-        <p>${L(`${num(r.copied)} photos copied into the library.`, `نُسخت ${num(r.copied)} صورة إلى المكتبة.`)}</p>
+        <p>${L(`${num(r.copied)} photos copied into the library.`, `نُسخت ${num(r.copied)} صورة إلى المكتبة.`)}${r.events > 1 ? ` ${L(`${r.events} events.`, `${num(r.events)} فعاليات.`)}` : ""}</p>
         ${r.duplicates ? `<p class="muted">${L(`${num(r.duplicates)} were already in the library and were left out.`, `${num(r.duplicates)} كانت موجودة بالفعل في المكتبة ولم تُنسخ.`)}</p>` : ""}
         ${r.failed ? `<p class="note bad">${L(`${num(r.failed)} files couldn't be copied.`, `تعذّر نسخ ${num(r.failed)} ملف.`)}</p>` : ""}
         <p class="muted small">${L("The Mac is now making thumbnails and looking for faces. You can keep working.", "يعمل الماك الآن على المصغرات والبحث عن الوجوه. يمكنك مواصلة العمل.")}</p>
@@ -47,10 +90,11 @@ App.views.import = {
       $("#again", box).onclick = () => { IMP.result = null; IMP.src = null; this.draw(); };
       return;
     }
+    if (IMP.batch) return this.drawBatch(box);
     if (!IMP.src) {
       const vols = (await quiet("volumes")) ?? [];
       box.innerHTML = `
-        <div class="drop" id="drop"><div style="font-size: 30px">⤓</div><b>${L("Drag a folder of photos here", "اسحب مجلد صور إلى هنا")}</b><p class="small">${L("or", "أو")}</p><button class="btn primary" id="choose">${L("Choose a folder…", "اختيار مجلد…")}</button></div>
+        <div class="drop" id="drop"><div style="font-size: 30px">⤓</div><b>${L("Drag a folder of photos here", "اسحب مجلد صور إلى هنا")}</b><p class="small">${L("or", "أو")}</p><div class="row" style="justify-content: center"><button class="btn primary" id="choose">${L("Choose a folder…", "اختيار مجلد…")}</button><button class="btn" id="choose-many">${L("Choose several folders…", "اختيار عدة مجلدات…")}</button></div><p class="small muted">${L("Several folders become several events, named from the folder names.", "تصبح المجلدات المتعددة فعاليات متعددة، بأسماء المجلدات.")}</p></div>
         ${vols.length ? `<div class="card"><h2>${L("Memory cards", "كروت الذاكرة")}</h2>${vols.map((v) => `<div class="row"><span class="grow">💾 ${esc(v.name)}</span><button class="btn small" data-vol="${esc(v.path)}">${L("Import from this card", "استيراد من هذا الكارت")}</button></div>`).join("")}</div>` : ""}
         <div class="grid3">
           <div class="card"><h3>📷 ${L("Camera card or phone", "كارت كاميرا أو هاتف")}</h3><p class="muted small">${L("Insert the card, or plug in the phone and export its photos to a folder first.", "أدخل الكارت، أو وصّل الهاتف وصدّر صوره إلى مجلد أولًا.")}</p></div>
@@ -58,6 +102,7 @@ App.views.import = {
           <div class="card"><h3>☁ ${L("Cloud folder", "مجلد سحابي")}</h3><p class="muted small">${L("For Google Drive, OneDrive or Lightroom exports, add a watched folder in Settings: new photos come in by themselves.", "لـ Google Drive أو OneDrive أو صادرات Lightroom، أضف مجلدًا مراقَبًا من الإعدادات: تدخل الصور الجديدة تلقائيًا.")}</p></div>
         </div>`;
       $("#choose", box).onclick = () => this.pick();
+      $("#choose-many", box).onclick = () => this.pickMany();
       $$("[data-vol]", box).forEach((b) => (b.onclick = () => this.pick(b.dataset.vol)));
       return;
     }
