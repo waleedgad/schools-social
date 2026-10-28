@@ -2,19 +2,41 @@
 const lib = { filter: {}, list: [], sel: new Set(), anchor: null, focus: 0, tile: 170, tree: null, classes: [] };
 
 const ALBUMS = () => [
-  { id: "all", icon: "▦", label: L("All photos", "كل الصور") },
-  { id: "week", icon: "◷", label: L("Added this week", "أضيفت هذا الأسبوع") },
-  { id: "picks", icon: "✓", label: L("Picks", "المختارة") },
-  { id: "five", icon: "★", label: L("5 stars", "5 نجوم") },
-  { id: "untagged", icon: "☺", label: L("Faces to name", "وجوه بلا أسماء") },
-  { id: "nofaces", icon: "◌", label: L("No people", "بلا أشخاص") },
-  { id: "nopost", icon: "⛔", label: L("Can't appear in posts", "لا يظهرون في المنشورات") },
-  { id: "notsent", icon: "⇡", label: L("Picks not on the website", "مختارة لم تُرسل للموقع") },
-  { id: "sent", icon: "☁", label: L("On the website", "على الموقع") },
-  { id: "noevent", icon: "?", label: L("Not in an event", "خارج الفعاليات") },
-  { id: "raw", icon: "◈", label: L("RAW", "RAW") },
-  { id: "rejected", icon: "✕", label: L("Rejected", "المرفوضة") },
+  { id: "all", sec: "smart", icon: "▦", label: L("All photos", "كل الصور") },
+  { id: "week", sec: "smart", icon: "◷", label: L("Added this week", "أضيفت هذا الأسبوع") },
+  { id: "picks", sec: "smart", icon: "✓", label: L("Picks", "المختارة") },
+  { id: "five", sec: "smart", icon: "★", label: L("5 stars", "5 نجوم") },
+  { id: "lastyear", sec: "smart", icon: "↺", label: L("This day in past years", "هذا اليوم في سنوات سابقة") },
+  { id: "nofaces", sec: "smart", icon: "◌", label: L("No people", "بلا أشخاص") },
+  { id: "raw", sec: "smart", icon: "◈", label: L("RAW", "RAW") },
+  { id: "sent", sec: "smart", icon: "☁", label: L("On the website", "على الموقع") },
+  { id: "ready", sec: "work", icon: "✎", label: L("Ready to post", "جاهزة للنشر") },
+  { id: "tocull", sec: "work", icon: "▶", label: L("To cull", "للفرز") },
+  { id: "untagged", sec: "work", icon: "☺", label: L("Faces to name", "وجوه بلا أسماء") },
+  { id: "fix", sec: "work", icon: "◐", label: L("Needs fixing", "تحتاج إصلاحًا") },
+  { id: "nopost", sec: "work", icon: "⛔", label: L("Can't appear in posts", "لا يظهرون في المنشورات") },
+  { id: "noevent", sec: "work", icon: "?", label: L("Needs sorting", "تحتاج ترتيبًا") },
+  { id: "notsent", sec: "work", icon: "⇡", label: L("Picks not on the website", "مختارة لم تُرسل للموقع") },
+  { id: "rejected", sec: "work", icon: "✕", label: L("Rejected", "المرفوضة") },
 ];
+const ALBUM_SECS = () => ({ smart: L("Smart albums", "ألبومات ذكية"), work: L("To do", "مهام"), mine: L("My albums", "ألبوماتي") });
+const collapsed = (() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem("hub.collapsed") || "[]"));
+  } catch {
+    return new Set();
+  }
+})();
+function toggleSec(id) {
+  if (collapsed.has(id)) collapsed.delete(id);
+  else collapsed.add(id);
+  try {
+    localStorage.setItem("hub.collapsed", JSON.stringify([...collapsed]));
+  } catch {}
+  drawTree();
+}
+// "20 Oct 2020 · Sports Day" instead of folder names.
+const eventLabel = (ev) => (ev.event_date ? `${new Date(`${ev.event_date}T12:00:00`).toLocaleDateString(S.language === "en" ? "en-GB" : "ar-EG", { day: "numeric", month: "short" })} · ${ev.event_title}` : ev.event_title);
 
 App.views.library = {
   render(main, params) {
@@ -89,9 +111,10 @@ App.views.library = {
     else if (k === "backspace" && e.metaKey) act.bin(ids);
   },
   async loadTree() {
-    const [t, cls] = await Promise.all([quiet("tree"), quiet("classes")]);
+    const [t, cls, albums] = await Promise.all([quiet("tree"), quiet("classes"), quiet("albums")]);
     if (!t || !$("#tree")) return;
     lib.tree = t;
+    lib.albums = albums ?? { counts: {}, mine: [] };
     lib.classes = cls ?? [];
     drawTree();
     drawFilters();
@@ -125,7 +148,7 @@ function drawTitle() {
   const f = lib.filter;
   let title = L("Library", "المكتبة");
   let sub = "";
-  if (f.album) title = ALBUMS().find((a) => a.id === f.album)?.label ?? title;
+  if (f.album) title = ALBUMS().find((a) => a.id === f.album)?.label ?? (lib.albums?.mine ?? []).find((a) => `my:${a.id}` === f.album)?.name ?? title;
   if (f.event) {
     const ev = lib.tree?.rows.find((r) => r.event_key === f.event);
     title = ev?.event_title ?? f.event;
@@ -145,8 +168,26 @@ function drawTree() {
   const tree = $("#tree");
   if (!t || !tree) return;
   const f = lib.filter;
-  const out = [`<div class="head">${L("Albums", "ألبومات")}</div>`];
-  for (const a of ALBUMS()) out.push(`<div class="t ${f.album === a.id ? "on" : ""}" data-album="${a.id}"><span>${a.icon}</span><span class="name">${esc(a.label)}</span></div>`);
+  const out = [];
+  const counts = lib.albums?.counts ?? {};
+  const head = (id, label, extra = "") => `<div class="head row nowrap" data-sec="${id}" style="cursor: pointer"><span class="grow">${collapsed.has(id) ? "▸" : "▾"} ${esc(label)}</span>${extra}</div>`;
+  for (const [sec, label] of Object.entries(ALBUM_SECS())) {
+    if (sec === "mine") {
+      out.push(head("mine", label, `<button class="link small" id="newalbum" title="${L("New album", "ألبوم جديد")}">+</button>`));
+      if (collapsed.has("mine")) continue;
+      for (const a of lib.albums?.mine ?? []) out.push(`<div class="t ${f.album === `my:${a.id}` ? "on" : ""}" data-album="my:${a.id}" data-mine="${a.id}"><span>${a.rule ? "⚙" : "▣"}</span><span class="name">${esc(a.name)}</span><span class="n">${num(a.n)}</span></div>`);
+      if (!(lib.albums?.mine ?? []).length) out.push(`<p class="muted tiny" style="padding: 2px 8px">${L("Drag photos onto + or select and press “Add to album”.", "اسحب الصور إلى + أو حددها واضغط «إضافة إلى ألبوم».")}</p>`);
+      continue;
+    }
+    out.push(head(sec, label));
+    if (collapsed.has(sec)) continue;
+    for (const a of ALBUMS().filter((x) => x.sec === sec)) {
+      const n = counts[a.id];
+      // Empty albums hide (except All photos and the one open now).
+      if (n === 0 && a.id !== "all" && f.album !== a.id) continue;
+      out.push(`<div class="t ${f.album === a.id ? "on" : ""}" data-album="${a.id}"><span>${a.icon}</span><span class="name">${esc(a.label)}</span>${n !== undefined ? `<span class="n">${num(n)}</span>` : ""}</div>`);
+    }
+  }
   const years = new Map();
   for (const r of t.rows) {
     const y = r.year ?? L("No date", "بلا تاريخ");
@@ -167,7 +208,7 @@ function drawTree() {
       for (const ev of events) {
         if (!ev.event_key) continue;
         const on = f.event === ev.event_key;
-        out.push(`<div class="t lvl2 ${on && !f.className ? "on" : ""}" data-event="${esc(ev.event_key)}" data-title="${esc(ev.event_title)}" data-date="${esc(ev.event_date ?? "")}" title="${esc(ev.event_title)}"><span class="name">${esc(ev.event_title)}</span>${ev.picks ? `<span class="tag good" style="padding: 0 5px">${num(ev.picks)}</span>` : ""}<span class="n">${num(ev.n)}</span></div>`);
+        out.push(`<div class="t lvl2 ${on && !f.className ? "on" : ""}" data-event="${esc(ev.event_key)}" data-title="${esc(ev.event_title)}" data-date="${esc(ev.event_date ?? "")}" title="${esc(ev.event_key)}"><span class="name">${esc(eventLabel(ev))}</span>${ev.picks ? `<span class="tag good" style="padding: 0 5px">${num(ev.picks)}</span>` : ""}<span class="n">${num(ev.n)}</span></div>`);
         if (on) {
           for (const c of t.classes.filter((c) => c.event_key === ev.event_key)) {
             out.push(`<div class="t lvl3 ${f.className === c.class_name ? "on" : ""}" data-event="${esc(ev.event_key)}" data-class="${esc(c.class_name)}"><span class="name">${esc(c.class_name)}</span><span class="n">${num(c.n)}</span></div>`);
@@ -177,6 +218,24 @@ function drawTree() {
     }
   }
   tree.innerHTML = out.join("");
+  $$("[data-sec]", tree).forEach((el) => (el.onclick = (e) => e.target.id !== "newalbum" && toggleSec(el.dataset.sec)));
+  const nb = $("#newalbum", tree);
+  if (nb) {
+    nb.onclick = (e) => { e.stopPropagation(); albumDialog(selectedIds()); };
+    nb.addEventListener("dragover", (e) => e.dataTransfer.types.includes("text/hub-photos") && e.preventDefault());
+    nb.addEventListener("drop", (e) => { e.preventDefault(); albumDialog(JSON.parse(e.dataTransfer.getData("text/hub-photos") || "[]")); });
+  }
+  $$("[data-mine]", tree).forEach((el) => {
+    el.addEventListener("dragover", (e) => e.dataTransfer.types.includes("text/hub-photos") && (e.preventDefault(), el.classList.add("on")));
+    el.addEventListener("dragleave", () => el.classList.toggle("on", lib.filter.album === el.dataset.album));
+    el.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      const ids = JSON.parse(e.dataTransfer.getData("text/hub-photos") || "[]");
+      await call("addToAlbum", Number(el.dataset.mine), ids);
+      toast(L(`Added ${ids.length} photos`, `أُضيفت ${num(ids.length)} صورة`));
+    });
+    el.oncontextmenu = (e) => { e.preventDefault(); albumMenu(Number(el.dataset.mine)); };
+  });
   $$(".t", tree).forEach((el) => {
     el.onclick = () => {
       const d = el.dataset;
@@ -390,11 +449,15 @@ function rateMenu(ids) {
 function moreMenu(ids) {
   const m = modal(`<h2>${plural(ids.length, "photo", "photos", "صورة")}</h2><div class="col">
     <button class="btn" id="m-finder">${L("Show in Finder", "إظهار في Finder")}</button>
+    <button class="btn" id="m-album">▣ ${L("Add to album…", "إضافة إلى ألبوم…")}</button>
+    ${lib.filter.album?.startsWith("my:") ? `<button class="btn" id="m-unalbum">${L("Remove from this album", "إزالة من هذا الألبوم")}</button>` : ""}
     <button class="btn" id="m-unpick">${L("Clear pick / reject", "إلغاء الاختيار أو الرفض")}</button>
     <button class="btn" id="m-similar">${L("Find similar shots in this selection", "البحث عن لقطات متشابهة في المحدد")}</button>
     <button class="btn danger" id="m-bin">${L("Move to Bin", "نقل إلى السلة")}</button></div>`);
   $("#m-finder", m).onclick = () => { closeOverlay(); call("reveal", ids[0]); };
   $("#m-unpick", m).onclick = () => { closeOverlay(); act.flag(ids, 0); };
+  $("#m-album", m).onclick = () => albumDialog(ids);
+  $("#m-unalbum", m)?.addEventListener("click", async () => { closeOverlay(); await call("removeFromAlbum", Number(lib.filter.album.slice(3)), ids); });
   $("#m-similar", m).onclick = async () => {
     closeOverlay();
     const groups = await call("similar", ids);
@@ -479,4 +542,61 @@ async function newPostFromSelection() {
   } catch {
     closeOverlay();
   }
+}
+
+// Add photos to an album, make a new one, or build a smart album from rules.
+function albumDialog(ids = []) {
+  const mine = (lib.albums?.mine ?? []).filter((a) => !a.rule);
+  const classes = [...new Set((lib.classes ?? []).map((c) => c.class_name).filter(Boolean))];
+  const m = modal(`<h2>▣ ${ids.length ? L(`Add ${ids.length} photos to an album`, `إضافة ${num(ids.length)} صورة إلى ألبوم`) : L("New album", "ألبوم جديد")}</h2>
+    ${ids.length && mine.length ? `<div class="col gap4">${mine.map((a) => `<button class="btn" data-add="${a.id}" style="justify-content: space-between"><span>${esc(a.name)}</span><span class="muted small">${num(a.n)}</span></button>`).join("")}</div><div class="muted small">${L("or a new one:", "أو ألبوم جديد:")}</div>` : ""}
+    <label class="field">${L("Name", "الاسم")}<input id="al-name" placeholder="${L("e.g. Best of Term 1", "مثال: أفضل صور الفصل الأول")}" /></label>
+    ${ids.length ? "" : `<label class="check"><input type="checkbox" id="al-smart" /> ${L("Smart album: fill it by rules", "ألبوم ذكي: يمتلئ حسب قواعد")}</label>
+    <div class="grid2 hide" id="al-rules">
+      <label class="field">${L("At least", "على الأقل")}<select id="r-rating"><option value="">—</option>${[1, 2, 3, 4, 5].map((n) => `<option value="${n}">${"★".repeat(n)}</option>`).join("")}</select></label>
+      <label class="field">${L("Class", "الفصل")}<select id="r-class"><option value="">—</option>${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></label>
+      <label class="field">${L("Event name has", "اسم الفعالية يحتوي")}<input id="r-event" /></label>
+      <label class="field">${L("People", "الأشخاص")}<select id="r-people"><option value="">—</option><option value="none">${L("No people", "بلا أشخاص")}</option><option value="some">${L("1 to 4 people", "1 إلى 4 أشخاص")}</option><option value="group">${L("Groups (5+)", "مجموعات (5+)")}</option></select></label>
+      <label class="field">${L("From", "من")}<input type="date" id="r-from" /></label>
+      <label class="field">${L("To", "إلى")}<input type="date" id="r-to" /></label>
+      <label class="check"><input type="checkbox" id="r-picked" /> ${L("Picks only", "المختارة فقط")}</label>
+    </div>`}
+    <div class="row"><span class="grow"></span><button class="btn" id="al-no">${L("Cancel", "إلغاء")}</button><button class="btn primary" id="al-yes">${L("Create", "إنشاء")}</button></div>`);
+  $("#al-no", m).onclick = closeOverlay;
+  $("#al-smart", m)?.addEventListener("change", (e) => $("#al-rules", m).classList.toggle("hide", !e.target.checked));
+  $$("[data-add]", m).forEach((b) => (b.onclick = async () => {
+    await call("addToAlbum", Number(b.dataset.add), ids);
+    closeOverlay();
+    toast(L(`Added ${ids.length} photos`, `أُضيفت ${num(ids.length)} صورة`));
+  }));
+  $("#al-yes", m).onclick = async () => {
+    const name = $("#al-name", m).value.trim();
+    if (!name) return $("#al-name", m).focus();
+    let rule = null;
+    if ($("#al-smart", m)?.checked) {
+      rule = {
+        minRating: Number($("#r-rating", m).value) || undefined,
+        className: $("#r-class", m).value || undefined,
+        event: $("#r-event", m).value.trim() || undefined,
+        people: $("#r-people", m).value || undefined,
+        from: $("#r-from", m).value || undefined,
+        to: $("#r-to", m).value || undefined,
+        picked: $("#r-picked", m).checked || undefined,
+      };
+    }
+    const id = await call("newAlbum", name, rule, ids);
+    closeOverlay();
+    lib.filter = { album: `my:${id}` };
+    App.views.library.loadTree();
+    App.views.library.load();
+  };
+}
+
+function albumMenu(id) {
+  const a = (lib.albums?.mine ?? []).find((x) => x.id === id);
+  if (!a) return;
+  const m = modal(`<h2>${esc(a.name)}</h2><label class="field">${L("Name", "الاسم")}<input id="am-name" value="${esc(a.name)}" /></label>
+    <div class="row"><button class="btn danger" id="am-del">${L("Delete album (photos stay)", "حذف الألبوم (تبقى الصور)")}</button><span class="grow"></span><button class="btn primary" id="am-save">${L("Save", "حفظ")}</button></div>`);
+  $("#am-save", m).onclick = async () => { await call("renameAlbum", id, $("#am-name", m).value.trim() || a.name); closeOverlay(); App.views.library.loadTree(); };
+  $("#am-del", m).onclick = async () => { await call("deleteAlbum", id); closeOverlay(); lib.filter = { album: "all" }; App.views.library.loadTree(); App.views.library.load(); };
 }

@@ -86,6 +86,19 @@ create table if not exists folders (
   archive integer not null default 0
 );
 
+create table if not exists albums (
+  id integer primary key,
+  name text not null,
+  rule text,
+  added_at integer not null
+);
+
+create table if not exists album_photos (
+  album_id integer not null references albums (id) on delete cascade,
+  photo_id integer not null references photos (id) on delete cascade,
+  primary key (album_id, photo_id)
+);
+
 create table if not exists history (
   id integer primary key,
   at integer not null,

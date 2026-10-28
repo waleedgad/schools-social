@@ -10,6 +10,7 @@ import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
+import { groupMoves, planFiling } from "./core/filing";
 import { eventFolder, guessEvent, isLibraryFile, safeName } from "./core/library";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
@@ -256,6 +257,7 @@ async function photoReady(id: number) {
     id,
   );
   if (!p) return;
+  if (s.selfFiling && one<{ year: string | null }>("select year from photos where id = ?", id)?.year === null) fileSoon(id);
   const fromWeb = webChecks.get().pending[p.path];
   if (fromWeb) queue.markSent(p.hash, fromWeb);
   const known = queue.photoId(p.hash);
@@ -359,6 +361,17 @@ const PHOTO_COLUMNS = `p.id, p.name, p.width, p.height, p.rating, p.flag, p.labe
   (select count(*) from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed', 'manual') and s.can_post = 0) as no_post`;
 
 function photos(f: Filter) {
+  const { where, args } = photoWhere(f);
+  const order = f.sort === "quality" ? "p.quality desc" : f.sort === "name" ? "p.name" : "p.taken_at, p.name";
+  return all(`select ${PHOTO_COLUMNS} from photos p where ${where.join(" and ")} order by ${order} limit ?`, ...args, f.limit ?? 6000);
+}
+
+function countPhotos(f: Filter) {
+  const { where, args } = photoWhere(f);
+  return one<{ n: number }>(`select count(*) n from photos p where ${where.join(" and ")}`, ...args)?.n ?? 0;
+}
+
+function photoWhere(f: Filter) {
   const where = ["p.missing = 0", "p.pair_of is null", "p.dup_of is null", "p.edited_of is null"];
   const args: unknown[] = [];
   if (f.ids?.length) {
@@ -432,9 +445,31 @@ function photos(f: Filter) {
     case "raw":
       where.push("(p.is_raw = 1 or exists (select 1 from photos r where r.pair_of = p.id))");
       break;
+    case "ready":
+      where.push("p.flag = 1 and p.remote_id is null");
+      break;
+    case "tocull":
+      where.push("p.flag = 0 and p.rating = 0 and p.added_at > ?");
+      args.push(Date.now() - 30 * 86400_000);
+      break;
+    case "fix":
+      where.push("p.flag >= 0 and p.sharpness is not null and (p.sharpness < 25 or p.brightness < 0.11 or p.brightness > 0.92)");
+      break;
+    case "lastyear":
+      where.push("substr(p.taken_at, 6, 5) = ? and substr(p.taken_at, 1, 4) < ?");
+      args.push(new Date().toISOString().slice(5, 10), String(new Date().getFullYear()));
+      break;
+    default:
+      if (f.album?.startsWith("my:")) {
+        const album = one<{ id: number; rule: string | null }>("select id, rule from albums where id = ?", Number(f.album.slice(3)));
+        if (!album) where.push("0");
+        else if (!album.rule) {
+          where.push("exists (select 1 from album_photos a where a.album_id = ? and a.photo_id = p.id)");
+          args.push(album.id);
+        } else ruleWhere(JSON.parse(album.rule), where, args);
+      }
   }
-  const order = f.sort === "quality" ? "p.quality desc" : f.sort === "name" ? "p.name" : "p.taken_at, p.name";
-  return all(`select ${PHOTO_COLUMNS} from photos p where ${where.join(" and ")} order by ${order} limit ?`, ...args, f.limit ?? 6000);
+  return { where, args };
 }
 
 function tree() {
@@ -746,6 +781,59 @@ function removeWebCopiesOf(rows: { id: number; hash: string | null; remote_id: s
       }
     })
     .catch((e) => (lastMessage = String(e)));
+}
+
+// ---------- Self-filing ----------
+
+async function applyFiling(onlyIds?: number[]) {
+  const lib = settings.get().library;
+  if (!engine || !lib) return { moved: 0, unsure: 0 };
+  const { moves, unsure } = planFiling(db, lib, onlyIds);
+  const undo: { id: number; from: string }[] = [];
+  for (const g of groupMoves(moves)) undo.push(...(await engine.moveTo(g.ids, g)));
+  if (undo.length) remember("move", `${undo.length}:filed`, { kind: "move", items: undo });
+  push("photos");
+  return { moved: undo.length, unsure: unsure.length };
+}
+
+// New photos that land outside the filed folders are filed after a short wait.
+let toFile = new Set<number>();
+let fileTimer: NodeJS.Timeout | null = null;
+function fileSoon(id: number) {
+  toFile.add(id);
+  if (fileTimer) return;
+  fileTimer = setTimeout(() => {
+    fileTimer = null;
+    const ids = [...toFile];
+    toFile = new Set();
+    applyFiling(ids).catch((e) => (lastMessage = String(e)));
+  }, 20_000);
+}
+
+// ---------- Albums ----------
+
+// A smart album is a set of rules; every rule must match.
+type AlbumRule = { minRating?: number; picked?: boolean; className?: string; event?: string; student?: string; from?: string; to?: string; people?: "none" | "some" | "group"; sent?: boolean };
+function ruleWhere(r: AlbumRule, where: string[], args: unknown[]) {
+  if (r.minRating) (where.push("p.rating >= ?"), args.push(r.minRating));
+  if (r.picked) where.push("p.flag = 1");
+  if (r.className) (where.push("p.class_name = ?"), args.push(r.className));
+  if (r.event) (where.push("p.event_title like ?"), args.push(`%${r.event}%`));
+  if (r.student) (where.push("exists (select 1 from faces f where f.photo_id = p.id and f.student_id = ? and f.status in ('confirmed', 'manual'))"), args.push(r.student));
+  if (r.from) (where.push("coalesce(p.taken_at, p.event_date) >= ?"), args.push(r.from));
+  if (r.to) (where.push("coalesce(p.taken_at, p.event_date) <= ?"), args.push(`${r.to}T23:59:59`));
+  if (r.people === "none") where.push("p.faces_scanned = 1 and p.face_count = 0");
+  if (r.people === "some") where.push("p.face_count between 1 and 4");
+  if (r.people === "group") where.push("p.face_count >= 5");
+  if (r.sent !== undefined) where.push(r.sent ? "p.remote_id is not null" : "p.remote_id is null");
+}
+
+function albumCounts() {
+  const ids = ["all", "week", "picks", "five", "untagged", "nofaces", "nopost", "notsent", "sent", "noevent", "raw", "rejected", "ready", "tocull", "fix", "lastyear"];
+  const out: Record<string, number> = {};
+  for (const id of ids) out[id] = countPhotos({ album: id });
+  const mine = all<{ id: number; name: string; rule: string | null }>("select id, name, rule from albums order by name");
+  return { counts: out, mine: mine.map((a) => ({ ...a, n: countPhotos({ album: `my:${a.id}` }), cover: (photos({ album: `my:${a.id}`, limit: 1 })[0] as { id?: number } | undefined)?.id ?? null })) };
 }
 
 // ---------- Clean up ----------
@@ -1121,6 +1209,36 @@ app.whenReady().then(async () => {
     bin: (ids: number[]) => binPhotos(ids),
     duplicates: () => engine?.duplicates() ?? [],
     cleanup: () => cleanupReport(),
+    albums: () => albumCounts(),
+    newAlbum: (name: string, rule: AlbumRule | null, ids: number[] = []) => {
+      const r = db.prepare("insert into albums (name, rule, added_at) values (?, ?, ?)").run(name.slice(0, 80), rule ? JSON.stringify(rule) : null, Date.now());
+      const id = Number(r.lastInsertRowid);
+      const add = db.prepare("insert or ignore into album_photos (album_id, photo_id) values (?, ?)");
+      tx(db, () => ids.forEach((p) => add.run(id, p)));
+      push("photos");
+      return id;
+    },
+    addToAlbum: (albumId: number, ids: number[]) => {
+      const add = db.prepare("insert or ignore into album_photos (album_id, photo_id) values (?, ?)");
+      tx(db, () => ids.forEach((p) => add.run(albumId, p)));
+      push("photos");
+    },
+    removeFromAlbum: (albumId: number, ids: number[]) => {
+      db.prepare(`delete from album_photos where album_id = ? and photo_id in (${marks(ids.length)})`).run(albumId, ...ids);
+      push("photos");
+    },
+    renameAlbum: (albumId: number, name: string) => db.prepare("update albums set name = ? where id = ?").run(name.slice(0, 80), albumId),
+    deleteAlbum: (albumId: number) => {
+      db.prepare("delete from albums where id = ?").run(albumId);
+      push("photos");
+    },
+    filingPlan: () => {
+      const lib = settings.get().library;
+      if (!lib) return null;
+      const { moves, unsure } = planFiling(db, lib);
+      return { count: moves.length, unsure: unsure.length, groups: groupMoves(moves).slice(0, 200).map((g) => ({ title: g.title, date: g.date, className: g.className, n: g.ids.length })) };
+    },
+    applyFiling: () => applyFiling(),
     cleanupList: (kind: string) => cleanupList(kind),
     cleanSafe: async () => {
       const r = await cleanupReport();

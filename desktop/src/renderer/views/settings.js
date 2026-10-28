@@ -34,6 +34,10 @@ App.views.settings = {
         ${folders.length ? folders.map((f) => `<div class="row small"><span class="grow ltr">${esc(f.path)}</span>${f.skip ? `<span class="tag">${L("Skipped", "متجاهَل")}</span>` : ""}${f.archive ? `<span class="tag info">${L("Mac only", "على الماك فقط")}</span>` : ""}<button class="btn small" data-unflag="${esc(f.path)}">${L("Remove", "إزالة")}</button></div>`).join("") : `<p class="muted small">${L("Skip folders the app should ignore (for example staff photos), or mark old archives as Mac only.", "تجاهل مجلدات (مثل صور الموظفين)، أو اجعل الأرشيف القديم على الماك فقط.")}</p>`}
         <div class="row"><button class="btn small" id="skip">+ ${L("Skip a folder", "تجاهل مجلد")}</button><button class="btn small" id="arch">+ ${L("Mark a folder as Mac only", "مجلد على الماك فقط")}</button></div>
       </div>
+      <div class="card"><h2>${L("File my folder in place", "رتّب مجلدي في مكانه")}</h2>
+        <p class="muted small">${L("Off unless you turn it on. When on, photos that land in the library outside Year / Term / Event folders (from Finder, teachers or watched folders) are moved into place by themselves. Nothing is copied, photos already in an event folder are never moved, and “_” folders are left alone. Every move can be undone in History.", "متوقف إلا إذا شغّلته. عند تشغيله، تُنقل الصور التي تصل إلى المكتبة خارج مجلدات السنة / الفصل الدراسي / الفعالية إلى مكانها تلقائيًا. لا يُنسخ شيء، ولا تُنقل أبدًا الصور الموجودة في مجلد فعالية، وتُترك مجلدات «_». يمكن التراجع عن كل نقل من السجل.")}</p>
+        <label class="check"><input type="checkbox" id="selffile" ${S.selfFiling ? "checked" : ""} ${S.library ? "" : "disabled"} /> ${L("File new photos in place automatically", "رتّب الصور الجديدة في مكانها تلقائيًا")}</label>
+        <button class="btn small" id="tidy" style="align-self: flex-start" ${S.library ? "" : "disabled"}>${L("Tidy my folder now…", "رتّب مجلدي الآن…")}</button></div>
       <div class="card"><h2>${L("Watched folders", "المجلدات المراقَبة")}</h2>
         <p class="muted small">${L("New photos that appear in these folders (Google Drive, OneDrive, Dropbox, Lightroom exports, AirDrop) are copied into the library by themselves.", "الصور الجديدة في هذه المجلدات (Google Drive وOneDrive وDropbox وصادرات Lightroom وAirDrop) تُنسخ إلى المكتبة تلقائيًا.")}</p>
         ${S.watched.map((w) => `<div class="row small"><span class="grow ltr">${esc(w.path)}</span><button class="btn small" data-unwatch="${esc(w.path)}">${L("Stop", "إيقاف")}</button></div>`).join("")}
@@ -69,6 +73,8 @@ App.views.settings = {
     on("#lib", "click", () => call("chooseLibrary"));
     on("#rescan", "click", () => call("rescan").then(() => toast(L("Looking through the library again", "جارٍ إعادة فحص المكتبة"))));
     on("#paused", "change", (e) => call("set", "paused", e.target.checked));
+    $("#selffile", box)?.addEventListener("change", (e) => call("set", "selfFiling", e.target.checked));
+    $("#tidy", box)?.addEventListener("click", () => tidyPlan());
     $$("[name=send]", box).forEach((r) => r.addEventListener("change", (e) => call("set", "sendMode", e.target.value)));
     on("#retry", "click", () => call("retryFailed"));
     on("#skip", "click", async () => { const d = await call("chooseFolderToFlag"); if (d) call("folderFlag", d, "skip", true); });
@@ -134,3 +140,24 @@ App.views.history = {
     $("#h-undo", main).onclick = async () => { await doUndo(); go("history"); };
   },
 };
+
+// Shows the plan first (where photos will go, what the app isn't sure of),
+// then moves everything in place. One undo for the whole tidy-up.
+async function tidyPlan() {
+  const plan = await call("filingPlan");
+  if (!plan) return;
+  const m = modal(`<h2>${L("Tidy my folder", "ترتيب مجلدي")}</h2>
+    ${plan.count ? `<p>${L(`${num(plan.count)} photos will move into ${num(plan.groups.length)} event folders:`, `ستنتقل ${num(plan.count)} صورة إلى ${num(plan.groups.length)} مجلد فعالية:`)}</p>
+      <div class="col gap4" style="max-height: 300px; overflow-y: auto">${plan.groups.map((g) => `<div class="row small nowrap"><span class="ltr muted">${esc(g.date)}</span><b class="grow">${esc(g.title)}${g.className ? ` / ${esc(g.className)}` : ""}</b><span class="muted">${num(g.n)}</span></div>`).join("")}</div>`
+      : `<p class="muted">${L("Everything is already filed.", "كل شيء مرتب بالفعل.")}</p>`}
+    ${plan.unsure ? `<div class="note warn">${L(`${num(plan.unsure)} photos have no date anywhere. They stay where they are and show in the album “No event”.`, `${num(plan.unsure)} صورة بلا تاريخ. تبقى مكانها وتظهر في ألبوم «بلا فعالية».`)}</div>` : ""}
+    <p class="muted small">${L("Tip: make a backup first (Settings → Backup).", "نصيحة: اعمل نسخة احتياطية أولًا (الإعدادات ← النسخ الاحتياطي).")}</p>
+    <div class="row"><span class="grow"></span><button class="btn" id="t-no">${L("Cancel", "إلغاء")}</button><button class="btn primary" id="t-go" ${plan.count ? "" : "disabled"}>${L("Move them now", "انقلها الآن")}</button></div>`);
+  $("#t-no", m).onclick = closeOverlay;
+  $("#t-go", m).onclick = async () => {
+    $("#t-go", m).disabled = true;
+    const r = await call("applyFiling");
+    closeOverlay();
+    toast(L(`${r.moved} photos filed. ⌘Z undoes it.`, `رُتبت ${num(r.moved)} صورة. ⌘Z للتراجع.`), { ms: 7000 });
+  };
+}
