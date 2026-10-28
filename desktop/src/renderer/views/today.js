@@ -73,17 +73,3 @@ App.views.today = {
   },
 };
 
-function statusName(s) {
-  return (
-    {
-      draft: L("Draft", "مسودة"),
-      in_review: L("In review", "قيد المراجعة"),
-      approved: L("Approved", "تمت الموافقة"),
-      scheduled: L("Scheduled", "مجدول"),
-      publishing: L("Publishing", "جارٍ النشر"),
-      published: L("Published", "منشور"),
-      failed: L("Failed", "فشل"),
-      rejected: L("Sent back", "أُعيد"),
-    }[s] ?? s
-  );
-}

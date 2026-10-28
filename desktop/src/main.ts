@@ -14,7 +14,7 @@ import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
 import { LibrarySync } from "./core/sync";
-import { createDraft, pushStudents, setOptedOut, summary } from "./core/web";
+import { pushStudents, setOptedOut, summary } from "./core/web";
 
 type Watched = { path: string; label: string };
 type Settings = {
@@ -673,7 +673,7 @@ async function newPost(ids: number[]) {
   const rows = all<{ id: number; path: string; remote_id: string | null; taken_at: string | null }>(
     `select id, path, remote_id, taken_at from photos where id in (${marks(ids.length)}) order by taken_at`,
     ...ids,
-  ).slice(0, 20);
+  ).slice(0, 80);
   for (const r of rows) if (!r.remote_id) await sync.enqueue(r.path);
   // Wait for the photos to reach the website (up to three minutes).
   const started = Date.now();
@@ -690,10 +690,32 @@ async function newPost(ids: number[]) {
     ...rows.map((r) => r.id),
   );
   const eventId = await sync.eventFor(fresh[0].path, fresh[0].taken_at ? new Date(fresh[0].taken_at) : null).catch(() => null);
-  const postId = await createDraft(sb, { schoolId: s.schoolId, userId: s.userId, eventId, photoIds: fresh.map((r) => r.remote_id) });
+  const made = await appApi("create", { event: eventId, photos: fresh.map((r) => r.remote_id) });
+  const postId = String(made.id ?? "");
+  if (!postId) throw new Error(String(made.error ?? "post"));
   lastMessage = "";
   remember("post", postId, null);
   return postId;
+}
+
+// The website's posting rules, called with this person's own sign-in, so
+// the Mac's Posts and Calendar follow the same approvals and checks.
+async function appApi(action: string, payload: Record<string, unknown> = {}) {
+  const sb = client();
+  const s = settings.get();
+  if (!sb || !s.userId) throw new Error("not-signed-in");
+  const { data } = await sb.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("not-signed-in");
+  const res = await net.fetch(`${s.server || DEFAULT_SERVER}/api/app`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ...payload, action, locale: s.language, school: s.schoolId }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status === 401) throw new Error("not-signed-in");
+  if (!res.ok) throw new Error(String(body.message ?? body.error ?? `server ${res.status}`));
+  return body;
 }
 
 // ---------- Search (⌘K) ----------
@@ -1085,6 +1107,7 @@ app.whenReady().then(async () => {
     periods: () => all("select distinct year, term from photos where year is not null and missing = 0 order by year desc, term desc"),
 
     newPost: (ids: number[]) => newPost(ids),
+    app: (action: string, payload?: Record<string, unknown>) => appApi(action, payload ?? {}),
     serverSummary: async () => {
       const sb = client();
       const s = settings.get();

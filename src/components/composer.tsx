@@ -332,6 +332,7 @@ export function Composer({ data }: { data: ComposerData }) {
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_23rem]">
       <form ref={form} action={postAction} className="min-w-0 space-y-4" onSubmit={() => setDirty(false)}>
         {hidden}
+        <input type="hidden" name="editor" value="1" />
         <input type="hidden" name="photosSent" value={photosChanged ? "1" : "0"} />
         {photos.map((x) => (
           <input key={x.id} type="hidden" name="order" value={x.id} />
