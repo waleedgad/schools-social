@@ -10,8 +10,9 @@ import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
+import { SHOW_FROM, SURE } from "./core/faces";
 import { groupMoves, planFiling } from "./core/filing";
-import { eventFolder, guessEvent, isLibraryFile, safeName } from "./core/library";
+import { eventFolder, guessEvent, isLibraryFile, placeFromPath, safeName } from "./core/library";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
@@ -214,6 +215,7 @@ async function restart() {
       paused: () => settings.get().paused,
       onChange: push,
       onPhotoReady: photoReady,
+      onNamed: (ids) => syncOptedOut(ids),
       log: (m) => {
         lastMessage = m;
       },
@@ -257,7 +259,7 @@ async function photoReady(id: number) {
     id,
   );
   if (!p) return;
-  if (s.selfFiling && one<{ year: string | null }>("select year from photos where id = ?", id)?.year === null) fileSoon(id);
+  if (s.selfFiling && s.library && !placeFromPath(s.library, p.path).year) fileSoon(id);
   const fromWeb = webChecks.get().pending[p.path];
   if (fromWeb) queue.markSent(p.hash, fromWeb);
   const known = queue.photoId(p.hash);
@@ -509,7 +511,7 @@ function classes() {
   );
 }
 
-function students(f: { className?: string; search?: string; year?: string; term?: string }) {
+function students(f: { className?: string; search?: string; year?: string; term?: string; event?: string }) {
   const where: string[] = [];
   const args: unknown[] = [];
   if (f.className) {
@@ -530,9 +532,16 @@ function students(f: { className?: string; search?: string; year?: string; term?
     period.push("p.term = ?");
     pargs.push(f.term);
   }
+  if (f.event) {
+    period.push("p.event_key = ?");
+    pargs.push(f.event);
+  }
+  const inPeriod = period.length ? "and " + period.join(" and ") : "";
   return all(
     `select s.*, (select count(distinct f.photo_id) from faces f join photos p on p.id = f.photo_id
-        where f.student_id = s.id and f.status in ('confirmed', 'manual') and p.missing = 0 ${period.length ? "and " + period.join(" and ") : ""}) as photos,
+        where f.student_id = s.id and f.status in ('confirmed', 'manual') and p.missing = 0 ${inPeriod}) as photos,
+      (select max(coalesce(p.taken_at, p.event_date)) from faces f join photos p on p.id = f.photo_id
+        where f.student_id = s.id and f.status in ('confirmed', 'manual') and p.missing = 0) as last_seen,
       (select count(*) from faces f where f.suggest_id = s.id and f.status = 'suggested') as suggested
      from students s ${where.length ? "where " + where.join(" and ") : ""} order by s.class_name, coalesce(s.name_en, s.name_ar) limit 3000`,
     ...pargs,
@@ -571,7 +580,7 @@ function syncOptedOut(photoIds: number[]) {
 
 function confirmFaces(faceIds: number[], studentId: string) {
   const before = faceRowsFor(faceIds);
-  db.prepare(`update faces set student_id = ?, status = 'confirmed', suggest_id = null, suggest_score = null where id in (${marks(faceIds.length)})`).run(studentId, ...faceIds);
+  db.prepare(`update faces set student_id = ?, status = 'confirmed', suggest_id = null, suggest_score = null, auto = 0 where id in (${marks(faceIds.length)})`).run(studentId, ...faceIds);
   remember("tag", `${faceIds.length}:${studentId}`, { kind: "faces", rows: before });
   syncOptedOut([...new Set(before.map((r) => r.photo_id))]);
   setTimeout(() => engine?.rematch([studentId]), 50);
@@ -695,19 +704,81 @@ async function commitStudents(portraitFolder: string | null) {
 
 // ---------- Coverage ----------
 
-function coverage(f: { year?: string; term?: string }) {
-  const rows = students(f) as { id: string; class_name: string | null; stage: string | null; grade: string | null; photos: number }[];
-  const byClass = new Map<string, { className: string; stage: string | null; grade: string | null; students: number; zero: number; low: number; photos: number }>();
+// Coverage by Stage → Grade → Class, in the school's natural order.
+// Students who can't appear in posts are counted on their own.
+function coverage(f: { year?: string; term?: string; event?: string }) {
+  const rows = students(f) as { id: string; class_name: string | null; stage: string | null; grade: string | null; photos: number; can_post: number; last_seen: string | null }[];
+  const order = classes().map((c) => c.class_name ?? "—");
+  const stale = new Date(Date.now() - 21 * 86400_000).toISOString();
+  const byClass = new Map<string, { className: string; stage: string | null; grade: string | null; students: number; zero: number; low: number; good: number; nopost: number; stale: number; photos: number }>();
   for (const r of rows) {
     const k = r.class_name ?? "—";
-    const c = byClass.get(k) ?? { className: k, stage: r.stage, grade: r.grade, students: 0, zero: 0, low: 0, photos: 0 };
+    const c = byClass.get(k) ?? { className: k, stage: r.stage, grade: r.grade, students: 0, zero: 0, low: 0, good: 0, nopost: 0, stale: 0, photos: 0 };
+    byClass.set(k, c);
+    if (!r.can_post) {
+      c.nopost++;
+      continue;
+    }
     c.students++;
     c.photos += r.photos;
     if (r.photos === 0) c.zero++;
     else if (r.photos < 3) c.low++;
-    byClass.set(k, c);
+    else c.good++;
+    if (r.last_seen && r.last_seen < stale) c.stale++;
   }
-  return [...byClass.values()];
+  return [...byClass.values()].sort((a, b) => order.indexOf(a.className) - order.indexOf(b.className));
+}
+
+// ---------- People (faces like Apple Photos) ----------
+
+// Each student's main face: the one chosen, else the biggest clear face
+// someone confirmed (never an auto-named one).
+const MAIN_FACE = `coalesce(s.main_face, (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
+
+function people(f: { className?: string }) {
+  return all(
+    `select s.id, s.name_en, s.name_ar, s.class_name, s.stage, s.grade, s.can_post, s.portrait, ${MAIN_FACE} as face,
+       (select count(distinct f.photo_id) from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual') and p.missing = 0) as photos,
+       (select count(*) from faces f join photos p on p.id = f.photo_id where f.suggest_id = s.id and f.status = 'suggested' and f.suggest_score >= ? and p.missing = 0) as review,
+       (select count(*) from faces f where f.student_id = s.id and f.auto = 1 and f.status = 'confirmed') as auto
+     from students s ${f.className ? "where s.class_name = ?" : ""} order by photos desc, coalesce(s.name_en, s.name_ar) limit 3000`,
+    SHOW_FROM,
+    ...(f.className ? [f.className] : []),
+  );
+}
+
+function person(id: string) {
+  const s = one(`select s.*, ${MAIN_FACE} as face from students s where s.id = ?`, id);
+  if (!s) return null;
+  const photoIds = all<{ id: number }>(
+    "select distinct p.id from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and p.missing = 0 order by p.taken_at desc limit 2000",
+    id,
+  ).map((r) => r.id);
+  const review = all<{ id: number; photo_id: number; suggest_score: number }>(
+    "select f.id, f.photo_id, f.suggest_score from faces f join photos p on p.id = f.photo_id where f.suggest_id = ? and f.status = 'suggested' and f.suggest_score >= ? and p.missing = 0 order by f.suggest_score desc limit 240",
+    id,
+    SHOW_FROM,
+  ).map((f) => ({ ...f, sure: f.suggest_score >= SURE - 0.04 }));
+  const auto = all("select f.id, f.photo_id, f.suggest_score from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.auto = 1 and f.status = 'confirmed' and p.missing = 0 order by f.suggest_score limit 120", id);
+  const examples = all("select f.id from faces f where f.student_id = ? and f.status in ('confirmed', 'manual', 'portrait') and f.auto = 0 order by f.w * f.score desc limit 24", id);
+  const events = all(
+    `select p.event_key, p.event_title, p.event_date, count(distinct p.id) n from faces f join photos p on p.id = f.photo_id
+     where f.student_id = ? and f.status in ('confirmed', 'manual') and p.missing = 0 group by p.event_key order by p.event_date desc limit 40`,
+    id,
+  );
+  return { student: s, photoIds, review, auto, examples, events };
+}
+
+// "Is this Youssef?": one face at a time, the strongest first.
+function isThisQueue(studentIds?: string[]) {
+  const only = studentIds?.length ? `and f.suggest_id in (${marks(studentIds.length)})` : "";
+  return all(
+    `select f.id, f.photo_id, f.suggest_score, s.id as student_id, s.name_en, s.name_ar, s.class_name, ${MAIN_FACE} as main
+     from faces f join photos p on p.id = f.photo_id join students s on s.id = f.suggest_id
+     where f.status = 'suggested' and f.suggest_score >= ? and p.missing = 0 ${only} order by f.suggest_score desc limit 400`,
+    SHOW_FROM,
+    ...(studentIds ?? []),
+  );
 }
 
 // ---------- Website uploads and deletes ----------
@@ -1373,7 +1444,7 @@ app.whenReady().then(async () => {
     pickPortraits: () => chooseFolder("Folder of student portraits (named by student ID)"),
     commitStudents: (folder: string | null) => commitStudents(folder),
     classes: () => classes(),
-    students: (f: { className?: string; search?: string; year?: string; term?: string }) => students(f),
+    students: (f: { className?: string; search?: string; year?: string; term?: string; event?: string }) => students(f),
     student: (id: string) => one("select * from students where id = ?", id),
     setCanPost: (id: string, value: boolean) => {
       const before = one<{ can_post: number }>("select can_post from students where id = ?", id);
@@ -1404,15 +1475,19 @@ app.whenReady().then(async () => {
     suggestions: (limit = 40) => {
       const groups = all<{ suggest_id: string; n: number; best: number }>(
         `select f.suggest_id, count(*) n, max(f.suggest_score) best from faces f join photos p on p.id = f.photo_id
-         where f.status = 'suggested' and p.missing = 0 group by f.suggest_id order by n desc limit ?`,
+         where f.status = 'suggested' and f.suggest_score >= ${SHOW_FROM} and p.missing = 0 group by f.suggest_id order by n desc limit ?`,
         limit,
       );
       return groups.map((g) => ({
         student: one("select * from students where id = ?", g.suggest_id),
-        faces: all("select f.id, f.photo_id, f.suggest_score from faces f join photos p on p.id = f.photo_id where f.status = 'suggested' and f.suggest_id = ? and p.missing = 0 order by f.suggest_score desc limit 60", g.suggest_id),
+        faces: all(`select f.id, f.photo_id, f.suggest_score from faces f join photos p on p.id = f.photo_id where f.status = 'suggested' and f.suggest_score >= ${SHOW_FROM} and f.suggest_id = ? and p.missing = 0 order by f.suggest_score desc limit 60`, g.suggest_id),
         n: g.n,
       }));
     },
+    people: (f: { className?: string } = {}) => people(f),
+    person: (id: string) => person(id),
+    setMainFace: (studentId: string, faceId: number | null) => db.prepare("update students set main_face = ? where id = ?").run(faceId, studentId),
+    isThis: (studentIds?: string[]) => isThisQueue(studentIds),
     unknownGroups: () => (engine?.unknownGroups() ?? []).map((ids) => ({ ids, photos: [...new Set(faceRowsFor(ids).map((f) => f.photo_id))].length })),
     confirmFaces: (ids: number[], studentId: string) => confirmFaces(ids, studentId),
     rejectFaces: (ids: number[]) => rejectFaces(ids),
@@ -1427,7 +1502,7 @@ app.whenReady().then(async () => {
       engine?.queueFaceScan();
       engine?.rematch();
     },
-    coverage: (f: { year?: string; term?: string }) => coverage(f),
+    coverage: (f: { year?: string; term?: string; event?: string }) => coverage(f),
     periods: () => all("select distinct year, term from photos where year is not null and missing = 0 order by year desc, term desc"),
 
     newPost: (ids: number[]) => newPost(ids),

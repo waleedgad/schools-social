@@ -273,3 +273,25 @@ webview { flex: 1; border: 0; width: 100%; }
 .sd.good { background: var(--good); } .sd.warn { background: var(--warn); } .sd.bad { background: var(--bad); } .sd.info { background: var(--info); } .sd.violet { background: var(--violet); }
 .cslot { font-size: 10.5px; padding: 2px 6px; border-radius: 6px; border: 1px dashed var(--line); color: var(--faint); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cslot:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Coverage and people grids */
+.cbar { display: flex; height: 7px; border-radius: 99px; overflow: hidden; background: var(--grey-bg); }
+.cbar i { display: block; height: 100%; }
+.cbar .g { background: var(--good); } .cbar .w { background: #e0a526; } .cbar .b { background: var(--bad); }
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 12px; }
+.person { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 8px 4px; border-radius: 12px; cursor: pointer; }
+.person:hover { background: var(--surface2); }
+.person.off { opacity: .55; }
+.person b { line-height: 1.25; }
+.person .avatar.big, .person .pface, .pface.big { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; font-size: 20px; }
+.pface { display: block; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--grey-bg); flex-shrink: 0; }
+.pface.big { width: 104px; height: 104px; }
+.person .badge { font-size: 10.5px; padding: 0 7px; border-radius: 99px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+.faces.big { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
+.face.on { outline-color: var(--accent); }
+.face .tick { position: absolute; top: 5px; inset-inline-start: 5px; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,.85); color: transparent; display: grid; place-items: center; font-size: 12px; font-weight: 700; border: 1px solid var(--line); }
+.face.on .tick { background: var(--accent); color: #fff; border-color: var(--accent); }
+.isthis { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 0; }
+.isthis .pair { display: flex; gap: 24px; align-items: center; }
+.isthis .q { width: 260px; height: 260px; border-radius: 18px; object-fit: cover; box-shadow: var(--shadow); }
+.isthis .ref { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; }

@@ -6,7 +6,7 @@ import { watch, type FSWatcher } from "chokidar";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { bestMatch, cosine, findFaces, SAME_PERSON } from "./faces";
+import { bestMatch, isSure, cosine, findFaces, SAME_PERSON } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -26,6 +26,9 @@ export type EngineOptions = {
   paused: () => boolean;
   onChange: (what: string) => void;
   onPhotoReady?: (id: number) => void;
+  // Faces named by themselves (sure matches), so the website learns which
+  // photos show a student who can't appear.
+  onNamed?: (photoIds: number[]) => void;
   log?: (m: string) => void;
 };
 
@@ -326,19 +329,20 @@ export class Engine {
   }
 
   private async faces(id: number) {
-    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness from photos where id = ?").get(id) as Row | undefined;
+    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, class_name from photos where id = ?").get(id) as Row | undefined;
     if (!p || p.missing || p.faces_scanned) return;
     try {
       const faces = await findFaces(this.o.models, await source(p.path as string));
-      const known = this.knownFaces();
+      const known = this.knownFor(p.class_name as string | null);
       tx(this.db, () => {
         this.db.prepare("delete from faces where photo_id = ? and status in ('unknown', 'suggested')").run(id);
         const insert = this.db.prepare(
-          "insert into faces (photo_id, x, y, w, h, score, embedding, status, suggest_id, suggest_score) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "insert into faces (photo_id, x, y, w, h, score, embedding, status, student_id, suggest_id, suggest_score, auto) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         );
         for (const f of faces) {
           const match = bestMatch(f.embedding, known);
-          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, toBlob(f.embedding), match ? "suggested" : "unknown", match?.studentId ?? null, match?.score ?? null);
+          const sure = isSure(match);
+          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, toBlob(f.embedding), sure ? "confirmed" : match ? "suggested" : "unknown", sure ? match!.studentId : null, match?.studentId ?? null, match?.score ?? null, sure ? 1 : 0);
         }
         const biggest = faces.reduce((m, f) => Math.max(m, f.box[2]), 0);
         this.db
@@ -346,6 +350,7 @@ export class Engine {
           .run(faces.length, score(p.sharpness as number, p.brightness as number, faces.length, biggest), id);
       });
       this.o.onChange("faces");
+      this.o.onNamed?.([id]);
     } catch (e) {
       this.o.log?.(`faces ${path.basename(p.path as string)}: ${e instanceof Error ? e.message : e}`);
       this.db.prepare("update photos set faces_scanned = -1 where id = ?").run(id);
@@ -363,9 +368,17 @@ export class Engine {
   // Every face a person has confirmed, plus portraits: what suggestions are matched against.
   knownFaces() {
     const rows = this.db
-      .prepare("select student_id, embedding from faces where student_id is not null and status in ('confirmed', 'portrait') and embedding is not null")
-      .all() as { student_id: string; embedding: Uint8Array }[];
-    return rows.map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding) }));
+      .prepare("select f.student_id, f.embedding, s.class_name from faces f left join students s on s.id = f.student_id where f.student_id is not null and f.status in ('confirmed', 'portrait') and f.auto = 0 and f.embedding is not null")
+      .all() as { student_id: string; embedding: Uint8Array; class_name: string | null }[];
+    return rows.map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding), className: r.class_name }));
+  }
+
+  // A class photo is matched against that class first; whole-school events
+  // (no class folder) against everyone.
+  private knownFor(className: string | null, known = this.knownFaces()) {
+    if (!className) return known;
+    const mine = known.filter((k) => k.className === className);
+    return mine.length ? mine : known;
   }
 
   // After a confirmation, look again at faces nobody has named yet.
@@ -373,21 +386,31 @@ export class Engine {
     const known = this.knownFaces().filter((k) => !studentIds || studentIds.includes(k.studentId));
     if (!known.length) return 0;
     const rows = this.db
-      .prepare("select id, embedding, suggest_id, suggest_score, rejected, status from faces where status in ('unknown', 'suggested') and embedding is not null")
-      .all() as { id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string }[];
+      .prepare("select f.id, f.embedding, f.suggest_id, f.suggest_score, f.rejected, f.status, p.class_name from faces f join photos p on p.id = f.photo_id where f.status in ('unknown', 'suggested') and f.embedding is not null")
+      .all() as { id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string; class_name: string | null }[];
     const update = this.db.prepare("update faces set status = 'suggested', suggest_id = ?, suggest_score = ? where id = ?");
+    const name = this.db.prepare("update faces set status = 'confirmed', student_id = ?, suggest_id = ?, suggest_score = ?, auto = 1 where id = ?");
+    const named: number[] = [];
     let changed = 0;
     tx(this.db, () => {
       for (const r of rows) {
         const rejected = r.rejected ? r.rejected.split(",") : [];
-        const match = bestMatch(fromBlob(r.embedding), known.filter((k) => !rejected.includes(k.studentId)));
-        if (match && match.score > (r.suggest_score ?? 0)) {
+        const match = bestMatch(fromBlob(r.embedding), this.knownFor(r.class_name, known).filter((k) => !rejected.includes(k.studentId)));
+        if (match && isSure(match)) {
+          name.run(match.studentId, match.studentId, match.score, r.id);
+          named.push(r.id);
+          changed++;
+        } else if (match && match.score > (r.suggest_score ?? 0)) {
           update.run(match.studentId, match.score, r.id);
           changed++;
         }
       }
     });
     if (changed) this.o.onChange("faces");
+    if (named.length) {
+      const photos = this.db.prepare(`select distinct photo_id from faces where id in (${named.map(() => "?").join(",")})`).all(...named) as { photo_id: number }[];
+      this.o.onNamed?.(photos.map((p) => p.photo_id));
+    }
     return changed;
   }
 

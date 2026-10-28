@@ -54,7 +54,7 @@ export function exactCopies(db: Db) {
 // kept with their original, never offered here.
 export function otherSizes(db: Db) {
   const rows = db.prepare(`select ${COLS}, dhash from photos where ${BASE} and dup_of is null and edited_of is null and dhash is not null order by dhash`).all() as (CleanPhoto & { dhash: string })[];
-  return group(rows, (a, b) => hamming(a.dhash, b.dhash) <= 2 && (a.width !== b.width || a.size !== b.size) && !hasEdit(db, a.id, b.id));
+  return group(rows, (a, b) => hamming(a.dhash, b.dhash) <= 2 && (a.width !== b.width || looksLikeCopy(a.name) || looksLikeCopy(b.name)) && !hasEdit(db, a.id, b.id));
 }
 
 function hasEdit(db: Db, a: number, b: number) {

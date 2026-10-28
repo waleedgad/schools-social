@@ -115,7 +115,15 @@ export function openDb(file: string): Db {
   const db = new DatabaseSync(file);
   db.exec("pragma journal_mode = wal; pragma foreign_keys = on; pragma synchronous = normal;");
   db.exec(SCHEMA);
+  // Columns added after 0.2.0.
+  addColumn(db, "faces", "auto", "integer not null default 0");
+  addColumn(db, "students", "main_face", "integer");
   return db;
+}
+
+function addColumn(db: Db, table: string, column: string, type: string) {
+  const cols = db.prepare(`pragma table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) db.exec(`alter table ${table} add column ${column} ${type}`);
 }
 
 export function tx<T>(db: Db, fn: () => T): T {

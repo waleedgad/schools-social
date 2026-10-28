@@ -22,6 +22,13 @@ const SCORE = 0.8;
 const NMS = 0.3;
 // SFace's published cosine threshold for "same person" is 0.363.
 export const SAME_PERSON = 0.363;
+// Below this, a suggestion is a guess and isn't shown (Waleed, Oct 2026).
+export const SHOW_FROM = 0.5;
+// A match this strong, well clear of the next student, is named by itself
+// and marked "auto" so it can be checked later.
+export const SURE = 0.62;
+export const SURE_GAP = 0.12;
+export const isSure = (m: { score: number; runnerUp: number } | null) => !!m && m.score >= SURE && m.score - m.runnerUp >= SURE_GAP;
 
 // Where SFace expects the landmarks in its 112×112 input.
 const REFERENCE = [
