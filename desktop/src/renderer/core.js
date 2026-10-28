@@ -195,6 +195,7 @@ const NAV = [
       { id: "students", icon: "☷", label: () => L("Students", "الطلاب") },
       { id: "coverage", icon: "◔", label: () => L("Coverage", "التغطية") },
       { id: "cleanup", icon: "✧", label: () => L("Clean up", "تنظيف"), count: () => S.counts.duplicates },
+      { id: "books", icon: "❒", label: () => L("Yearbooks", "الكتب السنوية") },
     ],
   },
   {

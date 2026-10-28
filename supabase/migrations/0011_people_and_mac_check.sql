@@ -102,3 +102,8 @@ $$;
 revoke execute on function public.guard_photo_check() from public, anon, authenticated;
 create trigger photos_guard_check before update on public.photos
   for each row execute function public.guard_photo_check();
+
+-- Announcements are designed on the website (no photos of students in
+-- them), so they don't wait for the Mac's face check.
+alter table public.photos drop constraint photos_source_check;
+alter table public.photos add constraint photos_source_check check (source in ('staff', 'photographer', 'desktop', 'design'));

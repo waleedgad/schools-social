@@ -75,6 +75,13 @@ export default async function NewPostPage({ params, searchParams }: { params: Pr
           </ButtonLink>
         </Card>
 
+        <Card title={<span className="inline-flex items-center gap-2"><Icon name="sparkle" className="text-accent" />{t("announce.card")}</span>}>
+          <p className="mb-3 text-sm text-muted">{t("announce.cardHint")}</p>
+          <ButtonLink href={day ? { pathname: "/posts/new/announcement", query: { day } } : "/posts/new/announcement"} icon="sparkle" variant="primary" className="w-full">
+            {t("announce.cardButton")}
+          </ButtonLink>
+        </Card>
+
         <Card title={<span className="inline-flex items-center gap-2"><Icon name="posts" className="text-accent" />{t("newPost.textOnly")}</span>}>
           <form action={createPost} className="space-y-3">
             {hidden}

@@ -1063,5 +1063,45 @@
       "n5": "The comms lead approves inside the team, with an optional extra approver and approval links.",
       "n6": "Today, Results, Inbox, posting times, frames and pausing posting."
     }
+  },
+  "announce": {
+    "title": "Announcement",
+    "subtitle": "A ready design with your text in Arabic and English, made into a post.",
+    "pack": "Designs",
+    "mine": "Your school's designs",
+    "mineHint": "Upload a background your designer made (PNG or JPG, 1080 × 1350 works best). The text goes in the middle.",
+    "uploadDesign": "+ Upload a design",
+    "uploading": "Uploading…",
+    "headlineAr": "Headline in Arabic",
+    "headlineArPlaceholder": "مثال: إجازة رسمية يوم الخميس",
+    "headlineEn": "Headline in English",
+    "headlineEnPlaceholder": "e.g. School closed on Thursday",
+    "details": "Date, time or place",
+    "detailsPlaceholder": "e.g. Thursday 6 November · 8:00",
+    "size": "Shape",
+    "sizes": {
+      "post": "Post 4:5",
+      "square": "Square 1:1",
+      "story": "Story 9:16"
+    },
+    "colour": "Colour",
+    "ink": "Text on your design",
+    "category": "Category",
+    "make": "Make the post",
+    "making": "Making…",
+    "needText": "Write a headline first.",
+    "failed": "Couldn't make the post. Try again.",
+    "previewHint": "This is exactly the image that will be posted. The captions start with the same text; you can change them next.",
+    "t": {
+      "clean": "Clean",
+      "bold": "Bold",
+      "split": "Split",
+      "notice": "Notice",
+      "event": "Event date",
+      "holiday": "Holiday"
+    },
+    "card": "Announcement",
+    "cardHint": "Pick a ready design, type the headline in Arabic and English, and the image is made for you.",
+    "cardButton": "Design an announcement"
   }
 }
