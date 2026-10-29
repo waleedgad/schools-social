@@ -413,7 +413,7 @@ function drawTree() {
       el.addEventListener("dragleave", () => el.classList.remove("drop"));
       el.addEventListener("drop", async (e) => {
         el.classList.remove("drop");
-        const ids = JSON.parse(e.dataTransfer.getData("text/hub-photos") || "[]");
+        const ids = withStacks(JSON.parse(e.dataTransfer.getData("text/hub-photos") || "[]"));
         if (!ids.length) return;
         e.preventDefault();
         e.stopPropagation();
@@ -893,7 +893,15 @@ function photosDate(ids) {
   return [...days].sort((a, b) => b[1] - a[1])[0]?.[0] ?? new Date().toISOString().slice(0, 10);
 }
 
+// A closed stack moves as one: the burst behind the top photo goes with it.
+function withStacks(ids) {
+  const out = new Set();
+  for (const id of ids) for (const x of lib.openStacks.has(id) ? [id] : lib.stackOf.get(id) ?? [id]) out.add(x);
+  return [...out];
+}
+
 function moveDialog(ids) {
+  ids = withStacks(ids);
   const events = (lib.tree?.rows ?? []).filter((r) => r.event_key);
   const own = photosDate(ids);
   const first = lib.list.find((p) => p.id === ids[0]);
