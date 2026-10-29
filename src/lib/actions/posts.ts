@@ -323,3 +323,19 @@ export async function answerReview(formData: FormData) {
   const { error } = await supabase.rpc("answer_review_link", { p_token: token, p_answer: answer, p_comment: String(formData.get("comment") ?? "") });
   redirect({ href: { pathname: `/review/${token}`, query: { answered: error ? "error" : answer } }, locale });
 }
+
+// Categories that post Arabic and English separately: the English text
+// becomes its own post with the same photos, and leaves this one.
+export async function splitEnglish(formData: FormData) {
+  const { locale, user, membership } = await curator(formData, "writePosts");
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const en = String(formData.get("captionEn") ?? "").trim();
+  const r = await runIntent({ supabase, userId: user.id, membership }, id, "duplicate", { values: {}, order: null, reviewNote: "" });
+  if (!r.ok || !r.id) redirect({ href: { pathname: `/posts/${id}`, query: { error: r.ok ? "save" : r.error } }, locale });
+  const copy = (r as { id: string }).id;
+  await supabase.from("posts").update({ caption_ar: null, caption_en: en || null }).eq("id", copy);
+  await supabase.from("posts").update({ caption_en: null }).eq("id", id);
+  revalidatePath(`/${locale}/posts`);
+  redirect({ href: `/posts/${copy}`, locale });
+}

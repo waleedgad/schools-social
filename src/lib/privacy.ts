@@ -5,6 +5,7 @@ import { LIMITS } from "./posting";
 
 export type PostPhoto = {
   id: string;
+  people?: string[];
   storage_path: string;
   edited_path: string | null;
   edit_settings: EditSettings | null;

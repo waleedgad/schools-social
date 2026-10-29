@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/i18n/navigation";
-import { aiCheck, aiRewrite, aiTranslate, addComment, createReviewLink, generateCaptions, postAction, restoreVersion, pickVariation } from "@/lib/actions/posts";
+import { aiCheck, aiRewrite, aiTranslate, addComment, createReviewLink, generateCaptions, postAction, restoreVersion, pickVariation, splitEnglish } from "@/lib/actions/posts";
 import { saveEdit } from "@/lib/actions/library";
 import type { CaptionCheck, Captions } from "@/lib/ai/types";
 import { thumbPath } from "@/lib/images";
@@ -54,7 +54,11 @@ export type ComposerData = {
   photos: Photo[];
   more: { id: string; thumb: string; score: number | null }[];
   checks: { level: "block" | "warn"; text: string }[];
-  categories: { id: string; name: string; color: string; hashtags: string; frame_id: string | null }[];
+  categories: { id: string; name: string; color: string; hashtags: string; frame_id: string | null; language_mode: "both" | "separate" | "ar" | "en" }[];
+  whoIn: { names: string[]; named: number; photosWithNobody: number; cantAppear: number };
+  history: { action: string; by: string; at: string }[];
+  noPostDays: number[];
+  holidays: { name: string; start: string; end: string }[];
   frames: { id: string; name: string; kind: string; url: string; shape: string }[];
   snippets: { id: string; kind: string; title: string; body: string }[];
   comments: { id: string; author: string; kind: string; body: string; at: string; mine: boolean }[];
@@ -263,6 +267,29 @@ export function Composer({ data }: { data: ComposerData }) {
   const badShape = platforms.includes("instagram") ? photos.filter((x) => { const r = ratioOf(x); return r < 0.79 || r > 1.92; }) : [];
   const notPortrait = photos.filter((x) => Math.abs(ratioOf(x) - 0.8) > 0.01);
   const cat = data.categories.find((c) => c.id === category);
+  // The category can ask for one language, or Arabic and English apart.
+  const mode = cat?.language_mode ?? "both";
+  const showAr = data.languages !== "en" && mode !== "en";
+  const showEn = data.languages !== "ar" && mode !== "ar";
+
+  // Before sending: everything that isn't ready yet, with where to fix it.
+  const day = p.scheduled_at ? new Date(p.scheduled_at).toLocaleDateString("en-CA") : null;
+  const holiday = day ? data.holidays.find((h) => h.start <= day && (h.end || h.start) >= day) : null;
+  // A frame chosen here, or put on every photo by the Mac.
+  const framed = !!frame || photos.every((x) => !!(x.settings as { frame?: string } | null)?.frame);
+  const ready: { ok: boolean; text: string; fix?: string }[] = [
+    { ok: photos.length > 0 || !!(ar || en), text: photos.length ? t("ready.photos", { count: photos.length }) : t("ready.noPhotos"), fix: "photos" },
+    { ok: !showAr || !!ar.trim(), text: showAr && !ar.trim() ? t("ready.noAr") : t("ready.ar"), fix: "words" },
+    { ok: !showEn || mode === "separate" || !!en.trim(), text: showEn && !en.trim() && mode !== "separate" ? t("ready.noEn") : t("ready.en"), fix: "words" },
+    { ok: !badShape.length, text: badShape.length ? t("ready.shape", { count: badShape.length }) : t("ready.shapeOk"), fix: "photos" },
+    { ok: !photos.some((x) => x.waiting), text: photos.some((x) => x.waiting) ? t("ready.waiting", { count: photos.filter((x) => x.waiting).length }) : t("ready.checked"), fix: "photos" },
+    { ok: !data.whoIn.cantAppear, text: data.whoIn.cantAppear ? t("ready.cantAppear", { count: data.whoIn.cantAppear }) : t("ready.privacy"), fix: "photos" },
+    { ok: !!category, text: category ? t("ready.category") : t("ready.noCategory"), fix: "details" },
+    { ok: !!p.scheduled_at, text: p.scheduled_at ? t("ready.time") : t("ready.noTime"), fix: "details" },
+    ...(day && (data.noPostDays.includes(new Date(`${day}T12:00:00Z`).getUTCDay()) || holiday) ? [{ ok: false, text: holiday ? t("ready.holiday", { name: holiday.name }) : t("ready.noPostDay"), fix: "details" }] : []),
+    ...(cat?.frame_id && photos.length ? [{ ok: framed, text: framed ? t("ready.frame") : t("ready.noFrame"), fix: "photos" }] : []),
+  ];
+  const notReady = ready.filter((r) => !r.ok).length;
 
   const move = (from: number, to: number) => {
     if (from === to || to < 0 || to >= photos.length) return;
@@ -351,6 +378,7 @@ export function Composer({ data }: { data: ComposerData }) {
         )}
         {p.status !== "idea" && p.idea && <input type="hidden" name="idea" value={p.idea} />}
 
+        <div id="photos" />
         <Card
           title={
             <span className="flex items-center gap-2">
@@ -442,15 +470,38 @@ export function Composer({ data }: { data: ComposerData }) {
           )}
         </Card>
 
+        <Card className="!p-3" title={<span className="flex items-center gap-2 text-sm"><Icon name="people" />{t("whoIn")}</span>}>
+          {data.whoIn.named ? (
+            <p className="text-sm">{data.whoIn.names.slice(0, 30).join("، ")}{data.whoIn.names.length > 30 ? ` +${data.whoIn.names.length - 30}` : ""}</p>
+          ) : (
+            <p className="text-sm text-muted">{t("whoInNone")}</p>
+          )}
+          <p className="mt-1 text-xs text-muted">
+            {data.whoIn.photosWithNobody > 0 && t("whoInUnnamed", { count: data.whoIn.photosWithNobody })}
+            {data.whoIn.cantAppear > 0 && <span className="ms-2 font-semibold text-danger">{t("whoInCant", { count: data.whoIn.cantAppear })}</span>}
+          </p>
+        </Card>
+
+        <div id="words" />
         <Card>
-          <div className={`grid gap-4 ${data.languages === "ar_en" ? "md:grid-cols-2" : ""}`}>
-            {data.languages !== "en" && (
+          {mode === "separate" && (
+            <p className="mb-3 rounded-lg bg-info-bg px-3 py-2 text-xs text-info">
+              {t("separateHint")}{" "}
+              {!readOnly && en.trim() && (
+                <button type="submit" formAction={splitEnglish} className="font-semibold underline">{t("separateMake")}</button>
+              )}
+            </p>
+          )}
+          <div className={`grid gap-4 ${showAr && showEn ? "md:grid-cols-2" : ""}`}>
+            {!showAr && <input type="hidden" name="captionAr" value={ar} />}
+            {!showEn && <input type="hidden" name="captionEn" value={en} />}
+            {showAr && (
               <div>
                 <CaptionField label={tp("captionAr")} value={ar} onChange={setAr} dir="rtl" lang="ar" other={en} disabled={readOnly} locale={data.locale} limit={LIMITS.instagram.caption} />
                 <input type="hidden" name="captionAr" value={ar} />
               </div>
             )}
-            {data.languages !== "ar" && (
+            {showEn && (
               <div>
                 <CaptionField label={tp("captionEn")} value={en} onChange={setEn} dir="ltr" lang="en" other={ar} disabled={readOnly} locale={data.locale} limit={LIMITS.instagram.caption} />
                 <input type="hidden" name="captionEn" value={en} />
@@ -503,6 +554,7 @@ export function Composer({ data }: { data: ComposerData }) {
           </div>
         </Card>
 
+        <div id="details" />
         <Card title={t("details")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <fieldset className="space-y-2">
@@ -760,8 +812,27 @@ export function Composer({ data }: { data: ComposerData }) {
                   )}
                 </li>
               ))}
+              {data.history.length > 0 && <li className="pt-2 text-xs font-bold">{t("changes")}</li>}
+              {data.history.map((h, i) => (
+                <li key={`h${i}`} className="flex gap-2 text-xs">
+                  <span className="w-24 shrink-0 text-faint">{new Date(h.at).toLocaleString(data.locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                  <span><b>{h.by}</b> {t.has(`actions.${h.action}`) ? t(`actions.${h.action}`) : h.action.replace(/^post\./, "").replace(/_/g, " ")}</span>
+                </li>
+              ))}
             </ul>
           )}
+        </Card>
+
+        <Card className="!p-3" title={<span className="text-sm">{t("beforeSending")}</span>} action={<span className={`text-xs font-semibold ${notReady ? "text-warn" : "text-good"}`}>{notReady ? t("notReady", { count: notReady }) : t("allReady")}</span>}>
+          <ul className="space-y-1 text-xs">
+            {ready.map((r, i) => (
+              <li key={i} className={`flex items-center gap-1.5 ${r.ok ? "text-good" : "text-warn"}`}>
+                <Icon name={r.ok ? "check" : "warning"} size={14} className="shrink-0" />
+                <span className="grow">{r.text}</span>
+                {!r.ok && r.fix && <a href={`#${r.fix}`} className="font-semibold text-accent">{t("fix")}</a>}
+              </li>
+            ))}
+          </ul>
         </Card>
 
         <Card className="!p-3" title={<span className="text-sm">{tp("checks")}</span>}>

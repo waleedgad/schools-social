@@ -36,8 +36,8 @@ export default async function PostPage({
   const [checks, { data: meta }, { data: school }, { data: categories }, { data: frames }, { data: snippets }, { data: comments }, { data: versions }, { data: links }, { data: people }] = await Promise.all([
     checkPost(supabase, post, photos, post.event?.class_name ?? null),
     supabase.rpc("meta_status", { p_school: schoolId }),
-    supabase.from("schools").select("photo_limit, posting_paused_until, caption_languages, extra_approval, approve_by, lead_self_publish").eq("id", schoolId).single(),
-    supabase.from("categories").select("id, name_ar, name_en, color, hashtags, frame_id").eq("school_id", schoolId).order("position"),
+    supabase.from("schools").select("photo_limit, posting_paused_until, caption_languages, extra_approval, approve_by, lead_self_publish, no_post_days, holidays").eq("id", schoolId).single(),
+    supabase.from("categories").select("id, name_ar, name_en, color, hashtags, frame_id, language_mode").eq("school_id", schoolId).order("position"),
     supabase.from("frames").select("id, name, kind, storage_path, shape").eq("school_id", schoolId).order("created_at"),
     supabase.from("snippets").select("id, kind, title, body").eq("school_id", schoolId).neq("kind", "avoid").order("title"),
     supabase.from("post_comments").select("id, author_name, kind, body, created_at, user_id").eq("post_id", id).order("created_at"),
@@ -45,6 +45,16 @@ export default async function PostPage({
     supabase.from("review_links").select("token, label, answer, comment, answered_at, expires_at").eq("post_id", id).order("created_at", { ascending: false }),
     supabase.from("memberships").select("user_id, full_name, role").eq("school_id", schoolId).eq("active", true),
   ]);
+
+  // Who's in the post (student IDs the Mac sent per photo) and its change history.
+  const peopleOf = new Map(photos.map((p) => [p.id, (p as { people?: string[] }).people ?? []]));
+  const allCodes = [...new Set([...peopleOf.values()].flat())];
+  const [{ data: named }, { data: history }] = await Promise.all([
+    allCodes.length ? supabase.from("students").select("student_code, full_name, name_ar").eq("school_id", schoolId).in("student_code", allCodes) : Promise.resolve({ data: [] as { student_code: string; full_name: string; name_ar: string | null }[] }),
+    supabase.from("audit_log").select("action, user_id, created_at").eq("school_id", schoolId).eq("target", id).order("created_at", { ascending: false }).limit(40),
+  ]);
+  const nameOf = new Map((named ?? []).map((n) => [n.student_code as string, locale === "ar" ? (n.name_ar as string | null) || (n.full_name as string) : (n.full_name as string)]));
+  const userName = new Map((people ?? []).map((p) => [p.user_id as string, p.full_name as string]));
 
   // Photos to add: the same event first, then the newest checked ones.
   let extraQuery = supabase
@@ -115,7 +125,11 @@ export default async function PostPage({
     })),
     more: (more ?? []).filter((p) => !photos.some((x) => x.id === p.id)).map((p) => ({ id: p.id as string, thumb: thumbs.get(shown(p as { storage_path: string; edited_path: string | null })) ?? "", score: p.ai_score as number | null })),
     checks: checks.map((c) => ({ level: c.level, text: t(`posts.check.${c.key}`, c.values ?? {}) })),
-    categories: (categories ?? []).map((c) => ({ id: c.id as string, name: categoryName(c as { name_ar: string; name_en: string }, locale), color: c.color as string, hashtags: (c.hashtags as string) ?? "", frame_id: c.frame_id as string | null })),
+    categories: (categories ?? []).map((c) => ({ id: c.id as string, name: categoryName(c as { name_ar: string; name_en: string }, locale), color: c.color as string, hashtags: (c.hashtags as string) ?? "", frame_id: c.frame_id as string | null, language_mode: ((c.language_mode as string) ?? "both") as "both" | "separate" | "ar" | "en" })),
+    whoIn: { names: allCodes.map((c) => nameOf.get(c) ?? c), named: allCodes.length, photosWithNobody: photos.filter((p) => !(peopleOf.get(p.id) ?? []).length).length, cantAppear: photos.filter((p) => (p as { contains_opted_out?: boolean }).contains_opted_out).length },
+    history: (history ?? []).map((h) => ({ action: h.action as string, by: userName.get(h.user_id as string) ?? "", at: h.created_at as string })),
+    noPostDays: ((school?.no_post_days as { weekdays?: number[] } | null)?.weekdays ?? []),
+    holidays: ((school?.holidays as { name: string; start: string; end: string }[] | null) ?? []),
     frames: (frames ?? []).map((f) => ({ id: f.id as string, name: f.name as string, kind: f.kind as string, url: thumbs.get(f.storage_path as string) ?? "", shape: f.shape as string })),
     snippets: (snippets ?? []).map((s) => ({ id: s.id as string, kind: s.kind as string, title: s.title as string, body: s.body as string })),
     comments: (comments ?? []).map((c) => ({ id: c.id as string, author: (c.author_name as string) ?? "", kind: c.kind as string, body: c.body as string, at: c.created_at as string, mine: c.user_id === user.id })),

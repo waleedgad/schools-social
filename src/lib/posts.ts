@@ -2,7 +2,7 @@ import "server-only";
 import type { PostPhoto } from "./privacy";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const PHOTO_COLUMNS = "id, storage_path, edited_path, edit_settings, width, height, contains_opted_out, ai_issues, check_status, alt_ar, alt_en, blur_boxes";
+const PHOTO_COLUMNS = "id, storage_path, edited_path, edit_settings, width, height, contains_opted_out, ai_issues, check_status, alt_ar, alt_en, blur_boxes, people";
 
 export async function loadPost(supabase: SupabaseClient, id: string) {
   const { data: post } = await supabase
