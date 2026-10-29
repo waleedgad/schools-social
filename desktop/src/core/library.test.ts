@@ -72,7 +72,7 @@ test("import files photos by event and class and leaves out copies already there
   assert.equal(first.copied, 2);
   assert.ok(first.folders[0].endsWith(path.join("2026-2027", "Term 1", "2026-10-20 Science fair", "4B")));
   // The library already holds the first photo: only the other one is copied again.
-  db.prepare("insert into photos (path, name, ext, size, mtime, hash, added_at) values ('x', 'x', '.jpg', 1, 1, ?, 1)").run(await fileHash(files[0]));
+  db.prepare("insert into photos (path, name, ext, size, mtime, hash, added_at) values (?, 'x', '.jpg', 1, 1, ?, 1)").run(first.folders[0] + "/IMG_1.jpg", await fileHash(files[0]));
   const again = await importPhotos({ db, library: lib, files, title: "Science fair", date: "2026-10-20", className: "4B", byDay: false, skipDuplicates: true, onProgress: () => {} });
   assert.equal(again.duplicates, 1);
   assert.equal(again.copied, 1);

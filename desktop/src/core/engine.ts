@@ -73,6 +73,8 @@ export class Engine {
     if (rel.startsWith("..")) return true;
     // "_" folders (for example "_Staff", and the app's own "_Bin") are never read or sent.
     if (rel.split(path.sep).some((p) => p.startsWith(".") || p.startsWith("_") || p === "Bin")) return true;
+    // "Drop here" sorts itself: its photos are filed by the importer first.
+    if (rel.split(path.sep)[0] === "Drop here") return true;
     const skips = this.db.prepare("select path from folders where skip = 1").all() as { path: string }[];
     return skips.some((s) => file === s.path || file.startsWith(s.path + path.sep));
   }
@@ -317,14 +319,23 @@ export class Engine {
       const width = rotated ? meta.height : meta.width;
       const height = rotated ? meta.width : meta.height;
       let taken: Date | null = null;
+      let camera: string | null = null;
       try {
-        const tags = await exifr.parse(file, ["DateTimeOriginal", "CreateDate"]);
+        const tags = await exifr.parse(file, ["DateTimeOriginal", "CreateDate", "Model"]);
         const d = tags?.DateTimeOriginal ?? tags?.CreateDate;
         if (d instanceof Date && !Number.isNaN(d.getTime())) taken = d;
+        if (tags?.Model) camera = String(tags.Model).trim().slice(0, 60);
       } catch {
         // no date in the file
       }
       taken ??= new Date(p.mtime as number);
+      // Copied in by an import: its camera clock fix, photographer and kind of photo.
+      const imp = this.db.prepare("select * from import_files where path = ?").get(file) as Row | undefined;
+      if (imp) {
+        if (imp.offset_ms) taken = new Date(taken.getTime() + (imp.offset_ms as number));
+        this.db.prepare("update photos set import_id = ?, photographer = coalesce(?, photographer), category = coalesce(?, category) where id = ?").run(imp.import_id as number | null, (imp.photographer as string) || null, (imp.category as string) || null, id);
+      }
+      if (camera) this.db.prepare("update photos set camera = ? where id = ?").run(camera, id);
       await makeThumb(input, this.thumbPath(id), THUMB);
       const q = await measure(input);
 

@@ -205,6 +205,10 @@ export function libraryApi(ctx: Ctx): Api {
           const [grade, year] = a.slice(5).split("|");
           where.push(`p.year = ? and (p.flag = 1 or p.rating >= 3) and exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and ${named} and s.grade = ?)`);
           args.push(year, grade);
+        } else if (a.startsWith("imp:")) {
+          // One import, open while it is still copying.
+          where.push("p.import_id = ?");
+          args.push(Number(a.slice(4)));
         } else if (a.startsWith("kind:")) {
           where.push(`exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and ${named} and s.kind = ?)`);
           args.push(a.slice(5));

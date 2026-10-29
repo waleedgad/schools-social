@@ -26,6 +26,9 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci
       - run: npm test
+      # The iPhone import helper, built with Apple's tools (Mac only).
+      - if: runner.os == 'macOS'
+        run: xcrun swiftc -O helpers/iphone-import.swift -o helpers/iphone-import
       - run: npx electron-builder --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"

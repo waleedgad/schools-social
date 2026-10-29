@@ -20,7 +20,7 @@ const srow = (title, sub, control, words = "") => ({ title, sub, control, words 
 const choose = (key, value, options, type = "") =>
   `<select data-set="${key}" ${type ? `data-type="${type}"` : ""}>${options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
 const toggle = (key, on, disabled = false) => sw(`data-set="${key}"`, on, disabled ? "disabled" : "");
-const act = (name, label, cls = "", extra = "") => `<button class="btn small ${cls}" data-act="${name}" ${extra}>${label}</button>`;
+const actBtn = (name, label, cls = "", extra = "") => `<button class="btn small ${cls}" data-act="${name}" ${extra}>${label}</button>`;
 const pathText = (p) => (p ? `<span class="ltr small muted pathtxt" title="${esc(p)}">${esc(p.split(/[\\/]/).slice(-2).join("/"))}</span>` : "");
 
 function settingGroups(page, extra) {
@@ -42,27 +42,27 @@ function settingGroups(page, extra) {
         {
           rows: [
             srow(L("Editing app", "تطبيق التعديل"), L("Photos open here with “Open in editing app”. Edits saved next to the original with “-edit” in the name are linked to it.", "تُفتح الصور فيه عند «فتح في تطبيق التعديل». التعديلات المحفوظة بجانب الأصل مع «-edit» في الاسم تُربط به."),
-              `${S.editor ? pathText(S.editor) : `<span class="small muted">${L("The computer's default", "الافتراضي")}</span>`}${act("chooseEditor", L("Choose…", "اختيار…"))}${S.editor ? act("clearEditor", L("Default", "الافتراضي"), "ghost") : ""}`, "editor lightroom photoshop تعديل"),
+              `${S.editor ? pathText(S.editor) : `<span class="small muted">${L("The computer's default", "الافتراضي")}</span>`}${actBtn("chooseEditor", L("Choose…", "اختيار…"))}${S.editor ? actBtn("clearEditor", L("Default", "الافتراضي"), "ghost") : ""}`, "editor lightroom photoshop تعديل"),
             srow(onMac ? L("Start with the Mac", "التشغيل مع الماك") : L("Start with Windows", "التشغيل مع ويندوز"), L("Keeps the library up to date from the menu bar.", "يُبقي المكتبة محدّثة من شريط القوائم."), toggle("openAtLogin", S.openAtLogin), "login startup start تشغيل"),
           ],
         },
       ];
     case "account": {
       const rows = !S.connected
-        ? [srow(L("Website address", "عنوان الموقع"), L("Connect to your School Social Hub website.", "اتصل بموقع School Social Hub."), `<input id="srv" value="${esc(S.server)}" class="ltr" style="width: 260px" />${act("connect", L("Connect", "اتصال"), "primary")}`, "server website address")]
+        ? [srow(L("Website address", "عنوان الموقع"), L("Connect to your School Social Hub website.", "اتصل بموقع School Social Hub."), `<input id="srv" value="${esc(S.server)}" class="ltr" style="width: 260px" />${actBtn("connect", L("Connect", "اتصال"), "primary")}`, "server website address")]
         : !S.signedIn
           ? [
               srow(L("Email", "البريد الإلكتروني"), "", `<input type="email" id="em" value="${esc(S.email ?? "")}" class="ltr" style="width: 240px" />`, "email sign in"),
-              srow(L("Password", "كلمة المرور"), L("The account you use on the website.", "الحساب الذي تستخدمه على الموقع."), `<input type="password" id="pw" style="width: 240px" />${act("signIn", L("Sign in", "دخول"), "primary")}`, "password sign in"),
+              srow(L("Password", "كلمة المرور"), L("The account you use on the website.", "الحساب الذي تستخدمه على الموقع."), `<input type="password" id="pw" style="width: 240px" />${actBtn("signIn", L("Sign in", "دخول"), "primary")}`, "password sign in"),
             ]
           : [
-              srow(L("Signed in", "مسجّل الدخول"), `<span class="ltr">${esc(S.email)}</span>`, `${act("openWeb", L("Open website", "فتح الموقع"))}${act("signOut", L("Sign out", "خروج"), "danger")}`, "account sign out email"),
+              srow(L("Signed in", "مسجّل الدخول"), `<span class="ltr">${esc(S.email)}</span>`, `${actBtn("openWeb", L("Open website", "فتح الموقع"))}${actBtn("signOut", L("Sign out", "خروج"), "danger")}`, "account sign out email"),
               srow(L("School", "المدرسة"), esc(S.schoolName ?? ""), `<span class="tag">${esc(S.role ?? "")}</span>`, "school role"),
             ];
       const acc = extra.account;
       if (S.signedIn && acc)
         rows.push(
-          srow(L("Plan", "الخطة"), acc.plan ? esc(acc.plan) : L("Free while testing", "مجاني أثناء التجربة"), act("openWebPlan", L("See plan", "عرض الخطة")), "plan billing price"),
+          srow(L("Plan", "الخطة"), acc.plan ? esc(acc.plan) : L("Free while testing", "مجاني أثناء التجربة"), actBtn("openWebPlan", L("See plan", "عرض الخطة")), "plan billing price"),
           srow(L("Computers", "الأجهزة"), L(`${num(acc.computers ?? 1)} of ${num(acc.computerLimit ?? 1)} library computers in use`, `${num(acc.computers ?? 1)} من ${num(acc.computerLimit ?? 1)} أجهزة مكتبة مستخدمة`), "", "computers mac windows devices"),
         );
       return [{ rows }, { rows: [srow(L("Use without signing in", "الاستخدام دون تسجيل الدخول"), L("The library, faces and yearbooks work without the website. Posts need it.", "المكتبة والوجوه والكتب السنوية تعمل دون الموقع. المنشورات تحتاجه."), "", "offline")] }];
@@ -76,9 +76,9 @@ function settingGroups(page, extra) {
         {
           rows: [
             srow(L("Library folder", "مجلد المكتبة"), L("Where the school keeps its photos. Originals always stay here.", "حيث تحفظ المدرسة صورها. تبقى الأصول هنا دائمًا."),
-              `${S.library ? pathText(S.library) : `<span class="tag bad">${L("Not chosen", "لم يُختر")}</span>`}${act("chooseLibrary", S.library ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"), S.library ? "" : "primary")}${S.library ? act("rescan", L("Look again", "إعادة الفحص"), "ghost") : ""}`, "library folder drive مكتبة"),
+              `${S.library ? pathText(S.library) : `<span class="tag bad">${L("Not chosen", "لم يُختر")}</span>`}${actBtn("chooseLibrary", S.library ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"), S.library ? "" : "primary")}${S.library ? actBtn("rescan", L("Look again", "إعادة الفحص"), "ghost") : ""}`, "library folder drive مكتبة"),
             srow(L("File my folder in place", "رتّب مجلدي في مكانه"), L("Photos that land outside Year / Term / Event folders are moved into place. Photos you put in an event folder yourself are never moved; “_” folders are left alone.", "تُنقل الصور التي تصل خارج مجلدات السنة / الفصل الدراسي / الفعالية إلى مكانها. لا تُنقل الصور التي تضعها بنفسك في مجلد فعالية، وتُترك مجلدات «_»."),
-              choose("fileMode", S.selfFiling ? (S.fileAsk ? "ask" : "auto") : "off", [["off", L("Off", "متوقف")], ["ask", L("Ask me first", "اسألني أولًا")], ["auto", L("Automatically", "تلقائيًا")]]) + act("tidy", L("Tidy now…", "رتّب الآن…"), "", S.library ? "" : "disabled"), "self filing tidy organise ترتيب"),
+              choose("fileMode", S.selfFiling ? (S.fileAsk ? "ask" : "auto") : "off", [["off", L("Off", "متوقف")], ["ask", L("Ask me first", "اسألني أولًا")], ["auto", L("Automatically", "تلقائيًا")]]) + actBtn("tidy", L("Tidy now…", "رتّب الآن…"), "", S.library ? "" : "disabled"), "self filing tidy organise ترتيب"),
           ],
         },
         {
@@ -89,7 +89,7 @@ function settingGroups(page, extra) {
               srow(`<span class="ltr">${esc(f.path.split(/[\\/]/).pop())}</span>`, `<span class="ltr">${esc(f.path)}</span>`,
                 `<select data-folder="${esc(f.path)}" data-was="${f.type}">${[["watched", L("Watched", "مراقَب")], ["skip", L("Skipped", "متجاهَل")], ["archive", L("Mac only", "على الجهاز فقط")]].map(([v, l]) => `<option value="${v}" ${v === f.type ? "selected" : ""}>${l}</option>`).join("")}</select><button class="btn small ghost" data-unfolder="${esc(f.path)}" data-type="${f.type}" title="${L("Remove", "إزالة")}">${icon("x", 14)}</button>`, "folders watched skip"),
             ),
-            srow(folders.length ? "" : `<span class="muted">${L("No folders yet", "لا توجد مجلدات بعد")}</span>`, "", act("addFolder", `${icon("plus", 13)} ${L("Add a folder…", "إضافة مجلد…")}`), "add folder watched skip mac only"),
+            srow(folders.length ? "" : `<span class="muted">${L("No folders yet", "لا توجد مجلدات بعد")}</span>`, "", actBtn("addFolder", `${icon("plus", 13)} ${L("Add a folder…", "إضافة مجلد…")}`), "add folder watched skip mac only"),
           ],
         },
         {
@@ -99,7 +99,7 @@ function settingGroups(page, extra) {
             srow(L("RAW and edits in their own folders", "ملفات RAW والتعديلات في مجلدات خاصة"), L("RAW files go in a “RAW” folder and edits in “Edited”, inside each event.", "تذهب ملفات RAW إلى مجلد «RAW» والتعديلات إلى «Edited» داخل كل فعالية."), toggle("rawFolders", S.rawFolders), "raw edited"),
             srow(L("Green Finder tag on picks", "وسم أخضر في Finder للمختارة"), L("No names or faces are written on files.", "لا تُكتب أسماء أو وجوه على الملفات."), toggle("finderTags", S.finderTags, !onMac), "finder tag green pick"),
             srow(L("Lock originals", "قفل الأصول"), L("Originals can't be changed by accident. Edits are always saved as new copies.", "لا يمكن تغيير الأصول بالخطأ. تُحفظ التعديلات دائمًا كنسخ جديدة."), toggle("lockOriginals", S.lockOriginals), "lock original"),
-            srow(L("Fix event folder names", "تصحيح أسماء مجلدات الفعاليات"), L("Renames event folders to “YYYY-MM-DD Name”.", "يعيد تسمية مجلدات الفعاليات إلى «YYYY-MM-DD الاسم»."), act("fixNames", L("Fix now…", "صحّح الآن…")), "rename folders names"),
+            srow(L("Fix event folder names", "تصحيح أسماء مجلدات الفعاليات"), L("Renames event folders to “YYYY-MM-DD Name”.", "يعيد تسمية مجلدات الفعاليات إلى «YYYY-MM-DD الاسم»."), actBtn("fixNames", L("Fix now…", "صحّح الآن…")), "rename folders names"),
           ],
         },
       ];
@@ -111,19 +111,19 @@ function settingGroups(page, extra) {
           rows: [
             srow(L("Library drive", "قرص المكتبة"), d ? L(`${fmtBytes(d.free)} free of ${fmtBytes(d.total)}`, `${fmtBytes(d.free)} متاح من ${fmtBytes(d.total)}`) : L("Not connected", "غير موصول"), d ? `<div class="bar" style="width: 140px"><i style="width:${Math.round((1 - d.free / d.total) * 100)}%"></i></div>` : "", "space disk free"),
             srow(L("Backup drive", "قرص النسخ الاحتياطي"), L("A second copy of every new original on another drive.", "نسخة ثانية من كل أصل جديد على قرص آخر."),
-              `${S.backup ? pathText(S.backup) + (S.backupDisk ? "" : ` <span class="tag bad">${L("Not connected", "غير موصول")}</span>`) : ""}${act("chooseBackup", S.backup ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"))}${S.backup ? act("clearBackup", L("Turn off", "إيقاف"), "ghost") : ""}`, "backup drive نسخ"),
+              `${S.backup ? pathText(S.backup) + (S.backupDisk ? "" : ` <span class="tag bad">${L("Not connected", "غير موصول")}</span>`) : ""}${actBtn("chooseBackup", S.backup ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"))}${S.backup ? actBtn("clearBackup", L("Turn off", "إيقاف"), "ghost") : ""}`, "backup drive نسخ"),
             srow(L("Archive drive for old years", "قرص الأرشيف للسنوات القديمة"), L("Old school years move there; the app still shows them from small copies.", "تنتقل السنوات القديمة إليه، ويبقى التطبيق يعرضها من نسخ صغيرة."),
-              `${S.archive ? pathText(S.archive) : ""}${act("chooseArchive", S.archive ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"))}${S.archive ? act("moveOldYears", L("Move old years…", "نقل السنوات القديمة…")) : ""}`, "archive old years أرشيف"),
+              `${S.archive ? pathText(S.archive) : ""}${actBtn("chooseArchive", S.archive ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"))}${S.archive ? actBtn("moveOldYears", L("Move old years…", "نقل السنوات القديمة…")) : ""}`, "archive old years أرشيف"),
           ],
         },
         {
           title: L("Clean up", "التنظيف"),
           rows: [
-            srow(L("Bin empties itself after 30 days", "السلة تُفرَّغ تلقائيًا بعد 30 يومًا"), L("Until then everything in the Bin can be put back.", "حتى ذلك الحين يمكن استعادة كل ما في السلة."), `${toggle("binAuto", S.binAuto)}${act("openBinView", L("Open Bin", "فتح السلة"), "ghost")}`, "bin trash 30 days سلة"),
+            srow(L("Bin empties itself after 30 days", "السلة تُفرَّغ تلقائيًا بعد 30 يومًا"), L("Until then everything in the Bin can be put back.", "حتى ذلك الحين يمكن استعادة كل ما في السلة."), `${toggle("binAuto", S.binAuto)}${actBtn("openBinView", L("Open Bin", "فتح السلة"), "ghost")}`, "bin trash 30 days سلة"),
             srow(L("Monthly clean-up reminder", "تذكير شهري بالتنظيف"), L("Shown on Today once a month when there is space to free.", "يظهر في اليوم مرة شهريًا عند وجود مساحة يمكن تحريرها."), toggle("cleanReminder", S.cleanReminder), "reminder monthly"),
             srow(L("How strict for bad photos", "مدى الصرامة مع الصور السيئة"), "", choose("cleanStrict", S.cleanStrict, [["gentle", L("Gentle", "لطيف")], ["normal", L("Normal", "عادي")], ["strict", L("Strict", "صارم")]]), "bad photos blurry strict"),
             srow(L("Offer rejected photos older than", "اقترح الصور المرفوضة الأقدم من"), "", choose("rejectMonths", S.rejectMonths, [[3, L("3 months", "3 أشهر")], [6, L("6 months", "6 أشهر")], [12, L("1 year", "سنة")]], "num"), "rejected old"),
-            srow(L("Preview cache", "ذاكرة المعاينات"), L("Big previews are made again when needed.", "تُصنع المعاينات الكبيرة من جديد عند الحاجة."), act("clearPreviews", L("Clear", "مسح")), "cache previews"),
+            srow(L("Preview cache", "ذاكرة المعاينات"), L("Big previews are made again when needed.", "تُصنع المعاينات الكبيرة من جديد عند الحاجة."), actBtn("clearPreviews", L("Clear", "مسح")), "cache previews"),
           ],
         },
       ];
@@ -160,7 +160,7 @@ function settingGroups(page, extra) {
               : fm?.state === "downloading" ? L(`Downloading the better engine… ${fm.total ? Math.round((fm.done / fm.total) * 100) : 0}%`, `جارٍ تنزيل المحرك الأفضل… ${fm.total ? Math.round((fm.done / fm.total) * 100) : 0}٪`)
               : fm?.state === "failed" ? L("The better engine couldn't download. The older one keeps working.", "تعذّر تنزيل المحرك الأفضل. يستمر المحرك الأقدم بالعمل.")
               : L("Getting ready", "جارٍ التجهيز"),
-              fm?.state === "failed" ? act("retryAura", L("Try again", "إعادة المحاولة")) : fm?.state === "ready" ? `<span class="tag good">${icon("check", 12)} ${L("Ready", "جاهز")}</span>` : "", "engine auraface model"),
+              fm?.state === "failed" ? actBtn("retryAura", L("Try again", "إعادة المحاولة")) : fm?.state === "ready" ? `<span class="tag good">${icon("check", 12)} ${L("Ready", "جاهز")}</span>` : "", "engine auraface model"),
           ],
         },
         {
@@ -168,8 +168,8 @@ function settingGroups(page, extra) {
           rows: [
             srow(L("Blur students who can't appear", "تمويه الطلاب الذين لا يظهرون"), L("Their faces are blurred in a post instead of the photo being left out.", "تُموَّه وجوههم في المنشور بدل استبعاد الصورة."), toggle("blurNoPost", S.blurNoPost), "blur can't appear privacy"),
             srow(L("What goes to the website", "ما يُرسل إلى الموقع"), L("Only small web copies, without location. Never faces or names from the Mac.", "نسخ ويب صغيرة فقط بلا موقع جغرافي. لا وجوه ولا أسماء من الماك."), choose("sendMode", S.sendMode, [["picked", L("Picks and post photos", "المختارة وصور المنشورات")], ["all", L("Every new photo", "كل صورة جديدة")]]), "send website upload"),
-            srow(L("Look again at photos that failed", "إعادة فحص الصور التي فشلت"), "", act("rescanFaces", L("Look again", "إعادة الفحص")), "rescan faces"),
-            srow(L("“Not a face” bin", "سلة «ليس وجهًا»"), L("Posters, screens and statues you marked. Put any back.", "الملصقات والشاشات والتماثيل التي علّمتها. يمكن إعادة أي منها."), act("notFaces", L("Open", "فتح")), "not a face hidden"),
+            srow(L("Look again at photos that failed", "إعادة فحص الصور التي فشلت"), "", actBtn("rescanFaces", L("Look again", "إعادة الفحص")), "rescan faces"),
+            srow(L("“Not a face” bin", "سلة «ليس وجهًا»"), L("Posters, screens and statues you marked. Put any back.", "الملصقات والشاشات والتماثيل التي علّمتها. يمكن إعادة أي منها."), actBtn("notFaces", L("Open", "فتح")), "not a face hidden"),
           ],
         },
       ];
@@ -177,7 +177,7 @@ function settingGroups(page, extra) {
       return [
         {
           rows: [
-            srow(L("Sending to the website", "الإرسال إلى الموقع"), S.queue.pending ? L(`${num(S.queue.pending)} waiting to send`, `${num(S.queue.pending)} في انتظار الإرسال`) : L("Up to date", "محدّث"), S.queue.failed ? act("retryFailed", L(`Retry ${num(S.queue.failed)} failed`, `إعادة ${num(S.queue.failed)} فشلت`)) : "", "send queue upload"),
+            srow(L("Sending to the website", "الإرسال إلى الموقع"), S.queue.pending ? L(`${num(S.queue.pending)} waiting to send`, `${num(S.queue.pending)} في انتظار الإرسال`) : L("Up to date", "محدّث"), S.queue.failed ? actBtn("retryFailed", L(`Retry ${num(S.queue.failed)} failed`, `إعادة ${num(S.queue.failed)} فشلت`)) : "", "send queue upload"),
             srow(L("Photo limit per post", "حد الصور لكل منشور"), L("Each platform's own limit unless you set one (Instagram 20).", "حد كل منصة ما لم تحدد حدًا (إنستغرام 20)."), `<input type="number" min="1" max="80" data-school="photo_limit" value="${esc(school?.photo_limit ?? "")}" placeholder="${L("Platform limit", "حد المنصة")}" style="width: 120px" />`, "photo limit carousel"),
           ],
         },
@@ -197,7 +197,7 @@ function settingGroups(page, extra) {
             : [srow(`<span class="muted">${S.signedIn ? L("No categories yet. Add them on the website.", "لا توجد تصنيفات بعد. أضفها على الموقع.") : L("Sign in to see the school's categories.", "سجّل الدخول لرؤية تصنيفات المدرسة.")}</span>`, "", "")],
         },
         {
-          rows: [srow(L("Categories, accounts, team and brand", "التصنيفات والحسابات والفريق والهوية"), L("These are set on the website, for the whole school.", "تُضبط على الموقع للمدرسة كلها."), act("openWebSettings", L("Open on the website", "فتح على الموقع")), "categories accounts team brand")],
+          rows: [srow(L("Categories, accounts, team and brand", "التصنيفات والحسابات والفريق والهوية"), L("These are set on the website, for the whole school.", "تُضبط على الموقع للمدرسة كلها."), actBtn("openWebSettings", L("Open on the website", "فتح على الموقع")), "categories accounts team brand")],
         },
       ];
     case "calendar": {
@@ -210,17 +210,17 @@ function settingGroups(page, extra) {
             ...terms.map((t, i) =>
               srow(`<input data-term="${i}" data-f="name" value="${esc(t.name)}" style="width: 140px" />`, "", `<input type="date" data-term="${i}" data-f="start" value="${esc(t.start)}" /> → <input type="date" data-term="${i}" data-f="end" value="${esc(t.end)}" /><button class="btn small ghost" data-delterm="${i}">${icon("x", 14)}</button>`, "term dates"),
             ),
-            srow("", "", act("addTerm", `${icon("plus", 13)} ${L("Add a term", "إضافة فصل")}`), "add term"),
+            srow("", "", actBtn("addTerm", `${icon("plus", 13)} ${L("Add a term", "إضافة فصل")}`), "add term"),
           ],
         },
         {
           title: L("Holidays", "العطل"),
           rows: [
             ...(school?.holidays ?? []).map((t, i) => srow(`<input data-hol="${i}" data-f="name" value="${esc(t.name)}" style="width: 160px" />`, "", `<input type="date" data-hol="${i}" data-f="start" value="${esc(t.start)}" /> → <input type="date" data-hol="${i}" data-f="end" value="${esc(t.end)}" /><button class="btn small ghost" data-delhol="${i}">${icon("x", 14)}</button>`, "holiday")),
-            srow("", "", act("addHoliday", `${icon("plus", 13)} ${L("Add a holiday", "إضافة عطلة")}`), "add holiday"),
+            srow("", "", actBtn("addHoliday", `${icon("plus", 13)} ${L("Add a holiday", "إضافة عطلة")}`), "add holiday"),
           ],
         },
-        { rows: [srow(L("Import the term calendar", "استيراد تقويم الفصول"), L("From an Excel or calendar file the school already has.", "من ملف Excel أو تقويم لدى المدرسة."), act("importCalendar", L("Choose file…", "اختيار ملف…")), "import calendar ics excel")] },
+        { rows: [srow(L("Import the term calendar", "استيراد تقويم الفصول"), L("From an Excel or calendar file the school already has.", "من ملف Excel أو تقويم لدى المدرسة."), actBtn("importCalendar", L("Choose file…", "اختيار ملف…")), "import calendar ics excel")] },
       ];
     }
     case "alerts":
@@ -238,7 +238,7 @@ function settingGroups(page, extra) {
       return [
         {
           rows: [
-            srow(L("Version", "الإصدار"), `<span class="ltr">${esc(S.version)}</span>`, act("checkUpdates", L("Check for updates", "التحقق من التحديثات")), "version update"),
+            srow(L("Version", "الإصدار"), `<span class="ltr">${esc(S.version)}</span>`, actBtn("checkUpdates", L("Check for updates", "التحقق من التحديثات")), "version update"),
             srow(L("Safe updates", "تحديثات آمنة"), L("Before a new version opens the library, the library, faces and settings are copied aside. The last five copies are kept.", "قبل أن يفتح إصدار جديد المكتبة، تُنسخ المكتبة والوجوه والإعدادات جانبًا. تُحفظ آخر خمس نسخ."), `<span class="tag good">${icon("shield-check", 12)} ${L("On", "يعمل")}</span>`, "safe backup update"),
           ],
         },
@@ -383,7 +383,12 @@ App.views.settings = {
       await call("setTerms", clean);
       if (S.signedIn) await this.saveSchool({ term_dates: clean });
       else this.fill();
-    } else await this.saveSchool({ holidays: clean });
+    } else {
+      // Kept on this computer too: imports name events from the school calendar.
+      await call("set", "calendar", clean);
+      if (S.signedIn) await this.saveSchool({ holidays: clean });
+      else this.fill();
+    }
   },
   async act(name, b) {
     const page = $("#spage");
@@ -494,9 +499,10 @@ App.views.history = {
     $("#h-undo", main).onclick = async () => { await doUndo(); go("history"); };
     const rows = (await quiet("history")) ?? [];
     const imports = (await quiet("importHistory")) ?? [];
-    $("#hc", main).innerHTML = `${imports.length ? `<h2 style="margin-bottom: 8px">${L("Imports", "عمليات الاستيراد")}</h2><div class="card" style="margin-bottom: 18px"><table class="list"><tbody>${imports.map((r) => `<tr><td class="muted small" style="width: 170px">${new Date(r.at).toLocaleString(S.language === "en" ? "en-GB" : "ar-EG")}</td><td><b>${esc(r.title)}</b><div class="small muted">${esc([r.who, r.photographer, r.source].filter(Boolean).join(" · "))}</div></td><td class="small">${plural(r.copied, "photo", "photos", "صورة")}${r.skipped ? ` · ${L(`${r.skipped} left out`, `${num(r.skipped)} مستبعدة`)}` : ""}</td><td>${r.undone ? `<span class="tag">${L("Undone", "تم التراجع")}</span>` : `<button class="btn small" data-undoimp="${r.id}">${L("Undo import", "تراجع عن الاستيراد")}</button>`}</td></tr>`).join("")}</tbody></table></div>` : ""}
+    $("#hc", main).innerHTML = `${imports.length ? `<h2 style="margin-bottom: 8px">${L("Imports", "عمليات الاستيراد")}</h2><div class="card" style="margin-bottom: 18px"><table class="list"><tbody>${imports.map((r) => `<tr><td class="muted small" style="width: 170px">${new Date(r.at).toLocaleString(S.language === "en" ? "en-GB" : "ar-EG")}</td><td><b>${esc(r.source ?? "")}</b><div class="small muted">${esc([r.who, r.photographer, ...JSON.parse(r.folders || "[]").slice(0, 2).map((f) => f.split(/[\\/]/).slice(-2).join(" / "))].filter(Boolean).join(" · "))}</div></td><td class="small">${plural(r.copied, "photo", "photos", "صورة")}${r.skipped ? ` · ${L(`${r.skipped} left out`, `${num(r.skipped)} مستبعدة`)}` : ""}</td><td><button class="btn small ghost" data-impsum="${r.id}">${L("Summary", "الملخص")}</button></td><td>${r.undone ? `<span class="tag">${L("Undone", "تم التراجع")}</span>` : `<button class="btn small" data-undoimp="${r.id}">${L("Undo import", "تراجع عن الاستيراد")}</button>`}</td></tr>`).join("")}</tbody></table></div>` : ""}
       <h2 style="margin-bottom: 8px">${L("Changes", "التغييرات")}</h2>
       ${rows.length ? `<div class="card"><table class="list"><tbody>${rows.map((r) => `<tr><td class="muted small" style="width: 170px">${new Date(r.at).toLocaleString(S.language === "en" ? "en-GB" : "ar-EG")}</td><td><b>${esc(ACTIONS()[r.action] ?? r.action)}</b>${r.who ? `<div class="small muted">${esc(r.who)}</div>` : ""}</td><td class="muted small">${esc(r.detail)}</td><td>${r.can_undo ? `<span class="tag">${L("can undo", "يمكن التراجع")}</span>` : ""}</td></tr>`).join("")}</tbody></table></div>` : emptyState("history", L("Nothing yet", "لا شيء بعد"))}`;
+    $$("[data-impsum]", main).forEach((b) => (b.onclick = () => go("import", { summary: Number(b.dataset.impsum) })));
     $$("[data-undoimp]", main).forEach((b) => (b.onclick = async () => {
       const r = await call("undoImport", Number(b.dataset.undoimp));
       toast(L(`${r.binned} photos moved to the Bin`, `نُقلت ${num(r.binned)} صورة إلى السلة`));

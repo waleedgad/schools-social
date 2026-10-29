@@ -189,3 +189,22 @@ const KINDS = () => ({
   parent: L("Parent", "ولي أمر"),
   visitor: L("Visitor", "زائر"),
 });
+
+// A yes/no question in the app's own style. Resolves true for yes.
+function confirmBox(text, yes = L("Continue", "متابعة"), no = L("Cancel", "إلغاء")) {
+  return new Promise((resolve) => {
+    const m = modal(`<p style="margin: 0 0 16px">${esc(text)}</p><div class="row"><span class="grow"></span><button class="btn" data-no>${esc(no)}</button><button class="btn primary" data-yes>${esc(yes)}</button></div>`);
+    const done = (v) => { closeOverlay(); resolve(v); };
+    m.querySelector("[data-yes]").onclick = () => done(true);
+    m.querySelector("[data-no]").onclick = () => done(false);
+    App.overlayKeys = (e) => {
+      if (e.key === "Escape") done(false);
+      if (e.key === "Enter") done(true);
+    };
+    setTimeout(() => m.querySelector("[data-yes]").focus(), 30);
+  });
+}
+function infoBox(title, text) {
+  const m = modal(`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row"><span class="grow"></span><button class="btn primary">${L("OK", "حسنًا")}</button></div>`);
+  m.querySelector("button").onclick = closeOverlay;
+}

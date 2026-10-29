@@ -92,7 +92,7 @@ const PROBLEMS = () => ({
 App.views.library = {
   render(main, params) {
     if (params.event !== undefined || params.album || params.student || params.className || params.year || params.together || params.grade || params.stage) {
-      lib.filter = { event: params.event, album: params.album, student: params.student, className: params.className, year: params.year, term: params.term, together: params.together, grade: params.grade, stage: params.stage };
+      lib.filter = { title: params.title, event: params.event, album: params.album, student: params.student, className: params.className, year: params.year, term: params.term, together: params.together, grade: params.grade, stage: params.stage };
     }
     if (!lib.filter.event && !lib.filter.album && !lib.filter.year && !lib.filter.student && !lib.filter.className && !lib.filter.together && !lib.filter.grade && !lib.filter.stage) lib.filter.album = "all";
     main.innerHTML =
@@ -207,6 +207,7 @@ App.views.library = {
       return drawAlbumCards();
     }
     const f = { ...lib.filter };
+    delete f.title;
     if (f.album === "all") delete f.album;
     const list = await quiet("photos", f);
     if (!list || !$("#grid")) return;
@@ -228,6 +229,11 @@ App.views.library = {
     drawTitle();
     drawGrid();
     if (f.album === "noevent") strayBanner();
+    // "Pick the best" from an import summary goes straight into culling.
+    if (App.params.cull && lib.shown.length) {
+      App.params.cull = false;
+      openViewer(lib.shown.map((p) => p.id), 0, { cull: true });
+    }
   },
 };
 
@@ -259,6 +265,7 @@ function drawTitle() {
   else if (f.album?.startsWith("occ:")) title = OCC()[f.album.slice(4)] ?? title;
   else if (f.album?.startsWith("book:")) title = L(`Yearbook photos · ${f.album.slice(5).split("|")[0]}`, `صور الكتاب السنوي · ${f.album.slice(5).split("|")[0]}`);
   else if (f.album?.startsWith("kind:")) title = KINDS()[f.album.slice(5)] ?? title;
+  else if (f.album?.startsWith("imp:")) title = f.title ?? L("This import", "هذا الاستيراد");
   else if (f.album) title = ALBUMS().find((x) => x.id === f.album)?.label ?? title;
   if (f.event) {
     const ev = lib.tree?.rows.find((r) => r.event_key === f.event);

@@ -113,6 +113,50 @@ create table if not exists imports (
   undone integer not null default 0
 );
 
+-- A photo copied in by an import: the engine reads who took it, what kind
+-- of photo it is and the camera clock fix from here when it first sees it.
+create table if not exists import_files (
+  path text primary key,
+  import_id integer,
+  offset_ms integer not null default 0,
+  photographer text,
+  category text
+);
+
+-- Photos already taken off a card (name, size, time): a card plugged in
+-- again only offers the new ones.
+create table if not exists seen_files (
+  key text primary key,
+  at integer not null
+);
+
+-- Imports waiting or running, kept so they carry on after sleep, a quit or
+-- an unplugged card.
+create table if not exists import_jobs (
+  id integer primary key,
+  import_id integer,
+  state text not null default 'waiting',
+  spec text not null,
+  done integer not null default 0,
+  total integer not null default 0,
+  bytes_done integer not null default 0,
+  bytes_total integer not null default 0,
+  created integer not null,
+  error text
+);
+
+create table if not exists job_files (
+  job_id integer not null references import_jobs (id) on delete cascade,
+  n integer not null,
+  src text not null,
+  size integer not null default 0,
+  dest_dir text not null,
+  state text not null default 'todo',
+  dest text,
+  reason text,
+  primary key (job_id, n)
+);
+
 create table if not exists achievements (
   id integer primary key,
   student_id text not null references students (id) on delete cascade,

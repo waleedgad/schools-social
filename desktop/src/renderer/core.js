@@ -36,6 +36,12 @@ const ERRORS = {
   "no-library": ["Choose the library folder first (Settings).", "اختر مجلد المكتبة أولًا (الإعدادات)."],
   "not-signed-in": ["Sign in to the website first (Settings → Account).", "سجّل الدخول إلى الموقع أولًا (الإعدادات ← الحساب)."],
   "upload-slow": ["The photos are taking long to send. Check the internet and try again.", "إرسال الصور يستغرق وقتًا طويلًا. تحقق من الإنترنت وحاول مرة أخرى."],
+  "scan-gone": ["That import was closed. Choose the photos again.", "أُغلق هذا الاستيراد. اختر الصور مرة أخرى."],
+  "no-events": ["Tick some photos and give each event a name first.", "حدّد بعض الصور واكتب اسمًا لكل فعالية أولًا."],
+  "bad-link": ["That isn't a Google Drive or OneDrive share link.", "هذا ليس رابط مشاركة من Google Drive أو OneDrive."],
+  "link-not-public": ["That link isn't shared with “Anyone with the link”. Ask for a public link.", "هذا الرابط غير مُشارك مع «أي شخص لديه الرابط». اطلب رابطًا عامًا."],
+  "link-empty": ["No photos found behind that link.", "لا توجد صور في هذا الرابط."],
+  "not-supported": ["This computer can't do that yet.", "هذا الجهاز لا يدعم ذلك بعد."],
   "inside-library": ["That folder is already inside the library.", "هذا المجلد موجود بالفعل داخل المكتبة."],
 };
 

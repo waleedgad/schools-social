@@ -18,6 +18,7 @@ import type { Ctx } from "./features/ctx";
 import { nameMatches } from "./core/names";
 import { binTimer, manageApi } from "./features/manage";
 import { libraryApi, PHOTO_COLUMNS } from "./features/library";
+import { importsApi } from "./features/imports";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
@@ -82,12 +83,13 @@ type Settings = {
   todayLayout: unknown;
   wizard: Record<string, boolean>;
   lastCleanReminder: number;
+  calendar: { name: string; start: string; end: string }[];
 };
 
 const SETTABLE: (keyof Settings)[] = [
   "language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "cleanStrict", "rejectMonths", "selfFiling",
   "autoName", "faceVision", "motion", "fileAsk", "rawFolders", "finderTags", "lockOriginals", "binAuto", "cleanReminder", "importPhotographer", "importCategory", "importJunk",
-  "importSkipDup", "splitGap", "importAutoOpen", "importEject", "importErase", "blurNoPost", "teamImportAlert", "todayLayout", "wizard", "lastCleanReminder",
+  "importSkipDup", "splitGap", "importAutoOpen", "importEject", "importErase", "blurNoPost", "teamImportAlert", "todayLayout", "wizard", "lastCleanReminder", "calendar",
 ];
 
 // The app connects to this address by itself. A school using its own copy
@@ -117,6 +119,7 @@ let aura: AuraDownload | null = null;
 let features: Record<string, (...args: never[]) => unknown> = {};
 // Imports running in the background (Import tab and sidebar progress).
 let importJobs: () => unknown[] = () => [];
+let stopImports = () => {};
 
 // The sign-in session is encrypted with the operating system's key store.
 const sessionFile = () => data("session.bin");
@@ -721,6 +724,7 @@ async function undo() {
   else if (u.kind === "canPost") db.prepare("update students set can_post = ? where id = ?").run(u.value, u.id);
   else if (u.kind === "bin") await (features.restoreBin as (ids: number[]) => Promise<number>)(u.ids);
   else if (u.kind === "student") db.prepare(`update students set ${u.field} = ? where id = ?`).run(u.value, u.id);
+  else if (u.kind === "import") await (features.undoImport as (id: number) => Promise<unknown>)(u.id);
   else if (u.kind === "sql") for (const [sql, args] of u.steps as [string, unknown[]][]) db.prepare(sql).run(...(args as never[]));
   db.prepare("update history set undo = null where id = ?").run(h.id);
   push("all");
@@ -1317,6 +1321,7 @@ app.whenReady().then(async () => {
     todayLayout: null,
     wizard: {},
     lastCleanReminder: 0,
+    calendar: [],
   });
   setTermDates(settings.get().terms);
   try {
@@ -1337,6 +1342,7 @@ app.whenReady().then(async () => {
       if (url.host === "thumb") file = await engine!.thumb(Number(id));
       else if (url.host === "preview") file = await engine!.preview(Number(id));
       else if (url.host === "face") file = await engine!.faceCrop(Number(id));
+      else if (url.host === "ithumb" && /^[0-9a-f]{16}$/.test(id)) file = data(path.join("cache", "import", `${id}.jpg`));
       else if (url.host === "portrait") file = one<{ portrait: string }>("select portrait from students where id = ?", id)?.portrait ?? null;
       if (!file) return new Response("", { status: 404 });
       const res = await net.fetch(pathToFileURL(file).toString());
@@ -1367,7 +1373,11 @@ app.whenReady().then(async () => {
       push();
     },
   };
-  features = { ...manageApi(ctx), ...libraryApi(ctx) };
+  const imports = importsApi(ctx);
+  importJobs = imports.jobs;
+  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api };
+  imports.startWatching();
+  stopImports = imports.stopWatching;
   timers.push(binTimer(ctx, features));
 
   const api: Record<string, (...args: never[]) => unknown> = {
@@ -1787,6 +1797,7 @@ app.on("before-quit", () => {
   pushTimer = null;
   timers.forEach((t) => clearInterval(t));
   timers = [];
+  stopImports();
 });
 app.on("window-all-closed", () => {
   // Stay in the menu bar.

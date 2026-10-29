@@ -5,5 +5,9 @@ contextBridge.exposeInMainWorld("hub", {
   onState: (fn: (state: unknown, changed: string[]) => void) => ipcRenderer.on("state", (_e, s, c) => fn(s, c)),
   onCommand: (fn: (command: string) => void) => ipcRenderer.on("command", (_e, c) => fn(c)),
   onProgress: (fn: (p: unknown) => void) => ipcRenderer.on("progress", (_e, p) => fn(p)),
+  // Import news: reading a card, an import finished, a card or iPhone plugged in.
+  on: (channel: string, fn: (p: unknown) => void) => {
+    if (["importScan", "importDone", "importDevice"].includes(channel)) ipcRenderer.on(channel, (_e, p) => fn(p));
+  },
   pathFor: (file: File) => webUtils.getPathForFile(file),
 });
