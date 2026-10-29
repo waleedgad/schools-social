@@ -43,8 +43,8 @@ async function context(request: NextRequest, body: Body): Promise<PostCtx | null
   return { supabase, userId: user.user.id, membership };
 }
 
-const POST_COLUMNS = "id, status, idea, caption_ar, caption_en, scheduled_at, published_at, due_on, urgent, sensitive, category_id, created_by, updated_at, post_photos(position, photo:photos(storage_path, edited_path))";
-type Row = { id: string; status: string; idea: string | null; caption_ar: string | null; caption_en: string | null; scheduled_at: string | null; published_at: string | null; due_on: string | null; urgent: boolean; sensitive: boolean; category_id: string | null; created_by: string | null; updated_at: string; post_photos: { position: number; photo: { storage_path: string; edited_path: string | null } | null }[] };
+const POST_COLUMNS = "id, status, idea, caption_ar, caption_en, scheduled_at, published_at, due_on, urgent, sensitive, category_id, created_by, assigned_to, platforms, countdown_to, updated_at, post_photos(position, photo:photos(storage_path, edited_path))";
+type Row = { id: string; status: string; idea: string | null; caption_ar: string | null; caption_en: string | null; scheduled_at: string | null; published_at: string | null; due_on: string | null; urgent: boolean; sensitive: boolean; category_id: string | null; created_by: string | null; assigned_to: string | null; platforms: string[]; countdown_to: string | null; updated_at: string; post_photos: { position: number; photo: { storage_path: string; edited_path: string | null } | null }[] };
 
 async function withCovers(ctx: PostCtx, rows: Row[]) {
   const cover = (p: Row) => {
@@ -71,7 +71,7 @@ async function handle(ctx: PostCtx, body: Body) {
         supabase.from("categories").select("id, name_ar, name_en, color").eq("school_id", schoolId).order("position"),
       ]);
       return {
-        posts: (await withCovers(ctx, posts ?? [])).map((p) => ({ ...p, mine: p.created_by === userId })),
+        posts: (await withCovers(ctx, posts ?? [])).map((p) => ({ ...p, mine: p.created_by === userId, assignedToMe: p.assigned_to === userId })),
         categories: (categories ?? []).map((c) => ({ id: c.id, color: c.color, name: categoryName(c as { name_ar: string; name_en: string }, locale) })),
       };
     }
@@ -85,7 +85,7 @@ async function handle(ctx: PostCtx, body: Body) {
       const [{ data: posts }, { data: slots }, { data: events }, { data: categories }] = await Promise.all([
         supabase.from("posts").select(POST_COLUMNS).eq("school_id", schoolId).or(`and(scheduled_at.gte.${a},scheduled_at.lt.${b}),and(published_at.gte.${a},published_at.lt.${b}),and(due_on.gte.${from},due_on.lte.${to})`).returns<Row[]>(),
         supabase.from("time_slots").select("id, weekday, at_time, category_id, platforms").eq("school_id", schoolId).returns<Slot[]>(),
-        supabase.from("events").select("id, title, event_date, ends_on, kind").eq("school_id", schoolId).gte("event_date", from).lte("event_date", to),
+        supabase.from("events").select("id, title, event_date, ends_on, kind, class_name, photos_expected, repeat_yearly").eq("school_id", schoolId).lte("event_date", to).or(`event_date.gte.${from},ends_on.gte.${from}`),
         supabase.from("categories").select("id, name_ar, name_en, color").eq("school_id", schoolId),
       ]);
       return {
@@ -125,7 +125,7 @@ async function handle(ctx: PostCtx, body: Body) {
       const intent = String(body.intent ?? "save");
       if (!(INTENTS as readonly string[]).includes(intent)) return { error: "intent" };
       const v = (body.values ?? {}) as Record<string, unknown>;
-      const allowed = ["caption_ar", "caption_en", "caption_ig", "hashtags", "first_comment", "location", "category_id", "platforms", "sensitive", "make_story", "urgent", "scheduled_at", "idea"];
+      const allowed = ["caption_ar", "caption_en", "caption_ig", "hashtags", "first_comment", "location", "category_id", "platforms", "sensitive", "make_story", "urgent", "scheduled_at", "idea", "frame_id", "alt_text", "assigned_to", "due_on", "countdown_to"];
       const values = Object.fromEntries(Object.entries(v).filter(([k]) => allowed.includes(k)));
       const r = await runIntent(ctx, String(body.id ?? ""), intent, { values, order: Array.isArray(body.order) ? (body.order as string[]) : null, reviewNote: String(body.reviewNote ?? "") });
       if (!r.ok) {
@@ -180,6 +180,7 @@ async function handle(ctx: PostCtx, body: Body) {
         const { data: p } = await supabase.from("posts").select("scheduled_at").eq("id", id).single();
         const at = p?.scheduled_at ? new Date(p.scheduled_at as string) : null;
         const hm = at ? new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(at).split(":").map(Number) : [18, 0];
+        if (typeof body.time === "string" && /^\d{2}:\d{2}/.test(body.time)) hm.splice(0, 2, ...body.time.split(":").slice(0, 2).map(Number));
         const [y, mo, d] = body.day.split("-").map(Number);
         update.scheduled_at = zonedTime(y, mo, d, hm[0] % 24, hm[1], tz).toISOString();
       }

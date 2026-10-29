@@ -263,3 +263,17 @@ test("clean up never offers posted, picked, named or yearbook photos", () => {
   db.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("smart crop keeps the faces in", async () => {
+  const { smartCrop } = await import("../features/posts.js");
+  // A wide photo with faces on the right: the 4:5 cut moves right.
+  const c = smartCrop(1200, 800, 4 / 5, [{ x: 0.7, y: 0.3, w: 0.1, h: 0.15 }, { x: 0.82, y: 0.32, w: 0.1, h: 0.15 }]);
+  assert.equal(c.height, 800);
+  assert.equal(c.width, 640);
+  assert.ok(c.left <= 0.7 * 1200 && c.left + c.width >= 0.92 * 1200);
+  // No faces: the middle.
+  assert.equal(smartCrop(1200, 800, 1, []).left, 200);
+  // A tall photo cut to square keeps the face row.
+  const t = smartCrop(800, 1200, 1, [{ x: 0.4, y: 0.6, w: 0.2, h: 0.12 }]);
+  assert.ok(t.top <= 0.6 * 1200 && t.top + t.height >= 0.72 * 1200);
+});

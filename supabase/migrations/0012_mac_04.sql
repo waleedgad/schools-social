@@ -24,6 +24,8 @@ alter table public.events
   add column photos_expected boolean not null default false,
   add column repeat_yearly boolean not null default false,
   add column shot_list jsonb not null default '[]'::jsonb;
+alter table public.events drop constraint events_kind_check;
+alter table public.events add constraint events_kind_check check (kind in ('event', 'occasion', 'holiday', 'exam', 'trip', 'sport', 'meeting'));
 
 alter table public.posts
   add column countdown_to date;

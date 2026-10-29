@@ -41,6 +41,8 @@ export class DemoProvider implements AiProvider {
       ["لحظات جميلة من", "Lovely moments from"],
       ["يوم رائع في", "A wonderful day of"],
       ["فخورون بطلابنا في", "So proud of our students at"],
+      ["ذكريات رائعة من", "Great memories from"],
+      ["شكراً لكل من شارك في", "Thank you to everyone who joined"],
     ];
     return openers.slice(0, req.options?.count ?? 3).map(([ar, en]) => ({
       ar: req.languages === "en" ? "" : `${ar} ${event}${req.className ? ` مع ${req.className}` : ""} في ${req.schoolName}. فخورون بكل ما يتعلمونه${emoji}`,

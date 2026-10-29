@@ -24,6 +24,7 @@ import { facesApi } from "./features/faces";
 import { studentsApi } from "./features/students";
 import { coverageApi } from "./features/coverage";
 import { booksApi } from "./features/books";
+import { postsApi } from "./features/posts";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { compareList, parseRows, readSheet, type Known, type StudentRow } from "./core/students";
@@ -1376,7 +1377,7 @@ app.whenReady().then(async () => {
   };
   const imports = importsApi(ctx);
   importJobs = imports.jobs;
-  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx), ...studentsApi(ctx), ...coverageApi(ctx), ...booksApi(ctx) };
+  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx), ...studentsApi(ctx), ...coverageApi(ctx), ...booksApi(ctx), ...postsApi(ctx) };
   imports.startWatching();
   const web = webSync(ctx);
   web.start();
@@ -1596,6 +1597,7 @@ app.whenReady().then(async () => {
     periods: () => all("select distinct year, term from photos where year is not null and missing = 0 order by year desc, term desc"),
 
     newPost: (ids: number[]) => newPost(ids),
+    sendNow: async (file: string) => { if (!sync) throw new Error("not-signed-in"); await sync.sendNow(file); },
     cancelPost: () => {
       postCancelled = true;
       lastMessage = "";

@@ -1,5 +1,6 @@
 import "server-only";
 import { getAi, type SchoolProfile } from "@/lib/ai";
+import { handlePosts } from "@/lib/app-posts";
 import { listComments, replyToComment } from "@/lib/meta";
 import type { PostCtx } from "@/lib/post-core";
 import { categoryName, isPaused } from "@/lib/posting";
@@ -383,5 +384,5 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
       return { ...book, checks: checks ?? [], comments: comments ?? [] };
     }
   }
-  return undefined;
+  return handlePosts(ctx, body, locale);
 }

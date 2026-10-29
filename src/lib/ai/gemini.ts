@@ -112,7 +112,7 @@ export class GeminiProvider implements AiProvider {
 
   async writeCaptions(req: CaptionRequest): Promise<Captions[]> {
     const o = req.options ?? {};
-    const count = Math.min(3, Math.max(1, o.count ?? 3));
+    const count = Math.min(5, Math.max(1, o.count ?? 3));
     const facts = [
       `School: ${req.schoolName}`,
       req.eventTitle && `Event: ${req.eventTitle}`,
