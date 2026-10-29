@@ -27,14 +27,12 @@ export function webSync(ctx: Ctx) {
   }
 
   async function coverage() {
-    const rows = all<{ id: string; class_name: string | null; photos: number; posts: number; last: string | null }>(
-      `select s.id, s.class_name,
-         (select count(distinct f.photo_id) from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual') and p.missing = 0) photos,
-         (select count(distinct f.photo_id) from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual') and p.posts > 0) posts,
-         (select max(substr(p.taken_at, 1, 10)) from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual')) last
-       from students s where s.kind = 'student' and s.left_on is null`,
-    );
-    if (rows.length) await ctx.appApi("coverage", { rows: rows.map((r) => ({ code: r.id, className: r.class_name, photos: r.photos, posts: r.posts, last: r.last })) });
+    const r = await ctx.call("coverage", {});
+    const rows = (r?.students ?? []) as { id: string; class_name: string | null; photos: number; good: number; focus: number; posted: number; last: string | null; ready: boolean; tooOften: boolean }[];
+    if (rows.length)
+      await ctx.appApi("coverage", {
+        rows: rows.map((s) => ({ code: s.id, className: s.class_name, photos: s.photos, good: s.good, focus: s.focus, posts: s.posted, last: s.last, ready: s.ready, tooOften: s.tooOften })),
+      });
   }
 
   // Only photos whose names changed since they were last sent.

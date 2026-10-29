@@ -241,12 +241,35 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
     // Coverage numbers from the Mac (counts only, never faces).
     case "coverage": {
       if (!comms) return { error: "role" };
-      const rows = Array.isArray(body.rows) ? (body.rows as { code: string; className?: string; photos?: number; posts?: number; last?: string }[]).slice(0, 5000) : [];
+      type Cov = { code: string; className?: string; photos?: number; good?: number; focus?: number; posts?: number; last?: string; ready?: boolean; tooOften?: boolean };
+      const rows = Array.isArray(body.rows) ? (body.rows as Cov[]).slice(0, 5000) : [];
+      const n = (v: unknown) => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : 0);
       for (let i = 0; i < rows.length; i += 500)
         await supabase.from("student_coverage").upsert(
-          rows.slice(i, i + 500).map((r) => ({ school_id: schoolId, student_code: String(r.code).slice(0, 40), class_name: r.className ?? null, photos: r.photos ?? 0, posts: r.posts ?? 0, last_photo: isDay(r.last) ? r.last : null, updated_at: new Date().toISOString() })),
+          rows.slice(i, i + 500).map((r) => ({
+            school_id: schoolId, student_code: String(r.code).slice(0, 40), class_name: r.className ?? null, photos: n(r.photos), good: n(r.good), focus: n(r.focus), posts: n(r.posts),
+            ready: !!r.ready, too_often: !!r.tooOften, last_photo: isDay(r.last) ? r.last : null, updated_at: new Date().toISOString(),
+          })),
         );
       return { ok: true, rows: rows.length };
+    }
+
+    // The shot list for an event, shown on the photographer's or teacher's
+    // phone while they take photos (names and counts only).
+    case "shotList": {
+      if (!comms) return { error: "role" };
+      const title = String(body.title ?? "").trim().slice(0, 120);
+      const date = isDay(body.date) ? String(body.date) : new Date().toISOString().slice(0, 10);
+      if (title.length < 2) return { error: "bad-title" };
+      type Shot = { code: string; name_en?: string | null; name_ar?: string | null; className?: string | null; good?: number; focus?: number };
+      const list = (Array.isArray(body.students) ? (body.students as Shot[]) : []).slice(0, 300).map((s) => ({
+        code: String(s.code).slice(0, 40), name_en: s.name_en ? String(s.name_en).slice(0, 120) : null, name_ar: s.name_ar ? String(s.name_ar).slice(0, 120) : null,
+        class_name: s.className ? String(s.className).slice(0, 60) : null, good: Number(s.good) || 0, focus: Number(s.focus) || 0, done: false,
+      }));
+      const { data: ev } = await supabase.from("events").select("id").eq("school_id", schoolId).eq("event_date", date).ilike("title", title).maybeSingle();
+      if (ev) await supabase.from("events").update({ shot_list: list }).eq("id", ev.id);
+      else await supabase.from("events").insert({ school_id: schoolId, title, event_date: date, class_name: body.className ? String(body.className).slice(0, 60) : null, created_by: userId, shot_list: list });
+      return { ok: true, students: list.length };
     }
 
     // Who is in each photo (student IDs), for "who's in this post".

@@ -521,3 +521,18 @@ table.list tr.on td { background: var(--accent-bg); }
 details.warnbox { border-color: var(--warn); }
 details.card > summary { cursor: pointer; list-style: none; display: flex; gap: 8px; align-items: center; }
 .card.row { flex-direction: row; align-items: center; flex-wrap: wrap; } .card.row.nowrap { flex-wrap: nowrap; }
+
+/* Coverage: posts per class bars, weeks heat map, shot list */
+.bars { display: flex; flex-direction: column; gap: 6px; }
+.barrow { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.barbg { flex: 1; height: 10px; border-radius: 99px; background: var(--grey-bg); overflow: hidden; }
+.barbg i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.barbg i.low { background: var(--warn); }
+.heatmap { display: flex; flex-direction: column; gap: 3px; overflow-x: auto; }
+.hmrow { display: grid; grid-template-columns: 80px repeat(16, minmax(18px, 1fr)); gap: 3px; align-items: center; cursor: pointer; }
+.hmrow.head { cursor: default; }
+.hmrow i, .hstrip i { display: block; height: 18px; border-radius: 4px; }
+.hm0 { background: var(--grey-bg); } .hm1 { background: color-mix(in srgb, var(--good) 25%, transparent); } .hm2 { background: color-mix(in srgb, var(--good) 50%, transparent); } .hm3 { background: color-mix(in srgb, var(--good) 75%, transparent); } .hm4 { background: var(--good); }
+.hstrip { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; margin-top: 2px; }
+.hstrip i { height: 6px; border-radius: 2px; }
+pre.shot { white-space: pre-wrap; font: inherit; font-size: 12.5px; background: var(--grey-bg); border-radius: 10px; padding: 10px 12px; max-height: 40vh; overflow-y: auto; margin: 0; }

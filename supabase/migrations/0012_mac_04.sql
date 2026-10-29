@@ -144,6 +144,10 @@ create table public.student_coverage (
   class_name text,
   photos int not null default 0,
   posts int not null default 0,
+  good int not null default 0,
+  focus int not null default 0,
+  ready boolean not null default false,
+  too_often boolean not null default false,
   last_photo date,
   updated_at timestamptz not null default now(),
   primary key (school_id, student_code)

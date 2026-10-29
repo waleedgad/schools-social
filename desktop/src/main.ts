@@ -23,6 +23,7 @@ import { webSync } from "./features/websync";
 import { todayApi } from "./features/today";
 import { facesApi } from "./features/faces";
 import { studentsApi } from "./features/students";
+import { coverageApi } from "./features/coverage";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { compareList, parseRows, readSheet, type Known, type StudentRow } from "./core/students";
@@ -833,33 +834,6 @@ async function commitStudents(portraitFolder: string | null, opts: { markLeft?: 
   return { saved: list.length, web, portraits, added: added.length, moved: changes.moved.length, left: opts.markLeft ? changes.left.length : 0 };
 }
 
-// ---------- Coverage ----------
-
-// Coverage by Stage → Grade → Class, in the school's natural order.
-// Students who can't appear in posts are counted on their own.
-function coverage(f: { year?: string; term?: string; event?: string }) {
-  const rows = students(f) as { id: string; class_name: string | null; stage: string | null; grade: string | null; photos: number; can_post: number; last_seen: string | null }[];
-  const order = classes().map((c) => c.class_name ?? "—");
-  const stale = new Date(Date.now() - 21 * 86400_000).toISOString();
-  const byClass = new Map<string, { className: string; stage: string | null; grade: string | null; students: number; zero: number; low: number; good: number; nopost: number; stale: number; photos: number }>();
-  for (const r of rows) {
-    const k = r.class_name ?? "—";
-    const c = byClass.get(k) ?? { className: k, stage: r.stage, grade: r.grade, students: 0, zero: 0, low: 0, good: 0, nopost: 0, stale: 0, photos: 0 };
-    byClass.set(k, c);
-    if (!r.can_post) {
-      c.nopost++;
-      continue;
-    }
-    c.students++;
-    c.photos += r.photos;
-    if (r.photos === 0) c.zero++;
-    else if (r.photos < 3) c.low++;
-    else c.good++;
-    if (r.last_seen && r.last_seen < stale) c.stale++;
-  }
-  return [...byClass.values()].sort((a, b) => order.indexOf(a.className) - order.indexOf(b.className));
-}
-
 // ---------- People (faces like Apple Photos) ----------
 
 // Each student's main face: the one chosen, else the biggest clear face
@@ -1430,7 +1404,7 @@ app.whenReady().then(async () => {
   };
   const imports = importsApi(ctx);
   importJobs = imports.jobs;
-  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx), ...studentsApi(ctx) };
+  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx), ...studentsApi(ctx), ...coverageApi(ctx) };
   imports.startWatching();
   const web = webSync(ctx);
   web.start();
@@ -1684,7 +1658,6 @@ app.whenReady().then(async () => {
       engine?.queueFaceScan();
       engine?.rematch();
     },
-    coverage: (f: { year?: string; term?: string; event?: string }) => coverage(f),
     periods: () => all("select distinct year, term from photos where year is not null and missing = 0 order by year desc, term desc"),
 
     newPost: (ids: number[]) => newPost(ids),
