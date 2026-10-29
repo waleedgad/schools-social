@@ -1,5 +1,5 @@
 import "server-only";
-import { getAi, type SchoolProfile } from "@/lib/ai";
+import { getAi, isAiConfigured, type SchoolProfile } from "@/lib/ai";
 import { thumbPath } from "@/lib/images";
 import type { PostCtx } from "@/lib/post-core";
 import { categoryName, photoLimit, zonedTime } from "@/lib/posting";
@@ -29,7 +29,7 @@ export async function handlePosts(ctx: PostCtx, body: Body, locale: "ar" | "en")
     // Everything the editor shows beyond the post itself.
     case "postMore": {
       const id = String(body.id ?? "");
-      const { data: post } = await supabase.from("posts").select("id, event_id, platforms, category_id, frame_id, assigned_to, due_on, alt_text, location, countdown_to, caption_ig").eq("id", id).maybeSingle();
+      const { data: post } = await supabase.from("posts").select("id, event_id, platforms, category_id, frame_id, assigned_to, due_on, alt_text, location, countdown_to, caption_ig, collaborators").eq("id", id).maybeSingle();
       if (!post) return { error: "missing" };
       const [{ data: school }, { data: frames }, { data: snippets }, { data: versions }, { data: links }, { data: people }, { data: history }, { data: cats }, { data: pp }] = await Promise.all([
         supabase.from("schools").select("photo_limit, caption_languages, no_post_days, holidays, profile").eq("id", schoolId).single(),
@@ -80,6 +80,7 @@ export async function handlePosts(ctx: PostCtx, body: Body, locale: "ar" | "en")
       }
       if ("caption_ig" in v) update.caption_ig = String(v.caption_ig ?? "").slice(0, 2200) || null;
       if ("cover_collage" in v) update.cover_collage = !!v.cover_collage;
+      if (Array.isArray(v.collaborators)) update.collaborators = (v.collaborators as unknown[]).map((t) => String(t).slice(0, 40)).slice(0, 3);
       if (!Object.keys(update).length) return { error: "nothing" };
       const id = String(body.id ?? "");
       const { error } = await supabase.from("posts").update(update).eq("id", id);
@@ -324,6 +325,32 @@ export async function handlePosts(ctx: PostCtx, body: Body, locale: "ar" | "en")
         best,
         grid: g.map((p) => ({ id: p.id, status: p.status, at: p.scheduled_at ?? p.published_at, cover: coverOf(p) ? urls.get(coverOf(p)!) ?? null : null })),
         photosMissing: exp.filter((e) => !has.has(e.id as string)),
+      };
+    }
+    // Help: this person's problem reports and where each one is.
+    case "myReports": {
+      const { data } = await supabase.from("problem_reports").select("id, body, status, created_at").eq("school_id", schoolId).eq("user_id", userId).order("created_at", { ascending: false }).limit(20);
+      return { reports: (data ?? []).map((r) => ({ ...r, body: String(r.body).slice(0, 300) })) };
+    }
+
+    // Help: is everything working? Website, AI, Facebook and Instagram,
+    // and posts that failed lately. Plus how to reach support.
+    case "status": {
+      const [{ data: meta }, { count: failed }, { data: school }] = await Promise.all([
+        supabase.rpc("meta_status", { p_school: schoolId }),
+        supabase.from("posts").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "failed").gte("updated_at", new Date(Date.now() - 2 * DAY).toISOString()),
+        supabase.from("schools").select("posting_paused_until, pause_reason").eq("id", schoolId).single(),
+      ]);
+      const m = (meta as { page_id: string | null; ig_username: string | null; fb_paused: boolean; ig_paused: boolean }[] | null)?.[0];
+      return {
+        website: true,
+        ai: isAiConfigured() ? "on" : "demo",
+        facebook: m?.page_id ? (m.fb_paused ? "paused" : "on") : "off",
+        instagram: m?.ig_username ? (m.ig_paused ? "paused" : "on") : "off",
+        failed: failed ?? 0,
+        paused: school?.posting_paused_until && Date.parse(school.posting_paused_until as string) > Date.now() ? { until: school.posting_paused_until, reason: school.pause_reason } : null,
+        support: { whatsapp: (process.env.SUPPORT_WHATSAPP ?? "").replace(/[^\d]/g, "") || null, email: process.env.SUPPORT_EMAIL ?? null },
+        version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
       };
     }
   }

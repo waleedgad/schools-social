@@ -315,7 +315,7 @@ function macStatus() {
 
 // Big clear page title; the bar is the window's title bar (drag to move).
 function topbar(title, sub = "", right = "") {
-  return `<header class="topbar"><div class="title"><b>${title}</b>${sub ? `<span>${sub}</span>` : ""}</div><div class="grow"></div><div class="tools">${right}</div></header>`;
+  return `<header class="topbar"><div class="title"><b>${title}</b>${sub ? `<span>${sub}</span>` : ""}</div><div class="grow"></div><div class="tools">${right}<button class="btn ghost qhelp" data-screenhelp title="${L("Help for this screen", "مساعدة لهذه الشاشة")}">?</button></div></header>`;
 }
 
 function go(view, params = {}) {

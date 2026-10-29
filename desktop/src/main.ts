@@ -63,6 +63,7 @@ type Settings = {
   setupDone: boolean;
   lastBackup: number | null;
   cleanStrict: "gentle" | "normal" | "strict";
+  tourDone: boolean;
   rejectMonths: number;
   selfFiling: boolean;
   // 0.4
@@ -94,7 +95,7 @@ type Settings = {
 };
 
 const SETTABLE: (keyof Settings)[] = [
-  "language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "cleanStrict", "rejectMonths", "selfFiling",
+  "language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "tourDone", "cleanStrict", "rejectMonths", "selfFiling",
   "autoName", "faceVision", "motion", "fileAsk", "rawFolders", "finderTags", "lockOriginals", "binAuto", "cleanReminder", "importPhotographer", "importCategory", "importJunk",
   "importSkipDup", "splitGap", "importAutoOpen", "importEject", "importErase", "blurNoPost", "teamImportAlert", "todayLayout", "wizard", "lastCleanReminder", "calendar",
 ];
@@ -283,6 +284,7 @@ function state() {
     quietTo: s.quietTo,
     alerts: s.alerts,
     setupDone: s.setupDone,
+    tourDone: s.tourDone,
     cleanStrict: s.cleanStrict,
     rejectMonths: s.rejectMonths,
     selfFiling: s.selfFiling,
@@ -1295,6 +1297,7 @@ app.whenReady().then(async () => {
     alerts: true,
     setupDone: false,
     lastBackup: null,
+    tourDone: false,
     cleanStrict: "normal",
     rejectMonths: 6,
     selfFiling: false,
@@ -1439,6 +1442,7 @@ app.whenReady().then(async () => {
     chooseFolderToFlag: () => chooseFolder("Choose a folder"),
     eventFolderPath: (key: string) => (settings.get().library ? path.join(settings.get().library!, ...key.split("/")) : null),
     openWeb: (sub = "") => shell.openExternal(`${settings.get().server}/${settings.get().language}${sub}`),
+    openUrl: (url: string) => { if (/^https:\/\//.test(url)) return shell.openExternal(url); },
     webBase: () => `${settings.get().server}/${settings.get().language}`,
     rescan: () => engine?.scan(),
     findMissing: async () => {

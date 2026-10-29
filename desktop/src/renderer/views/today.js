@@ -336,7 +336,7 @@ App.views.today = {
       this.draw();
     }));
     $$("[data-occphotos]", box).forEach((b) => (b.onclick = () => go("library", { album: `occ:${b.dataset.occphotos}` })));
-    $$("[data-occpost]", box).forEach((b) => (b.onclick = () => call("openWeb", `/posts/new/announcement?occasion=${encodeURIComponent(b.dataset.occpost)}&title=${encodeURIComponent(b.dataset.occname)}`)));
+    $$("[data-occpost]", box).forEach((b) => (b.onclick = () => announcementBox({ occasion: b.dataset.occpost || null, title: b.dataset.occname })));
     $$("[data-suggest]", box).forEach((b) => (b.onclick = async () => {
       const m = TODAY.web.inbox.latest[Number(b.dataset.suggest)];
       const row = $(`#rep-${b.dataset.suggest}`, box);
@@ -446,4 +446,5 @@ async function setupWizard(start = 0) {
 // First run: the guide opens by itself once.
 window.addEventListener("load", () => setTimeout(() => {
   if (S && !S.setupDone && !(S.counts?.photos > 0)) setupWizard();
+  else if (S && !S.tourDone && App.view === "today") startTour("app");
 }, 1200));

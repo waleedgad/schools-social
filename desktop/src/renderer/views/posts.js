@@ -295,7 +295,8 @@ async function makePostsFrom(filter, title = "", opts = {}) {
     $("#mk-go", m).onclick = async () => {
       const o = { mode, count, notes: $("#mk-notes", m).value.trim(), write: $("#mk-ai", m).checked, day: $("#mk-day", m).value || null, category: $("#mk-cat", m).value || null };
       S.postAiWrite = o.write;
-      m.innerHTML = `<h2>${L("Making the posts…", "جارٍ إنشاء المنشورات…")}</h2><p class="muted">${L("Sending web copies of the photos. Originals stay on this Mac.", "تُرسل نسخ ويب من الصور، وتبقى الأصول على هذا الماك.")}</p>${skeletonRows(2)}`;
+      m.innerHTML = `<h2>${L("Making the posts…", "جارٍ إنشاء المنشورات…")}</h2><p class="muted">${L("Sending web copies of the photos first, even while sending is paused. Originals stay on this Mac.", "تُرسل نسخ ويب من الصور أولاً حتى لو كان الإرسال متوقفاً. وتبقى الأصول على هذا الماك.")}</p>${skeletonRows(2)}<div class="row"><span class="grow"></span><button class="btn" id="mk-stop">${L("Cancel", "إلغاء")}</button></div>`;
+      $("#mk-stop", m).onclick = () => { call("cancelPost"); closeOverlay(); };
       try {
         const made = await call("makePosts", mode === "single" ? { ids: c.ids } : filter, o);
         closeOverlay();
@@ -473,7 +474,7 @@ async function openPost(id, startStep) {
     caption_ar: d.post.caption_ar ?? "", caption_en: d.post.caption_en ?? "", caption_ig: x.extra.caption_ig ?? "", hashtags: d.post.hashtags ?? "", first_comment: d.post.first_comment ?? "",
     category_id: d.post.category_id, platforms: [...d.post.platforms], sensitive: d.post.sensitive, make_story: d.post.make_story, urgent: d.post.urgent,
     scheduled_at: d.post.scheduled_at, location: x.extra.location ?? "", alt_ar: x.extra.alt_text?.ar ?? "", alt_en: x.extra.alt_text?.en ?? "",
-    assigned_to: x.extra.assigned_to ?? "", due_on: x.extra.due_on ?? "", countdown_to: x.extra.countdown_to ?? "", splitIg: !!x.extra.caption_ig,
+    collaborators: x.extra.collaborators ?? [], assigned_to: x.extra.assigned_to ?? "", due_on: x.extra.due_on ?? "", countdown_to: x.extra.countdown_to ?? "", splitIg: !!x.extra.caption_ig,
   };
   const read = () => {
     const get = (sel) => $(sel, box);
@@ -495,6 +496,7 @@ async function openPost(id, startStep) {
     if (get("#e-due")) v.due_on = get("#e-due").value;
     if (get("#e-count")) v.countdown_to = get("#e-count").value;
     if (get("#e-split")) v.splitIg = get("#e-split").checked;
+    if (get("#e-collab")) v.collaborators = get("#e-collab").value.split(/[,\s]+/).map((t) => t.trim().replace(/^@?/, "@")).filter((t) => t.length > 1).slice(0, 3);
   };
   const values = () => {
     read();
@@ -502,7 +504,7 @@ async function openPost(id, startStep) {
   };
   async function saveDetails() {
     read();
-    await quiet("app", "setPost", { id, values: { frame_id: frameId || null, assigned_to: v.assigned_to || null, due_on: v.due_on || null, countdown_to: v.countdown_to || null, alt_text: { ar: v.alt_ar, en: v.alt_en } } });
+    await quiet("app", "setPost", { id, values: { frame_id: frameId || null, assigned_to: v.assigned_to || null, due_on: v.due_on || null, countdown_to: v.countdown_to || null, collaborators: v.collaborators, alt_text: { ar: v.alt_ar, en: v.alt_en } } });
   }
   async function reload() {
     [d, x] = await Promise.all([quiet("app", "post", { id }), quiet("app", "postMore", { id })]);
@@ -654,6 +656,7 @@ async function openPost(id, startStep) {
         <label class="check"><input type="checkbox" data-plat="instagram" ${v.platforms.includes("instagram") ? "checked" : ""} ${ro ? "disabled" : ""} /> Instagram</label>
       </div>
       <div class="srow"><span class="grow">${L("Story too", "قصة أيضاً")}<span class="muted small block">${L("The cover becomes a 9:16 story automatically.", "يصبح الغلاف قصة 9:16 تلقائياً.")}</span></span>${sw(`id="e-story" ${ro ? "disabled" : ""}`, v.make_story)}</div>
+      <label class="field">${L("Tag other pages (Instagram collaborators)", "إشارة لصفحات أخرى (متعاونون على إنستجرام)")}<input id="e-collab" value="${esc((x.extra.collaborators ?? []).join(", "))}" placeholder="${L("For example: @sciencemuseum, @parentsclub", "مثلاً: @sciencemuseum, @parentsclub")}" ${ro ? "disabled" : ""} /></label>
       <label class="field">${L("Location", "الموقع")}<input id="e-loc" value="${esc(v.location)}" placeholder="${L("For example the school, or the museum you visited", "مثلاً المدرسة أو المتحف الذي زرتموه")}" ${ro ? "disabled" : ""} /></label>
       <div class="srow"><span class="grow">${L("Sensitive", "حساس")}<span class="muted small block">${L("Needs the principal's sign-off too.", "يحتاج موافقة المدير أيضاً.")}</span></span>${sw(`id="e-sens" ${ro ? "disabled" : ""}`, v.sensitive)}</div>
       ${["admin", "comms_lead"].includes(role) ? `<div class="srow"><span class="grow">${L("Urgent", "عاجل")}<span class="muted small block">${L("Skips the queue and tells approvers now.", "يتخطى الطابور ويبلّغ المعتمدين الآن.")}</span></span>${sw(`id="e-urgent" ${ro ? "disabled" : ""}`, v.urgent)}</div>` : ""}

@@ -681,3 +681,23 @@ label.approved { padding: 4px 10px; border-radius: 99px; background: var(--good-
 .yd.today { outline: 2px solid var(--accent); }
 .note.row { display: flex; align-items: center; gap: 8px; }
 .field textarea, .field input:not([type=checkbox]):not([type=range]), .field select { width: 100%; }
+
+/* ---------- Help 0.4 ---------- */
+.qhelp { width: 28px; height: 28px; padding: 0; justify-content: center; font-weight: 700; border-radius: 50%; }
+.tree .tsec { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 12px 10px 4px; }
+.help h1 { font-size: 20px; display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.help h3 { font-size: 14px; margin: 14px 0 4px; }
+.help p, .help li { line-height: 1.6; }
+.help kbd { font: 12px var(--mono, ui-monospace, monospace); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface2); }
+.modal .help { max-height: 60vh; overflow: auto; }
+.vids { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 10px; }
+.vid { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.vid video { width: 100%; aspect-ratio: 16 / 10; background: #111; border-radius: 8px; }
+.vid figcaption { font-size: 12.5px; font-weight: 500; }
+.vid.off video { display: none; }
+.vid.off::before { content: "▶"; display: grid; place-items: center; aspect-ratio: 16 / 10; border-radius: 8px; background: var(--line2); color: var(--muted); font-size: 28px; }
+.tour { position: fixed; inset: 0; z-index: 9000; }
+.tour .spot { position: fixed; border-radius: 10px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55); outline: 2px solid var(--accent); transition: all .25s ease; pointer-events: none; }
+.tour .tip { position: fixed; width: 320px; background: var(--surface); color: var(--text); border-radius: 12px; padding: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); transition: all .25s ease; }
+.tour .tip p { margin: 0 0 10px; line-height: 1.5; font-size: 13.5px; }
+.help ol, .help ul { margin: 6px 0; padding-inline-start: 20px; }
