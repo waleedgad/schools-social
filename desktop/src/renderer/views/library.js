@@ -371,11 +371,14 @@ function drawTree() {
   tree.innerHTML = out.join("");
   $$("[data-sec]", tree).forEach((el) => (el.onclick = (e) => !e.target.closest("[data-pin]") && toggleSec(el.dataset.sec)));
   $$("[data-pin]", tree).forEach((b) => (b.onclick = () => togglePin(b.dataset.pin)));
+  // Not there while "My albums" is folded shut.
   const nb = $("#newalbum", tree);
-  nb.onclick = () => albumDialog(selectedIds());
-  nb.addEventListener("dragover", (e) => e.dataTransfer.types.includes("text/hub-photos") && (e.preventDefault(), nb.classList.add("drop")));
-  nb.addEventListener("dragleave", () => nb.classList.remove("drop"));
-  nb.addEventListener("drop", (e) => { e.preventDefault(); nb.classList.remove("drop"); albumDialog(JSON.parse(e.dataTransfer.getData("text/hub-photos") || "[]")); });
+  if (nb) {
+    nb.onclick = () => albumDialog(selectedIds());
+    nb.addEventListener("dragover", (e) => e.dataTransfer.types.includes("text/hub-photos") && (e.preventDefault(), nb.classList.add("drop")));
+    nb.addEventListener("dragleave", () => nb.classList.remove("drop"));
+    nb.addEventListener("drop", (e) => { e.preventDefault(); nb.classList.remove("drop"); albumDialog(JSON.parse(e.dataTransfer.getData("text/hub-photos") || "[]")); });
+  }
   $$("[data-mine]", tree).forEach((el) => {
     el.addEventListener("dragover", (e) => e.dataTransfer.types.includes("text/hub-photos") && (e.preventDefault(), el.classList.add("drop")));
     el.addEventListener("dragleave", () => el.classList.remove("drop"));
