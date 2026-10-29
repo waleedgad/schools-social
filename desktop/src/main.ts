@@ -18,6 +18,8 @@ import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
 import { LibrarySync } from "./core/sync";
+import { AuraDownload } from "./core/models";
+import { visionFaces } from "./core/vision";
 import { downloadPhoto, finishCheck, pushStudents, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 
 type Watched = { path: string; label: string };
@@ -51,6 +53,9 @@ type Settings = {
   cleanStrict: "gentle" | "normal" | "strict";
   rejectMonths: number;
   selfFiling: boolean;
+  // 0.4
+  autoName: boolean;
+  faceVision: boolean;
 };
 
 // The app connects to this address by itself. A school using its own copy
@@ -75,6 +80,8 @@ let lastMessage = "";
 let watchers: FSWatcher[] = [];
 let pushTimer: NodeJS.Timeout | null = null;
 let changed = new Set<string>();
+let timers: NodeJS.Timeout[] = [];
+let aura: AuraDownload | null = null;
 
 // The sign-in session is encrypted with the operating system's key store.
 const sessionFile = () => data("session.bin");
@@ -112,6 +119,74 @@ function client() {
 const one = <T = Record<string, unknown>>(sql: string, ...args: unknown[]) => db.prepare(sql).get(...(args as never[])) as T | undefined;
 const all = <T = Record<string, unknown>>(sql: string, ...args: unknown[]) => db.prepare(sql).all(...(args as never[])) as T[];
 const marks = (n: number) => Array(n).fill("?").join(",");
+
+// A small log on this computer, for "Report a problem" and for finding
+// out why a picture didn't show. Kept under 2 MB.
+function log(m: string) {
+  try {
+    const file = data("app.log");
+    const { appendFileSync, statSync, renameSync } = require("node:fs") as typeof import("node:fs");
+    if (existsSync(file) && statSync(file).size > 2_000_000) renameSync(file, data("app.old.log"));
+    appendFileSync(file, `${new Date().toISOString()} ${m}\n`);
+  } catch {
+    // never let logging stop the app
+  }
+}
+
+// Safe updates: before a new version first opens the library, the library
+// database and settings are copied aside. "Go back" in Settings restores
+// them. The last five copies are kept.
+function backupBeforeUpdate() {
+  const version = app.getVersion();
+  const mark = data("last-version.txt");
+  const last = existsSync(mark) ? readFileSync(mark, "utf8").trim() : null;
+  if (last === version || !existsSync(data("library.db"))) {
+    writeFileSync(mark, version);
+    return;
+  }
+  const dir = data(path.join("backups", `${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}-from-${last ?? "old"}`));
+  const fs = require("node:fs") as typeof import("node:fs");
+  fs.mkdirSync(dir, { recursive: true });
+  const probe = new (require("node:sqlite").DatabaseSync)(data("library.db"));
+  try {
+    probe.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
+  } finally {
+    probe.close();
+  }
+  for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
+  writeFileSync(path.join(dir, "version.txt"), last ?? "");
+  const all = fs.readdirSync(data("backups")).sort();
+  for (const old of all.slice(0, Math.max(0, all.length - 5))) fs.rmSync(data(path.join("backups", old)), { recursive: true, force: true });
+  writeFileSync(mark, version);
+  log(`backed up library before ${version} (was ${last})`);
+}
+
+function updateBackups() {
+  const fs = require("node:fs") as typeof import("node:fs");
+  if (!existsSync(data("backups"))) return [];
+  return fs
+    .readdirSync(data("backups"))
+    .sort()
+    .reverse()
+    .map((name) => ({ name, version: existsSync(data(path.join("backups", name, "version.txt"))) ? readFileSync(data(path.join("backups", name, "version.txt")), "utf8") : "" }));
+}
+
+// Puts a backup back. The app restarts on the restored library.
+async function restoreBackup(name: string) {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const dir = data(path.join("backups", path.basename(name)));
+  if (!existsSync(path.join(dir, "library.db"))) throw new Error("no-backup");
+  await engine?.stop();
+  await sync?.stop();
+  db.close();
+  for (const f of ["library.db-wal", "library.db-shm"]) fs.rmSync(data(f), { force: true });
+  fs.copyFileSync(path.join(dir, "library.db"), data("library.db"));
+  for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(path.join(dir, f))) fs.copyFileSync(path.join(dir, f), data(f));
+  log(`restored backup ${name}`);
+  app.relaunch();
+  quitting = true;
+  app.exit(0);
+}
 
 function disk(dir: string | null) {
   if (!dir || !existsSync(dir)) return null;
@@ -166,6 +241,10 @@ function state() {
     cleanStrict: s.cleanStrict,
     rejectMonths: s.rejectMonths,
     selfFiling: s.selfFiling,
+    autoName: s.autoName,
+    faceVision: s.faceVision,
+    platform: process.platform,
+    faceModel: aura?.status ?? null,
     webChecking: Object.keys(webChecks.get().pending).length,
     queue: queue.stats(),
     uploading: sync?.current.map((f) => path.basename(f)) ?? [],
@@ -185,9 +264,11 @@ function push(what = "status") {
   if (pushTimer) return;
   pushTimer = setTimeout(() => {
     pushTimer = null;
+    // The window may be gone while the app is quitting.
+    if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
     const list = [...changed];
     changed = new Set();
-    win?.webContents.send("state", state(), list);
+    win.webContents.send("state", state(), list);
     const q = queue.stats();
     tray?.setToolTip(`School Social Hub · ${engine?.status.processing ?? 0} to read · ${q.pending} to send`);
   }, 500);
@@ -214,11 +295,15 @@ async function restart() {
       models: models(),
       faces: () => settings.get().faces,
       paused: () => settings.get().paused,
+      aura: () => (aura?.ready() ? aura.file : null),
+      vision: process.platform === "darwin" ? (jpeg) => (settings.get().faceVision ? visionFaces(jpeg) : Promise.resolve(null)) : undefined,
+      autoName: () => settings.get().autoName,
       onChange: push,
       onPhotoReady: photoReady,
       onNamed: (ids) => syncOptedOut(ids),
       log: (m) => {
         lastMessage = m;
+        log(m);
       },
     });
     engine.start().catch((e) => (lastMessage = String(e)));
@@ -336,6 +421,61 @@ async function signIn(email: string, password: string) {
 async function chooseFolder(title: string) {
   const r = await dialog.showOpenDialog(win!, { title, properties: ["openDirectory", "createDirectory"] });
   return r.canceled ? null : r.filePaths[0];
+}
+
+// AuraFace arrives in the background; then every face is described again
+// with it (names carry over) and matching restarts.
+function startAura() {
+  aura ??= new AuraDownload(data("models"), () => push("status"));
+  if (aura.ready()) return;
+  aura
+    .start(async (file) => {
+      const ort = require("onnxruntime-node") as typeof import("onnxruntime-node");
+      const session = await ort.InferenceSession.create(file);
+      const out = await session.run({ [session.inputNames[0]]: new ort.Tensor("float32", new Float32Array(3 * 112 * 112), [1, 3, 112, 112]) });
+      const n = (out[session.outputNames[0]].data as Float32Array).length;
+      if (n !== 512) throw new Error(`unexpected model (${n})`);
+    })
+    .then(async () => {
+      if (!aura?.ready() || !engine) return;
+      log("AuraFace ready: describing faces again");
+      await engine.reembedPortraits();
+      engine.rescanAll();
+      push("faces");
+    })
+    .catch((e) => log(`AuraFace: ${e}`));
+}
+
+// Photos whose original went missing (a folder moved or renamed outside
+// the app): look in a folder for the same photos and link them back.
+async function findMissing(dir: string) {
+  const { fileHash } = await import("./core/photo");
+  const lost = all<{ id: number; name: string; hash: string | null; size: number }>("select id, name, hash, size from photos where missing = 1 and path not like ':%' and hash is not null");
+  if (!lost.length) return { found: 0, looked: 0 };
+  const byName = new Map<string, typeof lost>();
+  for (const l of lost) byName.set(l.name.toLowerCase(), [...(byName.get(l.name.toLowerCase()) ?? []), l]);
+  const files = await listFiles(dir);
+  let found = 0;
+  const lib = settings.get().library;
+  for (const f of files) {
+    const cands = byName.get(path.basename(f).toLowerCase());
+    if (!cands) continue;
+    const h = await fileHash(f).catch(() => null);
+    const hit = cands.find((c) => c.hash === h);
+    if (!hit) continue;
+    // Inside the library: link in place. Outside: copy it back into the library.
+    let target = f;
+    if (lib && !path.resolve(f).startsWith(path.resolve(lib) + path.sep)) {
+      const old = one<{ path: string }>("select path from photos where id = ?", hit.id)!;
+      await mkdir(path.dirname(old.path), { recursive: true });
+      target = old.path;
+      await copyFile(f, target, constants.COPYFILE_EXCL).catch(() => {});
+    }
+    db.prepare("update photos set path = ?, missing = 0 where id = ?").run(target, hit.id);
+    found++;
+  }
+  push("photos");
+  return { found, looked: files.length };
 }
 
 // ---------- Library queries ----------
@@ -580,11 +720,22 @@ function syncOptedOut(photoIds: number[]) {
 }
 
 function confirmFaces(faceIds: number[], studentId: string) {
-  const before = faceRowsFor(faceIds);
-  db.prepare(`update faces set student_id = ?, status = 'confirmed', suggest_id = null, suggest_score = null, auto = 0 where id in (${marks(faceIds.length)})`).run(studentId, ...faceIds);
+  // A person appears once per photo: one face per photo is kept, the best.
+  const rows = faceRowsFor(faceIds);
+  const perPhoto = new Map<number, number>();
+  for (const r of rows.sort((a, b) => (b.suggest_score ?? 0) - (a.suggest_score ?? 0))) if (!perPhoto.has(r.photo_id)) perPhoto.set(r.photo_id, r.id);
+  faceIds = [...perPhoto.values()];
+  const photoIds = [...perPhoto.keys()];
+  const others = photoIds.length
+    ? all<{ id: number }>(`select id from faces where photo_id in (${marks(photoIds.length)}) and id not in (${marks(faceIds.length)}) and (student_id = ? or suggest_id = ?) and status in ('confirmed', 'suggested') and (auto = 1 or status = 'suggested')`, ...photoIds, ...faceIds, studentId, studentId).map((r) => r.id)
+    : [];
+  const before = faceRowsFor([...faceIds, ...others]);
+  const who = settings.get().email ?? "me";
+  db.prepare(`update faces set student_id = ?, status = 'confirmed', suggest_id = null, suggest_score = null, auto = 0, named_by = ? where id in (${marks(faceIds.length)})`).run(studentId, who, ...faceIds);
+  if (others.length) db.prepare(`update faces set status = 'unknown', student_id = null, suggest_id = null, suggest_score = null, auto = 0 where id in (${marks(others.length)})`).run(...others);
   remember("tag", `${faceIds.length}:${studentId}`, { kind: "faces", rows: before });
   syncOptedOut([...new Set(before.map((r) => r.photo_id))]);
-  setTimeout(() => engine?.rematch([studentId]), 50);
+  engine?.rematchSoon();
   push("faces");
 }
 
@@ -631,6 +782,11 @@ function setPhotos(ids: number[], field: "rating" | "flag" | "label", value: num
     for (const p of all<{ path: string; remote_id: string | null }>(`select path, remote_id from photos where id in (${marks(ids.length)})`, ...ids)) {
       if (!p.remote_id && !isArchived(p.path)) sync?.enqueue(p.path);
     }
+  }
+  // A pick cleared (or rejected) before it was sent: it no longer goes.
+  if (field === "flag" && value !== 1 && settings.get().sendMode === "picked") {
+    const files = all<{ path: string }>(`select path from photos where id in (${marks(ids.length)}) and remote_id is null and posts = 0`, ...ids).map((p) => p.path);
+    if (files.length && queue.cancel(files)) push("queue");
   }
   push("photos");
 }
@@ -983,6 +1139,7 @@ function cleanupList(kind: string) {
 
 // ---------- Posts ----------
 
+let postCancelled = false;
 async function newPost(ids: number[]) {
   const sb = client();
   const s = settings.get();
@@ -991,16 +1148,23 @@ async function newPost(ids: number[]) {
     `select id, path, remote_id, taken_at from photos where id in (${marks(ids.length)}) order by taken_at`,
     ...ids,
   ).slice(0, 80);
-  for (const r of rows) if (!r.remote_id) await sync.enqueue(r.path);
-  // Wait for the photos to reach the website (up to three minutes).
-  const started = Date.now();
-  for (;;) {
-    const sent = all<{ remote_id: string | null }>(`select remote_id from photos where id in (${marks(rows.length)})`, ...rows.map((r) => r.id));
-    lastMessage = `sending:${sent.filter((x) => x.remote_id).length}/${rows.length}`;
+  // The post's photos go first, straight away, even while sending is paused.
+  postCancelled = false;
+  let done = rows.filter((r) => r.remote_id).length;
+  const report = () => {
+    lastMessage = `sending:${done}/${rows.length}`;
     push();
-    if (sent.every((x) => x.remote_id)) break;
-    if (Date.now() - started > 180_000) throw new Error("upload-slow");
-    await new Promise((r) => setTimeout(r, 1500));
+  };
+  report();
+  const waiting = rows.filter((r) => !r.remote_id);
+  for (let i = 0; i < waiting.length; i += 3) {
+    if (postCancelled) throw new Error("cancelled");
+    await Promise.all(waiting.slice(i, i + 3).map((r) => sync!.sendNow(r.path).then(() => (done++, report()))));
+  }
+  const sent = all<{ remote_id: string | null }>(`select remote_id from photos where id in (${marks(rows.length)})`, ...rows.map((r) => r.id));
+  if (!sent.every((x) => x.remote_id)) {
+    lastMessage = "";
+    throw new Error("upload-failed");
   }
   const fresh = all<{ id: number; path: string; remote_id: string; taken_at: string | null }>(
     `select id, path, remote_id, taken_at from photos where id in (${marks(rows.length)}) order by taken_at`,
@@ -1087,7 +1251,11 @@ function createWindow() {
 
 function send(command: string) {
   win?.show();
-  win?.webContents.send("command", command);
+  sendWin("command", command);
+}
+
+function sendWin(channel: string, ...args: unknown[]) {
+  if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, ...args);
 }
 
 function createMenu() {
@@ -1196,7 +1364,14 @@ app.whenReady().then(async () => {
     cleanStrict: "normal",
     rejectMonths: 6,
     selfFiling: false,
+    autoName: true,
+    faceVision: true,
   });
+  try {
+    backupBeforeUpdate();
+  } catch (e) {
+    log(`backup before update failed: ${e instanceof Error ? e.message : e}`);
+  }
   queue = new UploadQueue(data("queue.json"));
   webChecks = new JsonStore(data("web-checks.json"), { pending: {} as Record<string, string> });
   db = openDb(data("library.db"));
@@ -1212,8 +1387,11 @@ app.whenReady().then(async () => {
       else if (url.host === "face") file = await engine!.faceCrop(Number(id));
       else if (url.host === "portrait") file = one<{ portrait: string }>("select portrait from students where id = ?", id)?.portrait ?? null;
       if (!file) return new Response("", { status: 404 });
-      return net.fetch(pathToFileURL(file).toString());
-    } catch {
+      const res = await net.fetch(pathToFileURL(file).toString());
+      // Never keep an old picture: a moved or re-made photo must show fresh.
+      return new Response(res.body, { status: res.status, headers: { "content-type": "image/jpeg", "cache-control": "no-store" } });
+    } catch (e) {
+      log(`hub ${url.host}/${id}: ${e instanceof Error ? e.message : e}`);
       return new Response("", { status: 404 });
     }
   });
@@ -1244,7 +1422,7 @@ app.whenReady().then(async () => {
     },
     clearBackup: () => settings.set({ backup: null }),
     set: (key: keyof Settings, value: never) => {
-      const allowed: (keyof Settings)[] = ["language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "cleanStrict", "rejectMonths", "selfFiling"];
+      const allowed: (keyof Settings)[] = ["language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "cleanStrict", "rejectMonths", "selfFiling", "autoName", "faceVision"];
       if (!allowed.includes(key)) throw new Error("bad-setting");
       settings.set({ [key]: value } as Partial<Settings>);
       if (key === "openAtLogin") app.setLoginItemSettings({ openAtLogin: !!value, openAsHidden: true });
@@ -1274,6 +1452,13 @@ app.whenReady().then(async () => {
     openWeb: (sub = "") => shell.openExternal(`${settings.get().server}/${settings.get().language}${sub}`),
     webBase: () => `${settings.get().server}/${settings.get().language}`,
     rescan: () => engine?.scan(),
+    findMissing: async () => {
+      const dir = await chooseFolder("Where are the missing photos now?");
+      return dir ? findMissing(dir) : null;
+    },
+    missingCount: () => one<{ n: number }>("select count(*) n from photos where missing = 1 and path not like ':%'")?.n ?? 0,
+    originalThere: (id: number) => engine?.originalThere(id) ?? false,
+    retryAura: () => startAura(),
     retryFailed: () => queue.retryFailed(),
 
     tree: () => tree(),
@@ -1465,7 +1650,7 @@ app.whenReady().then(async () => {
           className: it.className,
           byDay: false,
           skipDuplicates: o.skipDuplicates,
-          onProgress: (done) => win?.webContents.send("progress", { done: before + done, total }),
+          onProgress: (done) => sendWin("progress", { done: before + done, total }),
         });
         before += files.length;
         if (o.archive) for (const f of r.folders) db.prepare("insert into folders (path, archive) values (?, 1) on conflict (path) do update set archive = 1").run(f);
@@ -1497,7 +1682,7 @@ app.whenReady().then(async () => {
         className: o.className,
         byDay: o.byDay,
         skipDuplicates: o.skipDuplicates,
-        onProgress: (done, total) => win?.webContents.send("progress", { done, total }),
+        onProgress: (done, total) => sendWin("progress", { done, total }),
       });
       if (o.archive) for (const f of r.folders) db.prepare("insert into folders (path, archive) values (?, 1) on conflict (path) do update set archive = 1").run(f);
       remember("import", `${r.copied}:${o.title}`, null);
@@ -1572,6 +1757,11 @@ app.whenReady().then(async () => {
     periods: () => all("select distinct year, term from photos where year is not null and missing = 0 order by year desc, term desc"),
 
     newPost: (ids: number[]) => newPost(ids),
+    cancelPost: () => {
+      postCancelled = true;
+      lastMessage = "";
+      push();
+    },
     app: (action: string, payload?: Record<string, unknown>) => appApi(action, payload ?? {}),
     serverSummary: async () => {
       const sb = client();
@@ -1580,6 +1770,8 @@ app.whenReady().then(async () => {
       return summary(sb, s.schoolId).catch(() => null);
     },
     undo: () => undo(),
+    updateBackups: () => updateBackups(),
+    restoreBackup: (name: string) => restoreBackup(name),
     history: () => all("select id, at, action, detail, undo is not null as can_undo from history order by id desc limit 200"),
     search: (q: string) => search(q),
     showFile: (file: string) => shell.showItemInFolder(file),
@@ -1607,8 +1799,9 @@ app.whenReady().then(async () => {
   createTray();
   if (process.argv.includes("--hidden") || app.getLoginItemSettings().wasOpenedAsHidden) win?.hide();
   await restart();
-  setInterval(() => push(), 3000);
-  setInterval(() => checkWebUploads(), 60_000);
+  startAura();
+  timers.push(setInterval(() => push(), 3000));
+  timers.push(setInterval(() => checkWebUploads(), 60_000));
   setTimeout(() => checkWebUploads(), 8000);
 
   if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify().catch(() => {});
@@ -1616,6 +1809,10 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => {
   quitting = true;
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = null;
+  timers.forEach((t) => clearInterval(t));
+  timers = [];
 });
 app.on("window-all-closed", () => {
   // Stay in the menu bar.

@@ -26,6 +26,19 @@ export class UploadQueue {
     return this.store.get().pending.find((j) => j.nextTry <= now) ?? null;
   }
 
+  find(file: string) {
+    return this.store.get().pending.find((j) => j.file === file) ?? null;
+  }
+
+  // Waiting, not yet sent, and no longer wanted (a pick was cleared).
+  cancel(files: string[]) {
+    const set = new Set(files);
+    const { pending } = this.store.get();
+    const left = pending.filter((j) => !set.has(j.file));
+    if (left.length !== pending.length) this.store.set({ pending: left });
+    return pending.length - left.length;
+  }
+
   photoId(hash: string) {
     return this.store.get().done[hash] || null;
   }

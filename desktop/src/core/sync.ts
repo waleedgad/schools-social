@@ -72,6 +72,26 @@ export class LibrarySync {
     return added;
   }
 
+  // Photos for a post someone is making now: sent straight away, ahead of
+  // the queue and even while sending is paused, so the post never waits.
+  async sendNow(file: string) {
+    await this.enqueue(file);
+    const job = this.o.queue.find(file);
+    if (!job) return;
+    if (this.current.includes(file)) {
+      while (this.current.includes(file)) await new Promise((r) => setTimeout(r, 300));
+      return;
+    }
+    this.current.push(file);
+    this.o.onChange();
+    try {
+      await this.process(job);
+    } finally {
+      this.current = this.current.filter((f) => f !== file);
+      this.o.onChange();
+    }
+  }
+
   async stop() {
     if (this.timer) clearInterval(this.timer);
     await this.watcher?.close();

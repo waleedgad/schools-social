@@ -99,6 +99,71 @@ create table if not exists album_photos (
   primary key (album_id, photo_id)
 );
 
+create table if not exists imports (
+  id integer primary key,
+  at integer not null,
+  who text,
+  source text,
+  photographer text,
+  category text,
+  copied integer not null default 0,
+  skipped integer not null default 0,
+  folders text not null default '[]',
+  report text,
+  undone integer not null default 0
+);
+
+create table if not exists achievements (
+  id integer primary key,
+  student_id text not null references students (id) on delete cascade,
+  title text not null,
+  on_date text,
+  added_at integer not null
+);
+
+create table if not exists groups (
+  id integer primary key,
+  name text not null,
+  kind text not null default 'club',
+  teacher_id text,
+  added_at integer not null
+);
+
+create table if not exists group_members (
+  group_id integer not null references groups (id) on delete cascade,
+  student_id text not null references students (id) on delete cascade,
+  primary key (group_id, student_id)
+);
+
+create table if not exists links (
+  a text not null references students (id) on delete cascade,
+  b text not null references students (id) on delete cascade,
+  kind text not null,
+  primary key (a, b, kind)
+);
+
+create table if not exists class_teachers (
+  class_name text primary key,
+  teacher_id text references students (id) on delete set null
+);
+
+create table if not exists school_history (
+  student_id text not null references students (id) on delete cascade,
+  year text not null,
+  class_name text,
+  campus text,
+  primary key (student_id, year)
+);
+
+create table if not exists books (
+  id integer primary key,
+  spec text not null,
+  pages text,
+  locked text not null default '[]',
+  versions text not null default '[]',
+  updated_at integer not null
+);
+
 create table if not exists history (
   id integer primary key,
   at integer not null,
@@ -118,6 +183,31 @@ export function openDb(file: string): Db {
   // Columns added after 0.2.0.
   addColumn(db, "faces", "auto", "integer not null default 0");
   addColumn(db, "students", "main_face", "integer");
+  // 0.4: which recogniser made the face numbers, and why a face is only background.
+  addColumn(db, "faces", "model", "text not null default 'sface'");
+  addColumn(db, "faces", "why", "text");
+  addColumn(db, "faces", "named_by", "text");
+  // 0.4: people who aren't students, and each student's time at the school.
+  addColumn(db, "students", "kind", "text not null default 'student'");
+  addColumn(db, "students", "birthday", "text");
+  addColumn(db, "students", "joined", "text");
+  addColumn(db, "students", "left_on", "text");
+  addColumn(db, "students", "notes", "text");
+  addColumn(db, "students", "campus", "text");
+  addColumn(db, "students", "email", "text");
+  addColumn(db, "students", "phone", "text");
+  // 0.4: who took it, what kind of photo, hidden, and which import it came in.
+  addColumn(db, "photos", "photographer", "text");
+  addColumn(db, "photos", "category", "text");
+  addColumn(db, "photos", "hidden", "integer not null default 0");
+  addColumn(db, "photos", "import_id", "integer");
+  addColumn(db, "photos", "camera", "text");
+  addColumn(db, "photos", "posts", "integer not null default 0");
+  addColumn(db, "photos", "words", "text");
+  addColumn(db, "history", "who", "text");
+  addColumn(db, "history", "photos", "text");
+  db.exec("create index if not exists students_kind on students (kind, class_name)");
+  db.exec("create index if not exists faces_model on faces (model, status)");
   return db;
 }
 

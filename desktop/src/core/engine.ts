@@ -6,7 +6,7 @@ import { watch, type FSWatcher } from "chokidar";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { bestMatch, isSure, cosine, findFaces, SAME_PERSON } from "./faces";
+import { assignPhoto, cosine, findFaces, guessTraits, isSure, SAME_PERSON, SHOW_FROM, traitCentres, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -30,6 +30,12 @@ export type EngineOptions = {
   // photos show a student who can't appear.
   onNamed?: (photoIds: number[]) => void;
   log?: (m: string) => void;
+  // The downloaded AuraFace model, when it's on this computer.
+  aura?: () => string | null;
+  // Apple Vision on the Mac (a second look at each face).
+  vision?: (jpeg: Buffer) => Promise<VisionFace[] | null>;
+  // Settings: name sure matches by themselves (on by default).
+  autoName?: () => boolean;
 };
 
 type Row = Record<string, unknown>;
@@ -70,7 +76,31 @@ export class Engine {
     return skips.some((s) => file === s.path || file.startsWith(s.path + path.sep));
   }
 
+  // 0.3 could name one person twice in a photo. Keep the strongest face for
+  // each person in each photo; the others go back to "Who is this?".
+  dedupePeople() {
+    const rows = this.db
+      .prepare(
+        `select f.id, f.photo_id, coalesce(f.student_id, f.suggest_id) sid, f.status, f.auto, coalesce(f.suggest_score, 1) sc from faces f
+         where coalesce(f.student_id, f.suggest_id) is not null and f.status in ('confirmed', 'suggested', 'manual') and f.w > 0
+         order by f.photo_id, sid, (f.status in ('confirmed', 'manual') and f.auto = 0) desc, sc desc`,
+      )
+      .all() as { id: number; photo_id: number; sid: string; status: string; auto: number }[];
+    const seen = new Set<string>();
+    const reset: number[] = [];
+    for (const r of rows) {
+      const k = `${r.photo_id}|${r.sid}`;
+      if (!seen.has(k)) seen.add(k);
+      else if (r.status === "suggested" || r.auto) reset.push(r.id);
+    }
+    const up = this.db.prepare("update faces set status = 'unknown', student_id = null, suggest_id = null, suggest_score = null, auto = 0 where id = ?");
+    tx(this.db, () => reset.forEach((id) => up.run(id)));
+    return reset.length;
+  }
+
   async start() {
+    const fixed = this.dedupePeople();
+    if (fixed) this.o.log?.(`one person per photo: ${fixed} faces freed`);
     this.timer = setInterval(() => this.pump(), 400);
     this.watcher = watch(this.o.library, {
       ignoreInitial: true,
@@ -250,6 +280,26 @@ export class Engine {
     const file = p.path as string;
     try {
       const hash = await fileHash(file);
+      // The same photo was in the library before and its file went missing
+      // (folder deleted, drive changed): this file takes the old record's
+      // place, so names, faces, picks and posts all carry over.
+      const lost = this.db.prepare("select id from photos where hash = ? and missing = 1 and id != ? and path not like ':%' order by id limit 1").get(hash, id) as Row | undefined;
+      if (lost) {
+        const lostId = lost.id as number;
+        tx(this.db, () => {
+          this.db.prepare("delete from photos where id = ?").run(id);
+          this.db.prepare("update photos set path = ?, name = ?, size = ?, mtime = ?, missing = 0, year = coalesce(?, year), term = coalesce(?, term), event_key = ?, event_title = ?, event_date = coalesce(?, event_date), class_name = ? where id = ?").run(
+            file, path.basename(file), p.size as number, p.mtime as number, p.year as string | null, p.term as string | null, p.event_key as string | null, p.event_title as string | null, p.event_date as string | null, p.class_name as string | null, lostId,
+          );
+        });
+        await this.clearCache(id);
+        await rm(this.previewPath(lostId), { force: true });
+        if (!existsSync(this.thumbPath(lostId))) await makeThumb(await source(file), this.thumbPath(lostId), THUMB);
+        this.o.log?.(`relinked ${path.basename(file)}`);
+        this.o.onPhotoReady?.(lostId);
+        this.o.onChange("photos");
+        return;
+      }
       const input = await source(file);
       const meta = await sharp(input, { failOn: "none" }).metadata();
       const rotated = (meta.orientation ?? 1) >= 5;
@@ -329,25 +379,67 @@ export class Engine {
   }
 
   private async faces(id: number) {
-    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, class_name from photos where id = ?").get(id) as Row | undefined;
+    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, class_name, coalesce(taken_at, event_date) as at from photos where id = ?").get(id) as Row | undefined;
     if (!p || p.missing || p.faces_scanned) return;
     try {
-      const faces = await findFaces(this.o.models, await source(p.path as string));
-      const known = this.knownFor(p.class_name as string | null);
+      const found = await findFaces(this.o.models, await source(p.path as string), { aura: this.o.aura?.() ?? null, vision: this.o.vision });
+      const model = found.recogniser ?? "sface";
+      // Faces seen before in this photo (a re-scan, a new recogniser): the
+      // same box keeps its name, its "not this person" list and "not a face".
+      const old = this.db.prepare("select * from faces where photo_id = ? and portrait = 0").all(id) as Row[];
+      const kept = new Map<number, Row>();
+      found.forEach((f, i) => {
+        const o = old.find((r) => (r.w as number) > 0 && boxIou([r.x as number, r.y as number, r.w as number, r.h as number], f.box) > 0.4 && ![...kept.values()].includes(r));
+        if (o) kept.set(i, o);
+      });
+      const named = new Set([...kept.values()].filter((r) => ["confirmed", "manual"].includes(r.status as string) && r.student_id).map((r) => r.student_id as string));
+      for (const r of old) if ((r.w as number) === 0 && r.student_id) named.add(r.student_id as string); // tagged with no face box
+      const known = this.knownFor(p.class_name as string | null, p.at as string | null, this.knownFaces(model));
+      const traits = traitCentres(known, found[0]?.embedding.length ?? 0);
+      const people = this.peopleInfo();
+      const fits = (i: number, sid: string) => {
+        const f = found[i];
+        const who = people.get(sid);
+        if (!f || !who) return true;
+        const rej = kept.get(i)?.rejected as string | undefined;
+        if (rej && rej.split(",").includes(sid)) return false;
+        const t = guessTraits(f.embedding, traits);
+        if (t.gender && who.gender && t.gender !== who.gender) return false;
+        if (t.adult === true && who.kind === "student") return false;
+        if (t.adult === false && who.kind !== "student") return false;
+        return true;
+      };
+      const free = found.map((f, i) => {
+        const k = kept.get(i);
+        return f.usable && !(k && ["confirmed", "manual", "rejected"].includes(k.status as string) && !(k.status === "confirmed" && k.auto)) ? f.embedding : null;
+      });
+      const matches = assignPhoto(free, known, model, named, fits);
       tx(this.db, () => {
-        this.db.prepare("delete from faces where photo_id = ? and status in ('unknown', 'suggested')").run(id);
+        this.db.prepare("delete from faces where photo_id = ? and portrait = 0 and w > 0").run(id);
         const insert = this.db.prepare(
-          "insert into faces (photo_id, x, y, w, h, score, embedding, status, student_id, suggest_id, suggest_score, auto) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "insert into faces (photo_id, x, y, w, h, score, embedding, status, student_id, suggest_id, suggest_score, auto, rejected, model, why, named_by) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         );
-        for (const f of faces) {
-          const match = bestMatch(f.embedding, known);
-          const sure = isSure(match);
-          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, toBlob(f.embedding), sure ? "confirmed" : match ? "suggested" : "unknown", sure ? match!.studentId : null, match?.studentId ?? null, match?.score ?? null, sure ? 1 : 0);
-        }
-        const biggest = faces.reduce((m, f) => Math.max(m, f.box[2]), 0);
+        found.forEach((f, i) => {
+          const k = kept.get(i);
+          const blob = toBlob(f.embedding);
+          if (k && (["confirmed", "manual", "rejected"].includes(k.status as string) && !(k.status === "confirmed" && k.auto))) {
+            insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, k.status === "manual" ? "confirmed" : (k.status as string), (k.student_id as string) ?? null, null, null, 0, (k.rejected as string) ?? "", model, null, (k.named_by as string) ?? null);
+            return;
+          }
+          if (!f.usable) {
+            insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, "background", null, null, null, 0, (k?.rejected as string) ?? "", model, f.why, null);
+            return;
+          }
+          const m = matches[i];
+          const twin = m ? this.isTwin(m.studentId) : false;
+          const sure = isSure(m ? { ...m, twin } : null) && this.o.autoName?.() !== false;
+          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, sure ? "confirmed" : m && m.score >= SHOW_FROM - 0.1 ? "suggested" : "unknown", sure ? m!.studentId : null, m?.studentId ?? null, m?.score ?? null, sure ? 1 : 0, (k?.rejected as string) ?? "", model, null, sure ? "auto" : null);
+        });
+        const usable = found.filter((f) => f.usable);
+        const biggest = usable.reduce((mx, f) => Math.max(mx, f.box[2]), 0);
         this.db
           .prepare("update photos set faces_scanned = 1, face_count = ?, quality = ? where id = ?")
-          .run(faces.length, score(p.sharpness as number, p.brightness as number, faces.length, biggest), id);
+          .run(usable.length, score(p.sharpness as number, p.brightness as number, usable.length, biggest), id);
       });
       this.o.onChange("faces");
       this.o.onNamed?.([id]);
@@ -365,45 +457,124 @@ export class Engine {
     this.faceWork.push(...rows.map((r) => r.id).filter((id) => !queued.has(id)));
   }
 
-  // Every face a person has confirmed, plus portraits: what suggestions are matched against.
-  knownFaces() {
+  // The new recogniser arrived: every photo is looked at again in the
+  // background. Names, "not this person" and "not a face" carry over.
+  rescanAll() {
+    this.db.prepare("update photos set faces_scanned = 0 where faces_scanned != 0 and missing = 0").run();
+    this.queueFaceScan();
+  }
+
+  get faceModel(): "sface" | "aura" {
+    return this.o.aura?.() ? "aura" : "sface";
+  }
+
+  private peopleCache: { at: number; map: Map<string, { gender: string | null; kind: string; joined: string | null; left: string | null }> } | null = null;
+  private peopleInfo() {
+    if (this.peopleCache && Date.now() - this.peopleCache.at < 5000) return this.peopleCache.map;
+    const map = new Map<string, { gender: string | null; kind: string; joined: string | null; left: string | null }>();
+    for (const r of this.db.prepare("select id, gender, kind, joined, left_on from students").all() as Row[]) {
+      const g = String(r.gender ?? "").trim().toUpperCase();
+      map.set(r.id as string, { gender: g.startsWith("F") || g.startsWith("G") || g === "أنثى" ? "F" : g.startsWith("M") || g.startsWith("B") || g === "ذكر" ? "M" : null, kind: (r.kind as string) || "student", joined: (r.joined as string) ?? null, left: (r.left_on as string) ?? null });
+    }
+    this.peopleCache = { at: Date.now(), map };
+    return map;
+  }
+
+  // Twins and look-alike siblings in the same grade need a clearer lead.
+  private isTwin(studentId: string) {
+    return !!this.db.prepare("select 1 from links where (a = ? or b = ?) and kind = 'twin' limit 1").get(studentId, studentId);
+  }
+
+  // Every face a person has confirmed, plus portraits: what suggestions are
+  // matched against. Only faces made by the same recogniser can be compared.
+  knownFaces(model = this.faceModel) {
     const rows = this.db
-      .prepare("select f.student_id, f.embedding, s.class_name from faces f left join students s on s.id = f.student_id where f.student_id is not null and f.status in ('confirmed', 'portrait') and f.auto = 0 and f.embedding is not null")
-      .all() as { student_id: string; embedding: Uint8Array; class_name: string | null }[];
-    return rows.map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding), className: r.class_name }));
+      .prepare(
+        `select f.student_id, f.embedding, s.class_name, s.kind, s.gender from faces f left join students s on s.id = f.student_id
+         where f.student_id is not null and f.status in ('confirmed', 'portrait') and f.auto = 0 and f.embedding is not null and f.model = ?`,
+      )
+      .all(model) as { student_id: string; embedding: Uint8Array; class_name: string | null; kind: string | null; gender: string | null }[];
+    const info = this.peopleInfo();
+    return rows.map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding), className: r.class_name, kind: r.kind ?? "student", gender: info.get(r.student_id)?.gender ?? null }));
   }
 
-  // A class photo is matched against that class first; whole-school events
-  // (no class folder) against everyone.
-  private knownFor(className: string | null, known = this.knownFaces()) {
-    if (!className) return known;
-    const mine = known.filter((k) => k.className === className);
-    return mine.length ? mine : known;
+  // A class photo is matched against that class (and the adults) first;
+  // whole-school events (no class folder) against everyone. Students who had
+  // left, or hadn't joined yet, on the photo's date are never suggested.
+  private knownFor(className: string | null, at: string | null, known = this.knownFaces()) {
+    const info = this.peopleInfo();
+    const day = at?.slice(0, 10) ?? null;
+    const inTime = known.filter((k) => {
+      const p = info.get(k.studentId);
+      if (!p || !day) return !p?.left;
+      if (p.joined && day < p.joined) return false;
+      if (p.left && day > p.left) return false;
+      return true;
+    });
+    if (!className) return inTime;
+    const mine = inTime.filter((k) => k.className === className || k.kind !== "student");
+    return mine.some((k) => k.kind === "student") ? mine : inTime;
   }
 
-  // After a confirmation, look again at faces nobody has named yet.
+  // After a confirmation, look again at every face nobody has named yet, in
+  // small batches so the app stays quick. Sure matches are named by themselves.
+  private rematchTimer: NodeJS.Timeout | null = null;
+  rematchSoon() {
+    if (this.rematchTimer) clearTimeout(this.rematchTimer);
+    this.rematchTimer = setTimeout(() => {
+      this.rematchTimer = null;
+      this.rematch();
+    }, 1200);
+  }
+
   rematch(studentIds?: string[]) {
-    const known = this.knownFaces().filter((k) => !studentIds || studentIds.includes(k.studentId));
-    if (!known.length) return 0;
+    const model = this.faceModel;
+    const all = this.knownFaces(model);
+    if (!all.length) return 0;
     const rows = this.db
-      .prepare("select f.id, f.embedding, f.suggest_id, f.suggest_score, f.rejected, f.status, p.class_name from faces f join photos p on p.id = f.photo_id where f.status in ('unknown', 'suggested') and f.embedding is not null")
-      .all() as { id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string; class_name: string | null }[];
-    const update = this.db.prepare("update faces set status = 'suggested', suggest_id = ?, suggest_score = ? where id = ?");
-    const name = this.db.prepare("update faces set status = 'confirmed', student_id = ?, suggest_id = ?, suggest_score = ?, auto = 1 where id = ?");
+      .prepare(
+        `select f.id, f.photo_id, f.embedding, f.suggest_id, f.suggest_score, f.rejected, f.status, p.class_name, coalesce(p.taken_at, p.event_date) as at from faces f join photos p on p.id = f.photo_id
+         where f.status in ('unknown', 'suggested') and f.embedding is not null and f.model = ? and p.missing = 0 order by f.photo_id`,
+      )
+      .all(model) as { id: number; photo_id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string; class_name: string | null; at: string | null }[];
+    const update = this.db.prepare("update faces set status = ?, suggest_id = ?, suggest_score = ? where id = ?");
+    const name = this.db.prepare("update faces set status = 'confirmed', student_id = ?, suggest_id = ?, suggest_score = ?, auto = 1, named_by = 'auto' where id = ?");
+    const namedIn = this.db.prepare("select student_id from faces where photo_id = ? and status in ('confirmed', 'manual') and student_id is not null");
+    const traits = traitCentres(all, all[0]?.embedding.length ?? 0);
+    const info = this.peopleInfo();
     const named: number[] = [];
     let changed = 0;
+    const byPhoto = new Map<number, typeof rows>();
+    for (const r of rows) byPhoto.set(r.photo_id, [...(byPhoto.get(r.photo_id) ?? []), r]);
     tx(this.db, () => {
-      for (const r of rows) {
-        const rejected = r.rejected ? r.rejected.split(",") : [];
-        const match = bestMatch(fromBlob(r.embedding), this.knownFor(r.class_name, known).filter((k) => !rejected.includes(k.studentId)));
-        if (match && isSure(match)) {
-          name.run(match.studentId, match.studentId, match.score, r.id);
-          named.push(r.id);
-          changed++;
-        } else if (match && match.score > (r.suggest_score ?? 0)) {
-          update.run(match.studentId, match.score, r.id);
-          changed++;
-        }
+      for (const [photoId, faces] of byPhoto) {
+        const taken = new Set((namedIn.all(photoId) as { student_id: string }[]).map((x) => x.student_id));
+        const known = this.knownFor(faces[0].class_name, faces[0].at, all);
+        const embs = faces.map((f) => fromBlob(f.embedding));
+        const matches = assignPhoto(embs, known, model, taken, (i, sid) => {
+          if ((faces[i].rejected ? faces[i].rejected.split(",") : []).includes(sid)) return false;
+          const who = info.get(sid);
+          const t = guessTraits(embs[i], traits);
+          if (who && t.gender && who.gender && t.gender !== who.gender) return false;
+          if (who && t.adult === true && who.kind === "student") return false;
+          if (who && t.adult === false && who.kind !== "student") return false;
+          return true;
+        });
+        faces.forEach((r, i) => {
+          const m = matches[i];
+          if (studentIds && m && !studentIds.includes(m.studentId) && r.suggest_id === m.studentId) return;
+          if (m && isSure({ ...m, twin: this.isTwin(m.studentId) }) && this.o.autoName?.() !== false) {
+            name.run(m.studentId, m.studentId, m.score, r.id);
+            named.push(r.id);
+            changed++;
+          } else if (m && (m.studentId !== r.suggest_id || Math.abs(m.score - (r.suggest_score ?? 0)) > 0.005)) {
+            update.run(m.score >= SHOW_FROM - 0.1 ? "suggested" : "unknown", m.studentId, m.score, r.id);
+            changed++;
+          } else if (!m && r.suggest_id) {
+            update.run("unknown", null, null, r.id);
+            changed++;
+          }
+        });
       }
     });
     if (changed) this.o.onChange("faces");
@@ -455,7 +626,7 @@ export class Engine {
         [".jpg", ".jpeg", ".png", ".heic"].map((e) => byName.get(`${s.id.toLowerCase()}${e}`)).find(Boolean);
       if (!name) continue;
       try {
-        const faces = await exclusive(() => findFaces(this.o.models, path.join(folder, name)));
+        const faces = await exclusive(() => findFaces(this.o.models, path.join(folder, name), { aura: this.o.aura?.() ?? null }));
         const face = faces.sort((a, b) => b.box[2] * b.box[3] - a.box[2] * a.box[3])[0];
         if (!face) continue;
         const portraitFile = path.join(this.o.cache, "portraits", `${safeName(s.id)}.jpg`);
@@ -465,8 +636,8 @@ export class Engine {
           this.db.prepare("delete from faces where student_id = ? and status = 'portrait'").run(s.id);
           this.db.prepare("update students set portrait = ? where id = ?").run(portraitFile, s.id);
           this.db
-            .prepare("insert into faces (photo_id, x, y, w, h, score, embedding, student_id, status, portrait) values (?, ?, ?, ?, ?, ?, ?, ?, 'portrait', 1)")
-            .run(this.portraitPhoto(), face.box[0], face.box[1], face.box[2], face.box[3], face.score, toBlob(face.embedding), s.id);
+            .prepare("insert into faces (photo_id, x, y, w, h, score, embedding, student_id, status, portrait, model) values (?, ?, ?, ?, ?, ?, ?, ?, 'portrait', 1, ?)")
+            .run(this.portraitPhoto(), face.box[0], face.box[1], face.box[2], face.box[3], face.score, toBlob(face.embedding), s.id, faces.recogniser ?? "sface");
         });
         added++;
       } catch (e) {
@@ -475,6 +646,24 @@ export class Engine {
     }
     if (added) this.rematch();
     return added;
+  }
+
+  // A new recogniser: portraits are described again from the saved copies.
+  async reembedPortraits() {
+    const rows = this.db.prepare("select id, portrait from students where portrait is not null").all() as { id: string; portrait: string }[];
+    for (const r of rows) {
+      if (!existsSync(r.portrait)) continue;
+      try {
+        const faces = await exclusive(() => findFaces(this.o.models, r.portrait, { aura: this.o.aura?.() ?? null }));
+        const face = faces.sort((a, b) => b.box[2] * b.box[3] - a.box[2] * a.box[3])[0];
+        if (!face) continue;
+        this.db.prepare("insert into faces (photo_id, x, y, w, h, score, embedding, student_id, status, portrait, model) values (?, ?, ?, ?, ?, ?, ?, ?, 'portrait', 1, ?)").run(
+          this.portraitPhoto(), face.box[0], face.box[1], face.box[2], face.box[3], face.score, toBlob(face.embedding), r.id, faces.recogniser ?? "sface",
+        );
+      } catch (e) {
+        this.o.log?.(`portrait ${r.id}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
   }
 
   // Portrait faces need a photo row to hang on; one hidden placeholder holds them all.
@@ -488,14 +677,31 @@ export class Engine {
     );
   }
 
-  // Screens ask first, so their pictures jump the background queue.
+  // Screens ask first, so their pictures jump the background queue. When
+  // the big picture can't be made (the original is missing or unreadable),
+  // the thumbnail is shown instead of a broken picture.
   async preview(id: number) {
     const out = this.previewPath(id);
     if (existsSync(out)) return out;
     const p = this.db.prepare("select path from photos where id = ?").get(id) as Row | undefined;
     if (!p) throw new Error("no photo");
-    await exclusive(async () => existsSync(out) || (await makeThumb(await source(p.path as string), out, PREVIEW)));
-    return out;
+    try {
+      if (!existsSync(p.path as string)) throw new Error("original missing");
+      await exclusive(async () => existsSync(out) || (await makeThumb(await source(p.path as string), out, PREVIEW)));
+      return out;
+    } catch (e) {
+      this.o.log?.(`preview ${path.basename(p.path as string)}: ${e instanceof Error ? e.message : e}`);
+      await rm(out, { force: true }).catch(() => {});
+      const thumb = this.thumbPath(id);
+      if (existsSync(thumb)) return thumb;
+      throw e;
+    }
+  }
+
+  // Is the original file there? (The viewer says "Original missing" if not.)
+  originalThere(id: number) {
+    const p = this.db.prepare("select path from photos where id = ?").get(id) as Row | undefined;
+    return !!p && existsSync(p.path as string);
   }
 
   async thumb(id: number) {
@@ -621,7 +827,7 @@ export class Engine {
     const date = new Date(`${target.date}T12:00:00`);
     let dir = eventFolder(this.o.library, date, target.title);
     if (target.className) dir = path.join(dir, safeName(target.className));
-    const { mkdir, rename } = await import("node:fs/promises");
+    const { mkdir } = await import("node:fs/promises");
     await mkdir(dir, { recursive: true });
     const undo: { id: number; from: string }[] = [];
     for (const id of ids) {
@@ -630,25 +836,29 @@ export class Engine {
       const from = p.path as string;
       const to = await freeName(path.join(dir, path.basename(from)));
       if (from === to) continue;
-      await rename(from, to);
+      await moveFile(from, to);
       const place = placeFromPath(this.o.library, to);
       this.db
-        .prepare("update photos set path = ?, year = ?, term = ?, event_key = ?, event_title = ?, event_date = ?, class_name = ? where id = ?")
+        .prepare("update photos set path = ?, year = ?, term = ?, event_key = ?, event_title = ?, event_date = ?, class_name = ?, missing = 0 where id = ?")
         .run(to, place.year, place.term, place.event?.key ?? null, place.event?.title ?? null, place.event?.date ?? null, place.className, id);
+      // The big picture is made again from the file in its new place.
+      await rm(this.previewPath(id), { force: true });
       undo.push({ id, from });
     }
     this.o.onChange("photos");
+    for (const u of undo) this.preview(u.id).catch(() => {});
     return undo;
   }
 
   async moveBack(items: { id: number; from: string }[]) {
-    const { mkdir, rename } = await import("node:fs/promises");
+    const { mkdir } = await import("node:fs/promises");
     for (const it of items) {
       const p = this.db.prepare("select path from photos where id = ?").get(it.id) as Row | undefined;
       if (!p) continue;
       await mkdir(path.dirname(it.from), { recursive: true });
       const to = await freeName(it.from);
-      await rename(p.path as string, to);
+      await moveFile(p.path as string, to);
+      await rm(this.previewPath(it.id), { force: true });
       const place = placeFromPath(this.o.library, to);
       this.db
         .prepare("update photos set path = ?, year = ?, term = ?, event_key = ?, event_title = ?, event_date = ?, class_name = ? where id = ?")
@@ -683,7 +893,26 @@ export class Engine {
   }
 }
 
+function boxIou(a: number[], b: number[]) {
+  const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
+  const x2 = Math.min(a[0] + a[2], b[0] + b[2]), y2 = Math.min(a[1] + a[3], b[1] + b[3]);
+  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+  return inter / (a[2] * a[3] + b[2] * b[3] - inter || 1);
+}
+
 const like = (prefix: string) => prefix.replace(/[\\%_]/g, (c) => `\\${c}`) + "%";
+
+// A rename, or a copy and delete when the library spans two drives.
+async function moveFile(from: string, to: string) {
+  const { rename, unlink } = await import("node:fs/promises");
+  try {
+    await rename(from, to);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EXDEV") throw e;
+    await copyFile(from, to, constants.COPYFILE_EXCL);
+    await unlink(from);
+  }
+}
 
 async function freeName(file: string) {
   if (!existsSync(file)) return file;
@@ -711,7 +940,11 @@ export async function importPhotos(o: {
 }) {
   let copied = 0, duplicates = 0, failed = 0;
   const folders = new Set<string>();
-  const known = o.skipDuplicates ? new Set((o.db.prepare("select hash from photos where hash is not null").all() as { hash: string }[]).map((r) => r.hash)) : new Set<string>();
+  // Only photos whose file is really there count as "already in the
+  // library". A photo whose file went missing is copied again, and the
+  // library gives it back its old names, faces and picks (Engine.read).
+  const present = (o.db.prepare("select hash, path from photos where hash is not null and missing = 0").all() as { hash: string; path: string }[]).filter((r) => existsSync(r.path));
+  const known = o.skipDuplicates ? new Set(present.map((r) => r.hash)) : new Set<string>();
   for (let i = 0; i < o.files.length; i++) {
     const file = o.files[i];
     try {
