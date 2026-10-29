@@ -248,6 +248,7 @@ export function openDb(file: string): Db {
   addColumn(db, "students", "campus", "text");
   addColumn(db, "students", "email", "text");
   addColumn(db, "students", "phone", "text");
+  addColumn(db, "students", "left_why", "text");
   // 0.4: who took it, what kind of photo, hidden, and which import it came in.
   addColumn(db, "photos", "photographer", "text");
   addColumn(db, "photos", "category", "text");

@@ -15,6 +15,8 @@ export type StudentRow = {
   class_name: string | null;
   portrait: string | null;
   can_post: boolean;
+  birthday?: string | null;
+  joined?: string | null;
 };
 
 export type Format = "hub" | "powerschool" | "classera" | "edunation" | "other";
@@ -28,7 +30,7 @@ const norm = (v: unknown) =>
     .replace(/[()]/g, "")
     .trim();
 
-type Field = "id" | "en" | "ar" | "name" | "first" | "last" | "gender" | "stage" | "grade" | "section" | "class" | "portrait" | "post";
+type Field = "id" | "en" | "ar" | "name" | "first" | "last" | "gender" | "stage" | "grade" | "section" | "class" | "portrait" | "post" | "birthday" | "joined";
 
 const SYNONYMS: Record<Field, string[]> = {
   id: ["student id", "student number", "student no", "admission no", "admission number", "id", "code", "student code", "رقم الطالب", "كود الطالب", "الرقم", "رقم القيد"],
@@ -43,6 +45,8 @@ const SYNONYMS: Record<Field, string[]> = {
   section: ["section", "الشعبة", "الفصل الدراسي"],
   class: ["class", "home room", "homeroom", "class name", "الفصل"],
   portrait: ["portrait file", "portrait", "photo", "photo file", "picture", "الصورة", "صورة الطالب"],
+  birthday: ["birthday", "date of birth", "birth date", "dob", "birthdate", "تاريخ الميلاد", "الميلاد"],
+  joined: ["joined", "date joined", "enrollment date", "enrolment date", "entry date", "admission date", "enroll date", "تاريخ الالتحاق", "تاريخ القيد"],
   post: ["can appear in posts", "can post", "consent", "photo consent", "social media", "الموافقة", "موافقة النشر", "يظهر في المنشورات"],
 };
 
@@ -152,9 +156,113 @@ export function parseRows(rows: unknown[][]): Parsed {
       class_name: klass ? klass.slice(0, 60) : null,
       portrait: cell(row, "portrait") ? path.basename(cell(row, "portrait")) : null,
       can_post: !NO.includes(post),
+      birthday: isoDate(cell(row, "birthday")),
+      joined: isoDate(cell(row, "joined")),
     });
   }
   return { format, students, skipped, columns };
+}
+
+// "2015-03-04", "4/3/2015" (day first, as schools here write it),
+// "04-03-2015" and Excel's serial numbers all become 2015-03-04.
+export function isoDate(v: string) {
+  const t = v.trim();
+  if (!t) return null;
+  let m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(t);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/.exec(t);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  if (/^\d{5}(\.\d+)?$/.test(t)) return new Date(Date.UTC(1899, 11, 30) + Number(t) * 86400_000).toISOString().slice(0, 10);
+  const d = new Date(t);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+// ---------- A new class list compared with the one on the Mac ----------
+
+export type Known = { id: string; name_en: string | null; name_ar: string | null; class_name: string | null; kind: string | null; left_on: string | null };
+export type ListChanges = {
+  added: StudentRow[];
+  moved: { id: string; name: string; from: string | null; to: string | null }[];
+  renamed: { id: string; from: string; to: string }[];
+  left: { id: string; name: string; class_name: string | null }[];
+  back: { id: string; name: string }[];
+};
+const nm = (s: { name_en: string | null; name_ar: string | null }) => s.name_en ?? s.name_ar ?? "";
+
+// Who is new, who moved class, whose name changed, who is no longer on the
+// list (only students in the classes this file covers, so importing one
+// class's file never marks the rest of the school as left) and who came back.
+export function compareList(known: Known[], incoming: StudentRow[]): ListChanges {
+  const byId = new Map(known.map((k) => [k.id, k]));
+  const out: ListChanges = { added: [], moved: [], renamed: [], left: [], back: [] };
+  for (const s of incoming) {
+    const k = byId.get(s.id);
+    if (!k) {
+      out.added.push(s);
+      continue;
+    }
+    if (k.left_on) out.back.push({ id: s.id, name: nm(s) });
+    if ((k.class_name ?? null) !== (s.class_name ?? null)) out.moved.push({ id: s.id, name: nm(s), from: k.class_name, to: s.class_name });
+    if ((s.name_en && k.name_en && s.name_en !== k.name_en) || (s.name_ar && k.name_ar && s.name_ar !== k.name_ar)) out.renamed.push({ id: s.id, from: nm(k), to: nm(s) });
+  }
+  const ids = new Set(incoming.map((s) => s.id));
+  const covered = new Set(incoming.map((s) => s.class_name).filter(Boolean));
+  for (const k of known)
+    if ((k.kind ?? "student") === "student" && !k.left_on && !ids.has(k.id) && k.class_name && covered.has(k.class_name)) out.left.push({ id: k.id, name: nm(k), class_name: k.class_name });
+  return out;
+}
+
+// ---------- New school year ----------
+
+// The class each one moves up to: 4B → 5B, KG1-A → KG2-A, KG2-A → 1A,
+// Grade 3 → Grade 4. Grade 12 (and KG2 for schools that end there) can
+// graduate. The school can change any of these before it's applied.
+export function nextClass(className: string | null, grade: string | null): { class_name: string | null; grade: string | null; graduates: boolean } {
+  const g = grade ?? "";
+  const kg = /^KG(\d)/i.exec(g) ?? /^KG(\d)/i.exec(className ?? "");
+  if (kg) {
+    const n = Number(kg[1]);
+    const sec = (className ?? "").replace(/^KG\d[-\s]?/i, "");
+    if (n >= 2) return { class_name: sec ? `1${sec}` : "Grade 1", grade: "Grade 1", graduates: false };
+    return { class_name: sec ? `KG${n + 1}-${sec}` : `KG${n + 1}`, grade: `KG${n + 1}`, graduates: false };
+  }
+  const n = Number(/\d+/.exec(g)?.[0] ?? /^\d+/.exec(className ?? "")?.[0]);
+  if (!n) return { class_name: className, grade, graduates: false };
+  if (n >= 12) return { class_name: null, grade: null, graduates: true };
+  const up = className ? className.replace(/\d+/, String(n + 1)) : null;
+  return { class_name: up, grade: `Grade ${n + 1}`, graduates: false };
+}
+
+// The school year a date falls in: September to August ("2026-2027").
+export function schoolYear(d = new Date()) {
+  const y = d.getFullYear();
+  return d.getMonth() >= 8 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+}
+
+// Students who are probably the same person entered twice: same name by
+// spelling (Mohamed/Muhammad), different IDs.
+export function likelyDuplicates(rows: { id: string; name_en: string | null; name_ar: string | null; class_name: string | null; kind: string | null }[], key: (s: string | null) => string) {
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) {
+    for (const n of [r.name_en, r.name_ar]) {
+      const k = key(n);
+      if (k.length < 5 || k.split(" ").length < 2) continue;
+      const g = groups.get(`${r.kind ?? "student"}|${k}`) ?? [];
+      if (!g.includes(r)) g.push(r);
+      groups.set(`${r.kind ?? "student"}|${k}`, g);
+    }
+  }
+  const seen = new Set<string>();
+  const pairs: [(typeof rows)[number], (typeof rows)[number]][] = [];
+  for (const g of groups.values())
+    for (let i = 0; i < g.length; i++)
+      for (let j = i + 1; j < g.length; j++) {
+        const id = [g[i].id, g[j].id].sort().join("|");
+        if (seen.has(id)) continue;
+        seen.add(id);
+        pairs.push([g[i], g[j]]);
+      }
+  return pairs;
 }
 
 function stageName(v: string) {

@@ -189,3 +189,51 @@ test("a 0.3 library opens in 0.4 and keeps everything", () => {
   const left = db.prepare("select status from faces order by id").all() as { status: string }[];
   assert.deepEqual(left.map((r) => r.status), ["confirmed", "unknown"]);
 });
+
+import { compareList, isoDate, likelyDuplicates, nextClass, parseRows, schoolYear } from "./students";
+import { nameKey } from "./names";
+
+test("class list: birthdays and join dates in any common format", () => {
+  assert.equal(isoDate("2015-3-4"), "2015-03-04");
+  assert.equal(isoDate("4/3/2015"), "2015-03-04");
+  assert.equal(isoDate("42064"), "2015-03-01");
+  assert.equal(isoDate(""), null);
+  const p = parseRows([["Student ID", "Name English", "Class", "Date of birth"], ["S1", "Ali Hassan", "4B", "04/03/2015"]]);
+  assert.equal(p.students[0].birthday, "2015-03-04");
+});
+
+test("class list: changes are shown before they're applied", () => {
+  const known = [
+    { id: "S1", name_en: "Ali", name_ar: null, class_name: "4B", kind: "student", left_on: null },
+    { id: "S2", name_en: "Mona", name_ar: null, class_name: "4B", kind: "student", left_on: null },
+    { id: "S3", name_en: "Omar", name_ar: null, class_name: "5A", kind: "student", left_on: null },
+    { id: "S4", name_en: "Hana", name_ar: null, class_name: "4A", kind: "student", left_on: "2026-06-30" },
+  ];
+  const row = (id: string, name: string, cls: string) => ({ id, name_en: name, name_ar: null, gender: null, stage: null, grade: null, class_name: cls, portrait: null, can_post: true });
+  const c = compareList(known, [row("S1", "Ali Hassan", "4A"), row("S4", "Hana", "4A"), row("S9", "New One", "4B")]);
+  assert.deepEqual(c.added.map((s) => s.id), ["S9"]);
+  assert.deepEqual(c.moved.map((s) => s.id), ["S1"]);
+  assert.deepEqual(c.renamed.map((s) => s.id), ["S1"]);
+  assert.deepEqual(c.left.map((s) => s.id), ["S2"]); // S3's class isn't in this file
+  assert.deepEqual(c.back.map((s) => s.id), ["S4"]);
+});
+
+test("new school year: everyone moves up a class", () => {
+  assert.deepEqual(nextClass("4B", "Grade 4"), { class_name: "5B", grade: "Grade 5", graduates: false });
+  assert.deepEqual(nextClass("KG1-A", "KG1"), { class_name: "KG2-A", grade: "KG2", graduates: false });
+  assert.deepEqual(nextClass("KG2-A", "KG2"), { class_name: "1A", grade: "Grade 1", graduates: false });
+  assert.equal(nextClass("12C", "Grade 12").graduates, true);
+  assert.equal(schoolYear(new Date(2026, 9, 1)), "2026-2027");
+  assert.equal(schoolYear(new Date(2027, 4, 1)), "2026-2027");
+});
+
+test("duplicate students found by spelling", () => {
+  const rows = [
+    { id: "S1", name_en: "Mohamed Ali Hassan", name_ar: null, class_name: "4B", kind: "student" },
+    { id: "X9", name_en: "Muhammad Ali Hasan", name_ar: null, class_name: "4B", kind: "student" },
+    { id: "S2", name_en: "Omar Tarek", name_ar: null, class_name: "4B", kind: "student" },
+  ];
+  const d = likelyDuplicates(rows, nameKey);
+  assert.equal(d.length, 1);
+  assert.deepEqual(d[0].map((r) => r.id).sort(), ["S1", "X9"]);
+});

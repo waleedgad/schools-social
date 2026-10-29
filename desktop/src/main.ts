@@ -22,9 +22,10 @@ import { importsApi } from "./features/imports";
 import { webSync } from "./features/websync";
 import { todayApi } from "./features/today";
 import { facesApi } from "./features/faces";
+import { studentsApi } from "./features/students";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
-import { parseRows, readSheet, type StudentRow } from "./core/students";
+import { compareList, parseRows, readSheet, type Known, type StudentRow } from "./core/students";
 import { LibrarySync } from "./core/sync";
 import { AuraDownload } from "./core/models";
 import { visionFaces } from "./core/vision";
@@ -781,18 +782,41 @@ async function previewStudents(file?: string) {
     sample: parsed.students.slice(0, 8),
     columns: parsed.columns,
     portraits: parsed.students.filter((s) => s.portrait).length,
+    changes: compareList(all<Known>("select id, name_en, name_ar, class_name, kind, left_on from students"), parsed.students),
   };
 }
 
-async function commitStudents(portraitFolder: string | null) {
+// The school sees what changes first (new, moved class, renamed, no longer
+// on the list, back again) and chooses whether those no longer on the list
+// are marked as left. Undo puts every student back as they were.
+async function commitStudents(portraitFolder: string | null, opts: { markLeft?: boolean; skip?: string[] } = {}) {
   if (!pendingList) throw new Error("no-list");
-  const list = pendingList.students;
+  const skip = new Set(opts.skip ?? []);
+  const list = pendingList.students.filter((s) => !skip.has(s.id));
+  const changes = compareList(all<Known>("select id, name_en, name_ar, class_name, kind, left_on from students"), list);
+  const cols = "id, name_en, name_ar, gender, stage, grade, class_name, can_post, birthday, joined, left_on, left_why, kind";
+  const before = all<Record<string, unknown>>(`select ${cols} from students where id in (select value from json_each(?))`, JSON.stringify([...list.map((s) => s.id), ...changes.left.map((l) => l.id)]));
+  const added = changes.added.map((s) => s.id);
+  const today = new Date().toISOString().slice(0, 10);
+  // Students added after the first list joined today (unless the file says when).
+  const later = (one<{ n: number }>("select count(*) n from students where kind = 'student'")?.n ?? 0) > 0;
   const up = db.prepare(
-    `insert into students (id, name_en, name_ar, gender, stage, grade, class_name, can_post, added_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     on conflict (id) do update set name_en = excluded.name_en, name_ar = excluded.name_ar, gender = excluded.gender, stage = excluded.stage,
-       grade = excluded.grade, class_name = excluded.class_name, can_post = excluded.can_post`,
+    `insert into students (id, name_en, name_ar, gender, stage, grade, class_name, can_post, birthday, joined, added_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     on conflict (id) do update set name_en = coalesce(excluded.name_en, name_en), name_ar = coalesce(excluded.name_ar, name_ar), gender = coalesce(excluded.gender, gender), stage = excluded.stage,
+       grade = excluded.grade, class_name = excluded.class_name, can_post = excluded.can_post, birthday = coalesce(excluded.birthday, birthday), joined = coalesce(joined, excluded.joined),
+       left_on = null, left_why = null`,
   );
-  tx(db, () => list.forEach((s) => up.run(s.id, s.name_en, s.name_ar, s.gender, s.stage, s.grade, s.class_name, s.can_post ? 1 : 0, Date.now())));
+  tx(db, () => {
+    list.forEach((s) => up.run(s.id, s.name_en, s.name_ar, s.gender, s.stage, s.grade, s.class_name, s.can_post ? 1 : 0, s.birthday ?? null, s.joined ?? (later && added.includes(s.id) ? today : null), Date.now()));
+    if (opts.markLeft) for (const l of changes.left) db.prepare("update students set left_on = ?, left_why = 'left' where id = ? and left_on is null").run(today, l.id);
+  });
+  remember("students", `list:${list.length}`, {
+    kind: "sql",
+    steps: [
+      ...(added.length ? [[`delete from students where id in (${marks(added.length)})`, added]] : []),
+      ...before.map((r) => [`update students set ${cols.split(", ").slice(1).map((k) => `${k} = ?`).join(", ")} where id = ?`, [...cols.split(", ").slice(1).map((k) => r[k] ?? null), r.id]]),
+    ],
+  });
   pendingList = null;
   push("students");
   let web: number | string = 0;
@@ -806,7 +830,7 @@ async function commitStudents(portraitFolder: string | null) {
     portraits = await engine.addPortraits(portraitFolder, list);
   }
   push("students");
-  return { saved: list.length, web, portraits };
+  return { saved: list.length, web, portraits, added: added.length, moved: changes.moved.length, left: opts.markLeft ? changes.left.length : 0 };
 }
 
 // ---------- Coverage ----------
@@ -1595,7 +1619,7 @@ app.whenReady().then(async () => {
 
     previewStudents: (file?: string) => previewStudents(file),
     pickPortraits: () => chooseFolder("Folder of student portraits (named by student ID)"),
-    commitStudents: (folder: string | null) => commitStudents(folder),
+    commitStudents: (folder: string | null, opts?: { markLeft?: boolean; skip?: string[] }) => commitStudents(folder, opts),
     classes: () => classes(),
     students: (f: { className?: string; search?: string; year?: string; term?: string; event?: string }) => students(f),
     student: (id: string) => one("select * from students where id = ?", id),
