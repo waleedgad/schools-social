@@ -17,7 +17,7 @@ export default async function PostPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ error?: string; ai?: string; saved?: string; done?: string; link?: string; tab?: string; generate?: string }>;
+  searchParams: Promise<{ error?: string; ai?: string; saved?: string; done?: string; link?: string; tab?: string; generate?: string; reuse?: string }>;
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
@@ -153,6 +153,7 @@ export default async function PostPage({
 
   const notice =
     sp.error ? <Notice>{t(`posts.errors.${sp.error}`)}</Notice>
+    : sp.reuse ? <Notice tone={["sent", "planned"].includes(sp.reuse) ? "good" : "danger"}>{t(`more.composer.reuse.result.${["sent", "planned", "instagram", "photos", "role"].includes(sp.reuse) ? sp.reuse : "failed"}`)}</Notice>
     : sp.saved ? <Notice tone="good">{t("posts.saved")}</Notice>
     : sp.done ? <Notice tone="good">{t(`composer.done.${sp.done}`)}</Notice>
     : sp.ai === "done" ? <Notice tone="good">{t("posts.aiDone")}</Notice>

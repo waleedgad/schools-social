@@ -6,6 +6,7 @@ import { AiLimitError, getAi, type CaptionOptions, type Captions, type SchoolPro
 import { findMentions, spread } from "@/lib/posting";
 import { generateFor, runIntent, schoolSlots } from "@/lib/post-core";
 import { can } from "@/lib/roles";
+import { reusePost } from "@/lib/reuse";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -361,4 +362,17 @@ export async function makeCountdown(formData: FormData) {
   }
   revalidatePath(`/${locale}/calendar`);
   redirect({ href: { pathname: "/calendar", query: { countdown: String(rows.length) } }, locale });
+}
+
+// Use a post again: a story, or a recap of its week.
+export async function reuse(formData: FormData) {
+  const { locale, user, membership } = await curator(formData, "writePosts");
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const kind = formData.get("kind") === "recap" ? "recap" : "story";
+  const r = await reusePost({ supabase, userId: user.id, membership }, id, kind, locale === "en" ? "en" : "ar");
+  if (!r.ok) redirect({ href: { pathname: `/posts/${id}`, query: { reuse: r.error } }, locale });
+  revalidatePath(`/${locale}/posts`);
+  if (r.ok && r.id) redirect({ href: `/posts/${r.id}`, locale });
+  redirect({ href: { pathname: `/posts/${id}`, query: { reuse: r.ok ? r.story ?? "done" : "failed" } }, locale });
 }

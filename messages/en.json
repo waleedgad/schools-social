@@ -1512,6 +1512,18 @@
             "text": "Invite families thinking of joining: what makes the school special, with the date and how to book."
           }
         }
+      },
+      "reuse": {
+        "story": "Share as a story",
+        "recap": "Make a week recap",
+        "result": {
+          "sent": "Shared as an Instagram story.",
+          "planned": "A story will go out with this post.",
+          "instagram": "Connect Instagram first.",
+          "photos": "This post has no photo for a story.",
+          "role": "Only people who can publish can share stories.",
+          "failed": "Couldn't do that. Try again."
+        }
       }
     },
     "analytics": {
@@ -1527,6 +1539,19 @@
       "singleBetter": "Single photos do {pct} better than posts with several photos.",
       "countInsight": "{now} posts in this period, {before} in the one before.",
       "reachInsight": "Reach changed by {pct} compared with the period before."
+    },
+    "brand": {
+      "site": "School website address",
+      "fromPage": "Also read our Facebook page's recent posts",
+      "sourceHint": "Optional: paste anything else about the school (about us, values, a few past posts).",
+      "learnTitle": "Learn from our best posts",
+      "learnHint": "Reads the Facebook page's last 100 posts and keeps the 12 that people liked, commented on and shared most as examples of the school's voice.",
+      "learn": "Learn from our Facebook page",
+      "learnt": "Learnt from {count} of the page's best posts.",
+      "errors": {
+        "site": "Couldn't read that website. Check the address, or paste the text instead.",
+        "page": "Couldn't read posts from the Facebook page. Connect it again in Accounts."
+      }
     }
   }
 }

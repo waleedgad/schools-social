@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { net } from "electron";
 import sharp from "sharp";
+import { YEARBOOK_ALBUMS } from "../core/books";
 import { exclusive } from "../core/lock";
 import { source } from "../core/media";
 import { hijriOf, OCCASIONS, type Filter } from "./library";
@@ -292,6 +293,18 @@ export function postsApi(ctx: Ctx): Api {
 
     // The post's photos that are on this Mac, as library ids (to open them
     // in the viewer or pick more from the same event).
+    // A post's photos for the yearbooks: they go into the "Yearbook picks"
+    // album, which the yearbook drafts use first.
+    yearbookPick: (remote: string[]) => {
+      const ids = localOf(remote).map((p) => p.id);
+      if (!ids.length) return { added: 0 };
+      let album = one<{ id: number }>(`select id from albums where name in (${marks(YEARBOOK_ALBUMS.length)}) and rule is null order by id limit 1`, ...YEARBOOK_ALBUMS);
+      if (!album) album = { id: Number(ctx.db().prepare("insert into albums (name, added_at) values (?, ?)").run(ctx.settings().get().language === "en" ? YEARBOOK_ALBUMS[0] : YEARBOOK_ALBUMS[1], Date.now()).lastInsertRowid) };
+      const add = ctx.db().prepare("insert or ignore into album_photos (album_id, photo_id) values (?, ?)");
+      for (const id of ids) add.run(album.id, id);
+      ctx.push("photos");
+      return { added: ids.length };
+    },
     postLocal: (remote: string[]) => localOf(remote).map((p) => ({ id: p.id, remote_id: p.remote_id, missing: p.missing, posts: p.posts, event_key: one<{ event_key: string | null }>("select event_key from photos where id = ?", p.id)?.event_key ?? null })),
 
     // Library photos to add to a post: the same event first, best first.

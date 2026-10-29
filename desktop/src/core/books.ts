@@ -52,6 +52,9 @@ type Student = { id: string; name_en: string | null; name_ar: string | null; cla
 type Photo = { id: number; event_key: string | null; event_title: string | null; event_date: string | null; category: string | null; quality: number | null; width: number | null; height: number | null };
 
 const MAIN_FACE = `coalesce(s.main_face, (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
+// Photos put into the "Yearbook picks" album (from a post or by hand) lead.
+export const YEARBOOK_ALBUMS = ["Yearbook picks", "اختيارات الكتاب السنوي"];
+const PICKED = `exists (select 1 from album_photos ap join albums a on a.id = ap.album_id where ap.photo_id = p.id and a.name in ('${YEARBOOK_ALBUMS.join("', '")}'))`;
 const USABLE = "p.missing = 0 and p.pair_of is null and p.dup_of is null and p.flag >= 0 and p.hidden = 0 and coalesce(p.problems, '') = ''";
 const NOPOST = "exists (select 1 from faces f2 join students s2 on s2.id = f2.student_id where f2.photo_id = p.id and f2.status in ('confirmed', 'manual') and s2.can_post = 0)";
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -95,7 +98,7 @@ function candidates(db: Db, spec: BookSpec, classes: string[], extra = "", args:
     .prepare(
       `select p.id, p.event_key, p.event_title, p.event_date, p.category, p.quality, p.width, p.height from photos p
        where ${USABLE} and p.year = ? ${cls} ${spec.cantAppear === "blur" ? "" : `and not ${NOPOST}`} ${extra}
-       order by p.event_date, p.flag desc, p.rating desc, p.quality desc limit 6000`,
+       order by p.event_date, ${PICKED} desc, p.flag desc, p.rating desc, p.quality desc limit 6000`,
     )
     .all(spec.year, ...classes, ...classes, ...args) as Photo[];
 }
@@ -161,12 +164,12 @@ export function draftPages(db: Db, spec: BookSpec, keep: Page[] = []): Page[] {
       `select distinct p.year from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and ${USABLE} and p.year is not null and p.year >= coalesce((select min(year) from school_history where student_id = ?), '') order by p.year`,
     ).all(student.id, student.id) as { year: string }[]).map((y) => y.year);
     for (const y of years) {
-      const mine = db.prepare(`select distinct p.id, p.event_key, p.event_title, p.event_date, p.category, p.quality, p.width, p.height from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and ${USABLE} and p.year = ? order by p.flag desc, p.rating desc, p.quality desc limit 6`).all(student.id, y) as Photo[];
+      const mine = db.prepare(`select distinct p.id, p.event_key, p.event_title, p.event_date, p.category, p.quality, p.width, p.height from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and ${USABLE} and p.year = ? order by ${PICKED} desc, p.flag desc, p.rating desc, p.quality desc limit 6`).all(student.id, y) as Photo[];
       if (mine.length) add({ type: "year", ...T(y, y), layout: "auto", photos: mine.map((p) => p.id), year: y });
     }
   }
   if (spec.kind === "student" && student) {
-    const mine = db.prepare(`select distinct p.id from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and ${USABLE} and p.year = ? order by p.flag desc, p.rating desc, p.quality desc limit 12`).all(student.id, spec.year) as { id: number }[];
+    const mine = db.prepare(`select distinct p.id from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and ${USABLE} and p.year = ? order by ${PICKED} desc, p.flag desc, p.rating desc, p.quality desc limit 12`).all(student.id, spec.year) as { id: number }[];
     for (let i = 0; i < mine.length; i += 6) add({ type: "student", ...T("My year", "عامي"), layout: "auto", photos: mine.slice(i, i + 6).map((p) => p.id), students: [student.id] });
   }
   if ((spec.kind === "student" || spec.kind === "graduation") && classes[0]) add({ type: "class", ...T(`Class ${classes[0]}`, `فصل ${classes[0]}`), layout: "grid", photos: [], className: classes[0], students: studentsIn(db, spec, classes[0]).map((s) => s.id) });
@@ -225,7 +228,7 @@ export function bookChecks(db: Db, spec: BookSpec, pages: Page[]) {
 export function pageCandidates(db: Db, spec: BookSpec, page: Page, limit = 120) {
   const classes = classesOf(db, spec);
   if (page.type === "year" && spec.studentId)
-    return (db.prepare(`select distinct p.id from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and ${USABLE} and p.year = ? order by p.flag desc, p.rating desc limit ?`).all(spec.studentId, page.year ?? "", limit) as { id: number }[]).map((r) => r.id);
+    return (db.prepare(`select distinct p.id from faces f join photos p on p.id = f.photo_id where f.student_id = ? and f.status in ('confirmed', 'manual') and ${USABLE} and p.year = ? order by ${PICKED} desc, p.flag desc, p.rating desc limit ?`).all(spec.studentId, page.year ?? "", limit) as { id: number }[]).map((r) => r.id);
   const list = page.event ? candidates(db, spec, [], "and p.event_key = ?", [page.event]) : candidates(db, spec, classes);
   return list.map((p) => p.id).filter((id) => !page.photos.includes(id)).slice(0, limit);
 }

@@ -3,7 +3,7 @@ import { FrameUploader } from "@/components/frame-uploader";
 import { AppShell } from "@/components/shell";
 import { Button, Card, Field, Notice, Pills, Select, TextArea, Toggle } from "@/components/ui";
 import { redirect } from "@/i18n/navigation";
-import { addSlot, deleteCategory, deleteFrame, deleteSlot, deleteSnippet, draftProfile, saveCategory, saveProfile, saveSnippet, suggestSlots } from "@/lib/actions/brand";
+import { addSlot, deleteCategory, deleteFrame, deleteSlot, deleteSnippet, draftProfile, learnFromPage, saveCategory, saveProfile, saveSnippet, suggestSlots } from "@/lib/actions/brand";
 import type { SchoolProfile } from "@/lib/ai/types";
 import { categoryName } from "@/lib/posting";
 import { signedThumbs } from "@/lib/posts";
@@ -16,7 +16,7 @@ type Tab = (typeof TABS)[number];
 
 // Categories, weekly posting slots, frames, saved text and the brand voice:
 // everything that makes posts look and sound like the school.
-export default async function CategoriesPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string; saved?: string; error?: string; edit?: string; drafted?: string; ai?: string }> }) {
+export default async function CategoriesPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string; saved?: string; error?: string; edit?: string; drafted?: string; ai?: string; learnt?: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const { membership, workspaces } = await requireMembership(locale);
@@ -29,14 +29,16 @@ export default async function CategoriesPage({ params, searchParams }: { params:
   const supabase = await createClient();
   const schoolId = membership.school.id;
 
-  const [{ data: categories }, { data: slots }, { data: frames }, { data: snippets }, { data: school }, { data: counts }] = await Promise.all([
+  const [{ data: categories }, { data: slots }, { data: frames }, { data: snippets }, { data: school }, { data: counts }, { data: metaRows }] = await Promise.all([
     supabase.from("categories").select("*").eq("school_id", schoolId).order("position"),
     supabase.from("time_slots").select("id, weekday, at_time, category_id, platforms").eq("school_id", schoolId).order("weekday").order("at_time"),
     supabase.from("frames").select("id, name, kind, storage_path, shape").eq("school_id", schoolId).order("created_at"),
     supabase.from("snippets").select("id, kind, title, body").eq("school_id", schoolId).order("kind").order("title"),
     supabase.from("schools").select("profile").eq("id", schoolId).single(),
     supabase.from("posts").select("category_id").eq("school_id", schoolId).gte("created_at", new Date(Date.now() - 30 * 86400_000).toISOString()),
+    supabase.rpc("meta_status", { p_school: schoolId }),
   ]);
+  const connected = ((metaRows ?? []) as unknown[]).length > 0;
   const frameUrls = await signedThumbs(supabase, (frames ?? []).map((f) => f.storage_path as string));
   const profile = (school?.profile ?? {}) as SchoolProfile;
   const perCategory = new Map<string, number>();
@@ -51,7 +53,8 @@ export default async function CategoriesPage({ params, searchParams }: { params:
       <Pills items={TABS.map((k) => ({ label: t(`brandPage.tabs.${k}`), href: { pathname: "/categories", query: { tab: k } }, on: k === tab }))} />
       {sp.saved && <Notice tone="good">{t("settings.saved")}</Notice>}
       {sp.drafted && <Notice tone="good">{t("brandPage.drafted")}</Notice>}
-      {sp.error && <Notice>{t(`brandPage.errors.${sp.error}`)}</Notice>}
+      {sp.learnt && <Notice tone="good">{t("more.brand.learnt", { count: Number(sp.learnt) })}</Notice>}
+      {sp.error && <Notice>{["site", "page"].includes(sp.error) ? t(`more.brand.errors.${sp.error}`) : t(`brandPage.errors.${sp.error}`)}</Notice>}
       {sp.ai && <Notice>{t(sp.ai === "limit" ? "composer.aiLimit" : "composer.aiFailed")}</Notice>}
 
       {tab === "categories" && (
@@ -295,8 +298,19 @@ export default async function CategoriesPage({ params, searchParams }: { params:
               <Card title={t("brandPage.draftTitle")}>
                 <form action={draftProfile} className="space-y-2">
                   {hidden}
-                  <TextArea label={t("brandPage.source")} name="source" rows={6} maxLength={6000} required hint={t("brandPage.sourceHint")} />
+                  <Field label={t("more.brand.site")} name="site" dir="ltr" placeholder="www.school.edu.eg" maxLength={300} />
+                  {connected && <Toggle name="fromPage" label={t("more.brand.fromPage")} defaultChecked />}
+                  <TextArea label={t("brandPage.source")} name="source" rows={5} maxLength={6000} hint={t("more.brand.sourceHint")} />
                   <Button icon="sparkle" className="w-full">{t("brandPage.draft")}</Button>
+                </form>
+              </Card>
+            )}
+            {lead && connected && (
+              <Card title={t("more.brand.learnTitle")}>
+                <form action={learnFromPage} className="space-y-2">
+                  {hidden}
+                  <p className="text-xs text-muted">{t("more.brand.learnHint")}</p>
+                  <Button variant="quiet" icon="facebook" className="w-full">{t("more.brand.learn")}</Button>
                 </form>
               </Card>
             )}

@@ -220,3 +220,17 @@ export async function replyToComment(platform: "facebook" | "instagram", comment
 export async function hideComment(platform: "facebook" | "instagram", commentId: string, token: string, hide: boolean) {
   await graph(commentId, platform === "facebook" ? { is_hidden: String(hide), access_token: token } : { hide: String(hide), access_token: token }, "POST");
 }
+
+// The page's own past posts, newest first, with how people responded: used
+// once to learn the school's voice from what already works.
+export async function recentPagePosts(pageId: string, token: string, limit = 100) {
+  type P = { message?: string; created_time: string; shares?: { count: number }; reactions?: { summary: { total_count: number } }; comments?: { summary: { total_count: number } } };
+  const r = await graph<{ data: P[] }>(`${pageId}/posts`, {
+    fields: "message,created_time,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)",
+    limit: String(Math.min(100, limit)),
+    access_token: token,
+  });
+  return r.data
+    .filter((p) => p.message?.trim())
+    .map((p) => ({ text: p.message!.trim(), at: p.created_time, score: (p.reactions?.summary.total_count ?? 0) + (p.comments?.summary.total_count ?? 0) * 2 + (p.shares?.count ?? 0) * 3 }));
+}

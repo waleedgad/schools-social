@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
 import { AiLimitError, getAi, type SchoolProfile } from "@/lib/ai";
 import { can, defaultCan, isRole, PERMISSION_KEYS, ROLES, type Permission, type PermissionOverrides } from "@/lib/roles";
+import { recentPagePosts } from "@/lib/meta";
 import { requireMembership } from "@/lib/session";
+import { siteText } from "@/lib/site-text";
+import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 async function lead(formData: FormData, permission: Permission = "manageCategories") {
@@ -148,9 +151,22 @@ export async function saveProfile(formData: FormData) {
   back(locale, "brand", { saved: "1" });
 }
 
+// Facebook page posts, best first (the connection's token is read with the
+// server key, never sent to the browser).
+async function pagePosts(schoolId: string) {
+  if (!isAdminConfigured) return [];
+  const { data: meta } = await createAdminClient().from("meta_connections").select("page_id, page_token").eq("school_id", schoolId).maybeSingle();
+  if (!meta?.page_id || !meta.page_token) return [];
+  return recentPagePosts(meta.page_id as string, meta.page_token as string).catch(() => []);
+}
+
 export async function draftProfile(formData: FormData) {
   const { locale, membership, schoolId, supabase } = await lead(formData, "manageCategories");
-  const source = str(formData, "source", 6000);
+  const site = str(formData, "site", 300);
+  const fromSite = site ? await siteText(site, 4000) : null;
+  if (site && !fromSite) back(locale, "brand", { error: "site" });
+  const posts = formData.get("fromPage") === "on" ? await pagePosts(schoolId) : [];
+  const source = [str(formData, "source", 6000), fromSite, posts.length ? `Recent Facebook posts:\n${posts.slice(0, 25).map((p) => p.text.slice(0, 300)).join("\n---\n")}` : ""].filter(Boolean).join("\n\n").slice(0, 9000);
   if (source.length < 40) back(locale, "brand", { error: "source" });
   try {
     const draft = await getAi().buildProfile(membership.school.name, source);
@@ -168,6 +184,18 @@ export async function draftProfile(formData: FormData) {
     back(locale, "brand", { ai: e instanceof AiLimitError ? "limit" : "error" });
   }
   back(locale, "brand", { drafted: "1" });
+}
+
+// Learn the voice from the school's own best Facebook posts: the fifteen
+// that people responded to most become examples for the AI.
+export async function learnFromPage(formData: FormData) {
+  const { locale, schoolId, supabase, audit } = await lead(formData, "manageCategories");
+  const posts = await pagePosts(schoolId);
+  if (!posts.length) back(locale, "brand", { error: "page" });
+  const best = [...posts].sort((a, b) => b.score - a.score).slice(0, 12).reverse();
+  for (const p of best) await supabase.rpc("learn_caption", { p_school: schoolId, p_text: p.text });
+  await audit("brand.learnt_page", schoolId, { posts: posts.length });
+  back(locale, "brand", { learnt: String(best.length) });
 }
 
 // Approval rules (Roles plan): who approves inside comms, and the optional

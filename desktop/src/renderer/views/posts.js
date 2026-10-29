@@ -192,6 +192,10 @@ function postMenu(id, after) {
     { label: L("Add to the next free slot", "أضف إلى أقرب موعد متاح"), enabled: !locked, run: async () => { const r = await quiet("app", "intent", { id, intent: "queue" }); toast(r?.ok ? L("Added to the next free slot", "أُضيف إلى أقرب موعد") : r?.message ?? L("Approve it first", "اعتمده أولاً")); after?.(); } },
     { label: L("Open on the website", "افتح على الموقع"), run: () => call("openWeb", `/posts/${id}`) },
     "-",
+    { label: L("Share as a story", "شاركه كقصة"), run: async () => { const r = await quiet("app", "reuse", { id, kind: "story" }); toast(r?.ok ? (r.story === "sent" ? L("Shared as an Instagram story", "تمت مشاركته كقصة على إنستجرام") : L("A story will go out with this post", "ستُنشر قصة مع هذا المنشور")) : r?.error === "instagram" ? L("Connect Instagram first", "اربط إنستجرام أولاً") : L("Couldn't share it as a story", "تعذرت مشاركته كقصة")); after?.(); } },
+    { label: L("Make a week recap", "اصنع ملخص الأسبوع"), run: async () => { const r = await quiet("app", "reuse", { id, kind: "recap" }); if (r?.id) openPost(r.id); else toast(L("Couldn't make the recap", "تعذر صنع الملخص")); } },
+    { label: L("Use in the yearbook", "استخدمه في الكتاب السنوي"), run: async () => { const d = await quiet("app", "post", { id }); const r = await call("yearbookPick", (d?.photos ?? []).map((p) => p.id)); toast(r?.added ? L(`${r.added} photos added to Yearbook picks; yearbook drafts use them first`, `أُضيفت ${num(r.added)} صورة إلى اختيارات الكتاب السنوي؛ تستخدمها مسودات الكتب أولاً`) : L("None of this post's photos are in this Mac's library", "لا توجد صور هذا المنشور في مكتبة هذا الجهاز")); } },
+    "-",
     { label: L("Delete", "حذف"), enabled: !locked, run: async () => { if (!(await confirmBox(L("Delete this post?", "حذف هذا المنشور؟"), L("Delete", "حذف")))) return; await quiet("app", "intent", { id, intent: "delete" }); toast(L("Deleted", "حُذف")); after?.(); } },
   ];
 }

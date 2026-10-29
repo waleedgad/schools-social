@@ -10,6 +10,7 @@ import { loadPost, signedThumbs } from "@/lib/posts";
 import { checkPost } from "@/lib/privacy";
 import type { PermissionOverrides, Role } from "@/lib/roles";
 import type { Membership } from "@/lib/session";
+import { reusePost } from "@/lib/reuse";
 import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/config";
 
 // The Mac app's Posts and Calendar screens. The app sends the signed-in
@@ -119,6 +120,11 @@ async function handle(ctx: PostCtx, body: Body) {
         categories: (categories ?? []).map((c) => ({ id: c.id, color: c.color, name: categoryName(c as { name_ar: string; name_en: string }, locale) })),
         account: { connected: !!m?.page_id, page: m?.page_name ?? membership.school.name, ig: m?.ig_username ?? null },
       };
+    }
+
+    case "reuse": {
+      const r = await reusePost(ctx, String(body.id ?? ""), body.kind === "recap" ? "recap" : "story", locale);
+      return r;
     }
 
     case "intent": {

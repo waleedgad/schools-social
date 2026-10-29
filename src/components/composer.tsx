@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/i18n/navigation";
-import { aiCheck, aiRewrite, aiTranslate, addComment, createReviewLink, generateCaptions, postAction, restoreVersion, pickVariation, splitEnglish } from "@/lib/actions/posts";
+import { aiCheck, aiRewrite, aiTranslate, addComment, createReviewLink, generateCaptions, postAction, restoreVersion, pickVariation, reuse, splitEnglish } from "@/lib/actions/posts";
 import { saveEdit } from "@/lib/actions/library";
 import type { CaptionCheck, Captions } from "@/lib/ai/types";
 import { thumbPath } from "@/lib/images";
@@ -892,6 +892,24 @@ export function Composer({ data }: { data: ComposerData }) {
                 {t("duplicate")}
               </Button>
             </form>
+            {data.can.write && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <form action={reuse}>
+                  {hidden}
+                  <input type="hidden" name="kind" value="story" />
+                  <Button variant="quiet" icon="instagram" className="w-full !px-2 text-xs" disabled={!data.can.publish}>
+                    {tm("reuse.story")}
+                  </Button>
+                </form>
+                <form action={reuse}>
+                  {hidden}
+                  <input type="hidden" name="kind" value="recap" />
+                  <Button variant="quiet" icon="grid" className="w-full !px-2 text-xs">
+                    {tm("reuse.recap")}
+                  </Button>
+                </form>
+              </div>
+            )}
           </Card>
         ) : (
           <Card className="!p-3" title={<span className="text-sm">{tp("next")}</span>}>
@@ -959,12 +977,21 @@ export function Composer({ data }: { data: ComposerData }) {
             )}
             {data.can.write && (
               <div className="mt-3 flex justify-between border-t border-border pt-3">
-                <form action={postAction}>
-                  {hidden}
-                  <Button name="intent" value="duplicate" variant="ghost" className="!px-2 text-xs">
-                    {t("duplicate")}
-                  </Button>
-                </form>
+                <div className="flex gap-1">
+                  <form action={postAction}>
+                    {hidden}
+                    <Button name="intent" value="duplicate" variant="ghost" className="!px-2 text-xs">
+                      {t("duplicate")}
+                    </Button>
+                  </form>
+                  <form action={reuse}>
+                    {hidden}
+                    <input type="hidden" name="kind" value="recap" />
+                    <Button variant="ghost" className="!px-2 text-xs">
+                      {tm("reuse.recap")}
+                    </Button>
+                  </form>
+                </div>
                 <form
                   action={postAction}
                   onSubmit={(e) => {
