@@ -116,3 +116,19 @@ export async function summary(sb: SupabaseClient, schoolId: string) {
     upcoming: upcoming ?? [],
   };
 }
+
+// The web copy again, with the faces of people who can't appear blurred
+// (or unblurred when nobody in it is left out any more).
+export async function reblurWebCopy(sb: SupabaseClient, remoteId: string, file: string, boxes: [number, number, number, number][]) {
+  const { data: row } = await sb.from("photos").select("storage_path").eq("id", remoteId).single();
+  if (!row?.storage_path) return;
+  const { prepare } = await import("./photo");
+  const p = await prepare(file, boxes);
+  const thumb = String(row.storage_path).replace(/\.jpg$/, "_t.jpg");
+  const bucket = sb.storage.from("photos");
+  const options = { contentType: "image/jpeg", upsert: true };
+  const [a, b] = await Promise.all([bucket.upload(row.storage_path as string, p.full, options), bucket.upload(thumb, p.thumb, options)]);
+  if (a.error || b.error) throw new Error((a.error ?? b.error)!.message);
+  const { error } = await sb.from("photos").update({ blur_boxes: boxes, contains_opted_out: false }).eq("id", remoteId);
+  if (error) throw new Error(error.message);
+}

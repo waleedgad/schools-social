@@ -260,6 +260,8 @@ export function openDb(file: string): Db {
   addColumn(db, "photos", "problems", "text");
   addColumn(db, "photos", "clip", "blob");
   addColumn(db, "faces", "smile", "real");
+  addColumn(db, "photos", "web_blur", "text");
+  addColumn(db, "photos", "web_people", "text");
   addColumn(db, "albums", "shared", "integer not null default 0");
   addColumn(db, "albums", "remote_id", "text");
   addColumn(db, "history", "who", "text");

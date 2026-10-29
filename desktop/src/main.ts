@@ -13,19 +13,22 @@ import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRej
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { SHOW_FROM, SURE } from "./core/faces";
 import { groupMoves, planFiling } from "./core/filing";
-import { eventFolder, guessEvent, isLibraryFile, placeFromPath, safeName, setTermDates, type TermDates } from "./core/library";
+import { eventFolder, isLibraryFile, placeFromPath, safeName, setTermDates, type TermDates } from "./core/library";
 import type { Ctx } from "./features/ctx";
 import { nameMatches } from "./core/names";
 import { binTimer, manageApi } from "./features/manage";
 import { libraryApi, PHOTO_COLUMNS } from "./features/library";
 import { importsApi } from "./features/imports";
+import { webSync } from "./features/websync";
+import { todayApi } from "./features/today";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
 import { LibrarySync } from "./core/sync";
 import { AuraDownload } from "./core/models";
 import { visionFaces } from "./core/vision";
-import { downloadPhoto, finishCheck, pushStudents, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
+import { downloadPhoto, finishCheck, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
+import { exclusive } from "./core/lock";
 
 type Watched = { path: string; label: string };
 type Settings = {
@@ -631,13 +634,34 @@ function restoreFaces(rows: ReturnType<typeof faceRowsFor>, inserted: number[] =
 function syncOptedOut(photoIds: number[]) {
   const sb = client();
   if (!sb || !settings.get().userId || !photoIds.length) return;
-  const rows = all<{ remote_id: string; opted: number }>(
-    `select p.remote_id, exists (select 1 from faces f join students s on s.id = f.student_id
+  const rows = all<{ id: number; path: string; remote_id: string; opted: number; web_blur: string | null; missing: number }>(
+    `select p.id, p.path, p.remote_id, p.web_blur, p.missing, exists (select 1 from faces f join students s on s.id = f.student_id
        where f.photo_id = p.id and f.status in ('confirmed', 'manual') and s.can_post = 0) opted
      from photos p where p.id in (${marks(photoIds.length)}) and p.remote_id is not null`,
     ...photoIds,
   );
-  if (rows.length) setOptedOut(sb, rows.map((r) => ({ remoteId: r.remote_id, optedOut: !!r.opted }))).catch((e) => (lastMessage = String(e)));
+  if (!rows.length) return;
+  // With "blur faces of people who can't appear" on, the web copy gets those
+  // faces blurred and the photo can be used; otherwise it is blocked.
+  const blur = settings.get().blurNoPost !== false;
+  const flags = rows.filter((r) => !blur || r.missing || !(r.opted || r.web_blur));
+  if (flags.length) setOptedOut(sb, flags.map((r) => ({ remoteId: r.remote_id, optedOut: !!r.opted }))).catch((e) => (lastMessage = String(e)));
+  for (const r of rows.filter((r) => blur && !r.missing && (r.opted || r.web_blur))) {
+    const boxes = r.opted
+      ? all<{ x: number; y: number; w: number; h: number }>(
+          "select f.x, f.y, f.w, f.h from faces f join students s on s.id = f.student_id where f.photo_id = ? and f.status in ('confirmed', 'manual') and s.can_post = 0 and f.w > 0",
+          r.id,
+        ).map((b) => [b.x, b.y, b.w, b.h] as [number, number, number, number])
+      : [];
+    const key = JSON.stringify(boxes.map((b) => b.map((v) => +v.toFixed(3))));
+    if ((r.web_blur ?? "[]") === key) continue;
+    exclusive(() => reblurWebCopy(sb, r.remote_id, r.path, boxes))
+      .then(() => db.prepare("update photos set web_blur = ? where id = ?").run(boxes.length ? key : null, r.id))
+      .catch((e) => {
+        log(`blur ${r.id}: ${e}`);
+        setOptedOut(sb, [{ remoteId: r.remote_id, optedOut: !!r.opted }]).catch(() => {});
+      });
+  }
 }
 
 function confirmFaces(faceIds: number[], studentId: string) {
@@ -1375,8 +1399,11 @@ app.whenReady().then(async () => {
   };
   const imports = importsApi(ctx);
   importJobs = imports.jobs;
-  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api };
+  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx) };
   imports.startWatching();
+  const web = webSync(ctx);
+  web.start();
+  features.webSyncNow = () => web.now();
   stopImports = imports.stopWatching;
   timers.push(binTimer(ctx, features));
 
@@ -1559,118 +1586,6 @@ app.whenReady().then(async () => {
     clearPreviews: () => rm(path.join(data("cache"), "previews"), { recursive: true, force: true }),
     openBin: () => send("go:cleanup"),
 
-    importSource: async (dir?: string) => {
-      if (!dir) dir = (await chooseFolder("Photos to import (memory card, phone or photographer's folder)")) ?? undefined;
-      if (!dir) return null;
-      const files = await listFiles(dir);
-      const lib = settings.get().library;
-      if (lib && path.resolve(dir).startsWith(path.resolve(lib) + path.sep)) throw new Error("inside-library");
-      const { default: exifr } = await import("exifr");
-      let first: string | null = null;
-      let days = new Set<string>();
-      for (const f of files.slice(0, 400)) {
-        const t = await exifr.parse(f, ["DateTimeOriginal"]).catch(() => null);
-        const d = t?.DateTimeOriginal;
-        if (d instanceof Date && !Number.isNaN(d.getTime())) {
-          const iso = d.toISOString().slice(0, 10);
-          days.add(iso);
-          if (!first || iso < first) first = iso;
-        }
-      }
-      importFiles = files;
-      return { dir, name: path.basename(dir), count: files.length, firstDate: first, days: [...days].sort(), raw: files.filter((f) => /\.(cr2|cr3|nef|arw|dng|raf|orf|rw2)$/i.test(f)).length };
-    },
-    // Several folders at once: each becomes its own event, named and dated
-    // from the folder name where it can be read.
-    importSources: async (dirs?: string[]) => {
-      if (!dirs?.length) {
-        const r = await dialog.showOpenDialog(win!, { title: "Folders to import (choose several with ⌘ or ⇧)", properties: ["openDirectory", "multiSelections"] });
-        if (r.canceled) return null;
-        dirs = r.filePaths;
-      }
-      const lib = settings.get().library;
-      const { default: exifr } = await import("exifr");
-      importBatch = new Map();
-      const out = [];
-      for (const dir of dirs) {
-        if (lib && path.resolve(dir).startsWith(path.resolve(lib) + path.sep)) continue;
-        const files = await listFiles(dir);
-        const guess = guessEvent(path.basename(dir));
-        let first: string | null = guess.date;
-        if (!first) {
-          for (const f of files.slice(0, 40)) {
-            const t = await exifr.parse(f, ["DateTimeOriginal"]).catch(() => null);
-            const d = t?.DateTimeOriginal;
-            if (d instanceof Date && !Number.isNaN(d.getTime())) {
-              const iso = d.toISOString().slice(0, 10);
-              if (!first || iso < first) first = iso;
-            }
-          }
-        }
-        importBatch.set(dir, files);
-        out.push({ dir, name: path.basename(dir), count: files.length, title: guess.title || (guess.date ? "Event" : path.basename(dir)), date: first });
-      }
-      return out;
-    },
-    runImports: async (o: { items: { dir: string; title: string; date: string | null; className: string | null }[]; skipDuplicates: boolean; archive: boolean }) => {
-      const lib = settings.get().library;
-      if (!lib) throw new Error("no-library");
-      const total = o.items.reduce((n, it) => n + (importBatch.get(it.dir)?.length ?? 0), 0);
-      let before = 0;
-      const sum = { copied: 0, duplicates: 0, failed: 0, events: 0 };
-      for (const it of o.items) {
-        const files = importBatch.get(it.dir) ?? [];
-        if (!files.length || it.title.trim().length < 2) continue;
-        const r = await importPhotos({
-          db,
-          library: lib,
-          files,
-          title: it.title.trim(),
-          date: it.date,
-          className: it.className,
-          byDay: false,
-          skipDuplicates: o.skipDuplicates,
-          onProgress: (done) => sendWin("progress", { done: before + done, total }),
-        });
-        before += files.length;
-        if (o.archive) for (const f of r.folders) db.prepare("insert into folders (path, archive) values (?, 1) on conflict (path) do update set archive = 1").run(f);
-        sum.copied += r.copied;
-        sum.duplicates += r.duplicates;
-        sum.failed += r.failed;
-        sum.events++;
-      }
-      remember("import", `${sum.copied}:${sum.events} events`, null);
-      importBatch = new Map();
-      push("photos");
-      return sum;
-    },
-    volumes: async () => {
-      if (process.platform !== "darwin") return [];
-      const { readdir } = await import("node:fs/promises");
-      const vols = await readdir("/Volumes").catch(() => [] as string[]);
-      return vols.filter((v) => existsSync(path.join("/Volumes", v, "DCIM"))).map((v) => ({ name: v, path: path.join("/Volumes", v, "DCIM") }));
-    },
-    runImport: async (o: { title: string; date: string | null; className: string | null; byDay: boolean; skipDuplicates: boolean; archive: boolean }) => {
-      const lib = settings.get().library;
-      if (!lib) throw new Error("no-library");
-      const r = await importPhotos({
-        db,
-        library: lib,
-        files: importFiles,
-        title: o.title,
-        date: o.date,
-        className: o.className,
-        byDay: o.byDay,
-        skipDuplicates: o.skipDuplicates,
-        onProgress: (done, total) => sendWin("progress", { done, total }),
-      });
-      if (o.archive) for (const f of r.folders) db.prepare("insert into folders (path, archive) values (?, 1) on conflict (path) do update set archive = 1").run(f);
-      remember("import", `${r.copied}:${o.title}`, null);
-      importFiles = [];
-      push("photos");
-      return r;
-    },
-
     previewStudents: (file?: string) => previewStudents(file),
     pickPortraits: () => chooseFolder("Folder of student portraits (named by student ID)"),
     commitStudents: (folder: string | null) => commitStudents(folder),
@@ -1762,8 +1677,6 @@ app.whenReady().then(async () => {
     showFile: (file: string) => shell.showItemInFolder(file),
     ...features,
   };
-  let importFiles: string[] = [];
-  let importBatch = new Map<string, string[]>();
 
   ipcMain.handle("call", async (_e, name: string, ...args: unknown[]) => {
     const fn = api[name];

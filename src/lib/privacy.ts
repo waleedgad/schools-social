@@ -66,6 +66,9 @@ export async function checkPost(
   const optedOut = photos.filter((p) => p.contains_opted_out).length;
   if (optedOut) checks.push({ level: "block", key: "optedOut", values: { count: optedOut } });
 
+  const blurred = photos.filter((p) => (p.blur_boxes?.length ?? 0) > 0).length;
+  if (blurred) checks.push({ level: "warn", key: "blurred", values: { count: blurred } });
+
   const sensitive = photos.filter((p) => p.ai_issues.includes("sensitive")).length;
   if (sensitive && !post.sensitive) checks.push({ level: "block", key: "aiSensitive", values: { count: sensitive } });
 

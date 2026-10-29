@@ -285,6 +285,7 @@
       "noCaption": "Write a caption.",
       "noPlatform": "Choose Facebook, Instagram or both.",
       "optedOut": "{count, plural, one {# photo is} other {# photos are}} marked not for posting. Remove them.",
+      "blurred": "{count, plural, one {# photo has} other {# photos have}} faces blurred (people who can't appear). Check they look right.",
       "aiSensitive": "AI thinks {count, plural, one {# photo is} other {# photos are}} sensitive. Remove them or tick \"Sensitive post\" so the principal checks.",
       "studentName": "The caption names a student ({names}). Remove the name.",
       "classConsent": "{count} students in {className} have no consent. Check no one of them appears in the photos.",

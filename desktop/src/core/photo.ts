@@ -8,8 +8,24 @@ export type Prepared = { full: Buffer; thumb: Buffer; width: number; height: num
 
 // A web copy (2048 px) and a thumbnail (480 px). sharp drops all metadata
 // unless asked to keep it, so GPS location never leaves the school.
-export async function prepare(file: string): Promise<Prepared> {
-  const base = sharp(await source(file), { failOn: "error" }).rotate();
+// Faces of people who can't appear (boxes as fractions of the photo) can be
+// blurred in the web copy; the original at school is never changed.
+export async function prepare(file: string, blur: [number, number, number, number][] = []): Promise<Prepared> {
+  let base = sharp(await source(file), { failOn: "error" }).rotate();
+  if (blur.length) {
+    const sized = await base.resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true }).toBuffer({ resolveWithObject: true });
+    const W = sized.info.width, H = sized.info.height;
+    const parts = [];
+    for (const [x, y, w, h] of blur) {
+      // A little bigger than the face so hair and edges are covered too.
+      const left = Math.max(0, Math.floor((x - w * 0.2) * W)), top = Math.max(0, Math.floor((y - h * 0.25) * H));
+      const width = Math.min(W - left, Math.ceil(w * 1.4 * W)), height = Math.min(H - top, Math.ceil(h * 1.5 * H));
+      if (width < 4 || height < 4) continue;
+      const input = await sharp(sized.data).extract({ left, top, width, height }).resize(Math.max(2, Math.round(width / 24)), Math.max(2, Math.round(height / 24))).resize(width, height, { kernel: "cubic" }).blur(Math.max(2, width / 14)).toBuffer();
+      parts.push({ input, left, top });
+    }
+    base = sharp(await sharp(sized.data).composite(parts).jpeg({ quality: 95 }).toBuffer());
+  }
   const full = await base
     .clone()
     .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })

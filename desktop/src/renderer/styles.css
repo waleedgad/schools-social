@@ -422,3 +422,38 @@ details.adv[open] summary::before { content: "▾ "; }
 .itile .vph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
 .ibar { position: sticky; bottom: 12px; z-index: 4; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 18px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px) saturate(1.6); box-shadow: var(--shadow); animation: fadeUp .2s var(--ease); }
 .card.hl { box-shadow: var(--shadow), inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* Today */
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.tgrid > .wide, .tcard.wide { grid-column: 1 / -1; }
+.tcard { display: flex; flex-direction: column; gap: 10px; animation: fadeUp .3s var(--ease) both; }
+.tcard .thead h3 { margin: 0; font-size: 15px; }
+.tcard .thead .sic { width: 26px; height: 26px; }
+.tcard.editing { outline: 2px dashed color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 2px; cursor: grab; }
+.tcard.lift { opacity: .5; }
+.tcard.over { outline-style: solid; }
+.tcard .grip { color: var(--faint); display: flex; }
+.trow { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 0; background: transparent; color: var(--text); font: inherit; text-align: start; cursor: pointer; width: 100%; }
+.trow:hover { background: var(--grey-bg); }
+.trow.bad { color: var(--bad); }
+.trow .tthumb { width: 36px; height: 36px; border-radius: 7px; object-fit: cover; }
+.tstrip { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 3px; }
+.tstrip img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 5px; cursor: pointer; }
+.tiny { font-size: 11px; }
+.wstrip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.wday { background: var(--surface2); border-radius: 12px; padding: 8px; min-height: 120px; display: flex; flex-direction: column; gap: 4px; cursor: default; }
+.wday.now { box-shadow: inset 0 0 0 2px var(--accent); }
+.wday.off { opacity: .55; background: repeating-linear-gradient(135deg, transparent 0 6px, var(--line2) 6px 8px); }
+.wev { font-size: 11px; background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 2px 6px; }
+.wpost { font-size: 11.5px; border-inline-start: 3px solid var(--c); padding: 2px 6px; border-radius: 4px; background: var(--surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.wfree { font: inherit; font-size: 11px; border: 1px dashed var(--line); color: var(--muted); background: transparent; border-radius: 6px; padding: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 3px; }
+.wfree:hover { color: var(--accent); border-color: var(--accent); }
+.tcomment { padding: 8px 10px; background: var(--surface2); border-radius: 10px; }
+.tcomment textarea { font: inherit; font-size: 12.5px; }
+.wizard { display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
+.wizard .wsteps { gap: 6px; }
+.wizard .dot { width: 26px; height: 5px; border-radius: 3px; background: var(--line); }
+.wizard .dot.ok { background: color-mix(in srgb, var(--good) 60%, transparent); }
+.wizard .dot.on { background: var(--accent); }
+.sic { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-bg); color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
+.tcard .thead .sic { width: 26px; height: 26px; border-radius: 8px; }

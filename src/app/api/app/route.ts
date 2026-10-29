@@ -2,6 +2,7 @@ import { createClient as createSupabase } from "@supabase/supabase-js";
 import { getTranslations } from "next-intl/server";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAi, type CaptionOptions, type SchoolProfile } from "@/lib/ai";
+import { handleExtra } from "@/lib/app-extra";
 import { thumbPath } from "@/lib/images";
 import { generateFor, INTENTS, runIntent, type PostCtx } from "@/lib/post-core";
 import { categoryName, zonedTime, type Slot } from "@/lib/posting";
@@ -196,7 +197,8 @@ async function handle(ctx: PostCtx, body: Body) {
       return { ok: true };
     }
   }
-  return { error: "unknown" };
+  const extra = await handleExtra(ctx, body, locale);
+  return extra ?? { error: "unknown" };
 }
 
 export async function POST(request: NextRequest) {

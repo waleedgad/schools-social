@@ -51,6 +51,7 @@ App.views.posts = {
     $("#p-web", main).onclick = () => call("openWeb", "/posts");
     this.load();
     if (params.post) openPost(params.post);
+    else if (params.new) newPostMenu(params.day);
   },
   async load() {
     const r = await quiet("app", "board");
