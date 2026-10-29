@@ -417,6 +417,11 @@ export class Engine {
       });
       const named = new Set([...kept.values()].filter((r) => ["confirmed", "manual"].includes(r.status as string) && r.student_id).map((r) => r.student_id as string));
       for (const r of old) if ((r.w as number) === 0 && r.student_id) named.add(r.student_id as string); // tagged with no face box
+      // A face someone named that this scan doesn't find again (a mask, a
+      // turned head, a different finder) keeps its box and its name.
+      const keptIds = new Set([...kept.values()].map((r) => r.id as number));
+      const lost = old.filter((r) => (r.w as number) > 0 && r.student_id && ["confirmed", "manual"].includes(r.status as string) && !(r.status === "confirmed" && r.auto) && !keptIds.has(r.id as number)).map((r) => r.id as number);
+      for (const r of old) if (lost.includes(r.id as number)) named.add(r.student_id as string);
       const known = this.knownFor(p.class_name as string | null, p.at as string | null, this.knownFaces(model));
       const traits = traitCentres(known, found[0]?.embedding.length ?? 0);
       const people = this.peopleInfo();
@@ -438,7 +443,7 @@ export class Engine {
       });
       const matches = assignPhoto(free, known, model, named, fits);
       tx(this.db, () => {
-        this.db.prepare("delete from faces where photo_id = ? and portrait = 0 and w > 0").run(id);
+        this.db.prepare(`delete from faces where photo_id = ? and portrait = 0 and w > 0 ${lost.length ? `and id not in (${lost.join(",")})` : ""}`).run(id);
         const insert = this.db.prepare(
           "insert into faces (photo_id, x, y, w, h, score, embedding, status, student_id, suggest_id, suggest_score, auto, rejected, model, why, named_by) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         );
@@ -918,6 +923,16 @@ export class Engine {
     const { mkdir } = await import("node:fs/promises");
     await mkdir(dir, { recursive: true });
     const undo: { id: number; from: string }[] = [];
+    // A photo's RAW twin, "-edit" copy and exact duplicates go with it when
+    // they sit in the same folder; they are hidden behind it in the library.
+    if (ids.length) {
+      const m = ids.map(() => "?").join(",");
+      const extra = this.db
+        .prepare(`select c.id, c.path, o.path as main from photos c join photos o on o.id = coalesce(c.pair_of, c.edited_of, c.dup_of) where (c.pair_of in (${m}) or c.edited_of in (${m}) or c.dup_of in (${m})) and c.missing = 0`)
+        .all(...ids, ...ids, ...ids) as { id: number; path: string; main: string }[];
+      const have = new Set(ids);
+      ids = [...ids, ...extra.filter((e) => !have.has(e.id) && path.dirname(e.path) === path.dirname(e.main)).map((e) => e.id)];
+    }
     for (const id of ids) {
       const p = this.db.prepare("select path from photos where id = ?").get(id) as Row | undefined;
       if (!p) continue;
