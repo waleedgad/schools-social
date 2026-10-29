@@ -486,6 +486,14 @@ window.hub.onState((s) => {
   const im = /^imported:(\d+):(.+)$/.exec(s.message ?? "");
   if (w) new Notification("School Social Hub", { body: L(`New photos from ${w[1]} are in the library`, `صور جديدة من ${w[1]} في المكتبة`) });
   if (im) new Notification("School Social Hub", { body: L(`Import finished: ${im[1]} photos in ${im[2]}`, `انتهى الاستيراد: ${im[1]} صورة في ${im[2]}`) });
+  // The monthly clean-up reminder.
+  const cl = /^clean:(\d+)$/.exec(s.message ?? "");
+  if (cl) {
+    const size = fmtBytes(Number(cl[1]));
+    const n = new Notification(L("Time for the monthly clean-up", "حان وقت التنظيف الشهري"), { body: L(`About ${size} can be freed. Nothing posted, picked or named is ever offered.`, `يمكن تحرير نحو ${size}. لا يُعرض أي شيء منشور أو مختار أو فيه أسماء.`) });
+    n.onclick = () => go("cleanup");
+    toastAction(L(`Monthly clean-up: about ${size} can be freed`, `التنظيف الشهري: يمكن تحرير نحو ${size}`), L("Open", "فتح"), () => go("cleanup"), 15000);
+  }
 });
 
 const ACTIONS = () => ({

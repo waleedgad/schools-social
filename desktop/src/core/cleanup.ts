@@ -7,7 +7,7 @@ import { hamming } from "./media";
 // what the person chooses to the Bin. RAW and JPEG pairs are always kept.
 
 export type CleanPhoto = { id: number; path: string; size: number; width: number | null; height: number | null; quality: number | null; sharpness: number | null; brightness: number | null; name: string; taken_at: string | null; edited_of: number | null; reason?: string };
-export type CleanGroup = { keep: number; extra: number[]; size: number };
+export type CleanGroup = { keep: number; extra: number[]; size: number; kept?: number[] };
 
 const COLS = "id, path, size, width, height, quality, sharpness, brightness, name, taken_at, edited_of";
 const BASE = "missing = 0 and pair_of is null and is_raw = 0";
@@ -17,6 +17,37 @@ const BASE = "missing = 0 and pair_of is null and is_raw = 0";
 const looksLikeCopy = (name: string) => /whatsapp|img-\d{8}-wa|\bcopy\b|نسخة|-export|_small|resized/i.test(name);
 function rank(p: CleanPhoto) {
   return (looksLikeCopy(p.name) ? 0 : 1e12) + (p.width ?? 0) * (p.height ?? 0) * 10 + (p.sharpness ?? 0);
+}
+
+// Photos never offered for cleaning: posted, picked (flag or 4-5 stars), in a
+// yearbook, or with someone named in them. In a group, a protected photo is
+// kept too (and becomes the one kept if the best one isn't protected).
+export function protectedIds(db: Db) {
+  const ids = new Set<number>(
+    (db.prepare("select id from photos where posts > 0 or flag = 1 or rating >= 4 or exists (select 1 from faces f where f.photo_id = photos.id and f.status in ('confirmed', 'manual'))").all() as { id: number }[]).map((r) => r.id),
+  );
+  for (const b of db.prepare("select spec, pages, locked from books").all() as { spec: string | null; pages: string | null; locked: string | null }[])
+    for (const text of [b.spec, b.pages, b.locked]) {
+      if (!text) continue;
+      try {
+        walk(JSON.parse(text), ids);
+      } catch {}
+    }
+  return ids;
+}
+function walk(v: unknown, ids: Set<number>, key = "") {
+  if (Array.isArray(v)) v.forEach((x) => walk(x, ids, key));
+  else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, ids, k);
+  else if (typeof v === "number" && /^(photo|photos|photoId|photoIds|ids|cover)$/i.test(key)) ids.add(v);
+}
+export function guardGroups(groups: CleanGroup[], prot: Set<number>, sizeOf: (id: number) => number) {
+  const out: CleanGroup[] = [];
+  for (const g of groups) {
+    const extra = g.extra.filter((id) => !prot.has(id));
+    if (!extra.length) continue;
+    out.push({ ...g, extra, size: extra.reduce((n, id) => n + sizeOf(id), 0), kept: g.extra.filter((id) => prot.has(id)) } as CleanGroup);
+  }
+  return out;
 }
 
 function group<T extends CleanPhoto>(rows: T[], same: (a: T, b: T) => boolean): CleanGroup[] {
@@ -46,7 +77,13 @@ export function exactCopies(db: Db) {
     g.size += r.size;
     byKeep.set(r.dup_of, g);
   }
-  return [...byKeep.values()];
+  return guarded(db, [...byKeep.values()]);
+}
+
+function guarded(db: Db, groups: CleanGroup[]) {
+  const prot = protectedIds(db);
+  const size = db.prepare("select size from photos where id = ?");
+  return guardGroups(groups, prot, (id) => (size.get(id) as { size: number } | undefined)?.size ?? 0);
 }
 
 // The same picture saved again: resized, exported or sent over WhatsApp.
@@ -54,7 +91,7 @@ export function exactCopies(db: Db) {
 // kept with their original, never offered here.
 export function otherSizes(db: Db) {
   const rows = db.prepare(`select ${COLS}, dhash from photos where ${BASE} and dup_of is null and edited_of is null and dhash is not null order by dhash`).all() as (CleanPhoto & { dhash: string })[];
-  return group(rows, (a, b) => hamming(a.dhash, b.dhash) <= 2 && (a.width !== b.width || looksLikeCopy(a.name) || looksLikeCopy(b.name)) && !hasEdit(db, a.id, b.id));
+  return guarded(db, group(rows, (a, b) => hamming(a.dhash, b.dhash) <= 2 && (a.width !== b.width || looksLikeCopy(a.name) || looksLikeCopy(b.name)) && !hasEdit(db, a.id, b.id)));
 }
 
 function hasEdit(db: Db, a: number, b: number) {
@@ -64,7 +101,7 @@ function hasEdit(db: Db, a: number, b: number) {
 // Bursts: shots seconds apart that look nearly the same. The best is kept.
 export function nearIdentical(db: Db) {
   const rows = db.prepare(`select ${COLS}, dhash from photos where ${BASE} and dup_of is null and edited_of is null and dhash is not null and taken_at is not null and flag >= 0 order by taken_at`).all() as (CleanPhoto & { dhash: string })[];
-  return group(rows, (a, b) => Math.abs(Date.parse(a.taken_at!) - Date.parse(b.taken_at!)) < 15_000 && hamming(a.dhash, b.dhash) <= 6);
+  return guarded(db, group(rows, (a, b) => Math.abs(Date.parse(a.taken_at!) - Date.parse(b.taken_at!)) < 15_000 && hamming(a.dhash, b.dhash) <= 6));
 }
 
 // Blurry, too dark or too bright. Strict = "strict" catches more.
@@ -75,12 +112,14 @@ export function badPhotos(db: Db, strict: "gentle" | "normal" | "strict" = "norm
   const rows = db
     .prepare(`select ${COLS} from photos where ${BASE} and dup_of is null and flag = 0 and sharpness is not null and (sharpness < ? or brightness < ? or brightness > ?) order by sharpness limit 2000`)
     .all(sharpMin, darkMax, brightMin) as CleanPhoto[];
-  return rows.map((r) => ({ ...r, reason: (r.sharpness ?? 99) < sharpMin ? "blurry" : (r.brightness ?? 0.5) < darkMax ? "dark" : "bright" }));
+  const prot = protectedIds(db);
+  return rows.filter((r) => !prot.has(r.id)).map((r) => ({ ...r, reason: (r.sharpness ?? 99) < sharpMin ? "blurry" : (r.brightness ?? 0.5) < darkMax ? "dark" : "bright" }));
 }
 
 export function oldRejected(db: Db, months: number) {
   const before = Date.now() - months * 30 * 86400_000;
-  return db.prepare(`select ${COLS} from photos where missing = 0 and flag = -1 and pair_of is null and added_at < ? order by added_at`).all(before) as CleanPhoto[];
+  const prot = protectedIds(db);
+  return (db.prepare(`select ${COLS} from photos where missing = 0 and flag = -1 and pair_of is null and added_at < ? order by added_at`).all(before) as CleanPhoto[]).filter((r) => !prot.has(r.id));
 }
 
 // Folders with no photos (and nothing else) left in them.

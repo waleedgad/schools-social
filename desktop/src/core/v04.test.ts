@@ -237,3 +237,29 @@ test("duplicate students found by spelling", () => {
   assert.equal(d.length, 1);
   assert.deepEqual(d[0].map((r) => r.id).sort(), ["S1", "X9"]);
 });
+
+import { exactCopies, oldRejected } from "./cleanup";
+
+test("clean up never offers posted, picked, named or yearbook photos", () => {
+  const dir = temp();
+  const db = openDb(path.join(dir, "l.db"));
+  const add = (id: number, extra: Record<string, unknown> = {}) => {
+    const row = { id, path: `/x/${id}.jpg`, name: `${id}.jpg`, ext: ".jpg", size: 100, mtime: 1, added_at: 1, ...extra };
+    db.prepare(`insert into photos (${Object.keys(row).join(", ")}) values (${Object.keys(row).map(() => "?").join(", ")})`).run(...(Object.values(row) as never[]));
+  };
+  add(1);
+  add(2, { dup_of: 1 });
+  add(3, { dup_of: 1, posts: 2 });
+  add(4, { dup_of: 1, flag: 1 });
+  add(5, { flag: -1 });
+  add(6, { flag: -1 });
+  add(7, { flag: -1 });
+  db.prepare("insert into students (id, name_en, added_at) values ('S1', 'Ali', 1)").run();
+  db.prepare("insert into faces (photo_id, x, y, w, h, student_id, status) values (6, 0, 0, .1, .1, 'S1', 'confirmed')").run();
+  db.prepare("insert into books (spec, pages, updated_at) values (?, ?, 1)").run(JSON.stringify({ title: "Book" }), JSON.stringify([{ photos: [7] }]));
+  const g = exactCopies(db);
+  assert.deepEqual(g[0].extra, [2]);
+  assert.deepEqual(oldRejected(db, 0).map((p) => p.id), [5]);
+  db.close();
+  rmSync(dir, { recursive: true, force: true });
+});

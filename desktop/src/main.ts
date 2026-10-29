@@ -16,7 +16,7 @@ import { groupMoves, planFiling } from "./core/filing";
 import { eventFolder, isLibraryFile, placeFromPath, safeName, setTermDates, type TermDates } from "./core/library";
 import type { Ctx } from "./features/ctx";
 import { nameMatches } from "./core/names";
-import { binTimer, manageApi } from "./features/manage";
+import { binTimer, cleanTimer, manageApi } from "./features/manage";
 import { libraryApi, PHOTO_COLUMNS } from "./features/library";
 import { importsApi } from "./features/imports";
 import { webSync } from "./features/websync";
@@ -1410,7 +1410,7 @@ app.whenReady().then(async () => {
   web.start();
   features.webSyncNow = () => web.now();
   stopImports = imports.stopWatching;
-  timers.push(binTimer(ctx, features));
+  timers.push(binTimer(ctx, features), cleanTimer(ctx));
 
   const api: Record<string, (...args: never[]) => unknown> = {
     state: () => state(),
@@ -1589,7 +1589,7 @@ app.whenReady().then(async () => {
       return s.library ? removeEmptyFolders(await emptyFolders(s.library)) : 0;
     },
     clearPreviews: () => rm(path.join(data("cache"), "previews"), { recursive: true, force: true }),
-    openBin: () => send("go:cleanup"),
+    openBin: () => send("go:cleanup-bin"),
 
     previewStudents: (file?: string) => previewStudents(file),
     pickPortraits: () => chooseFolder("Folder of student portraits (named by student ID)"),

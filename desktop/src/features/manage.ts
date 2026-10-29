@@ -274,3 +274,23 @@ export function binTimer(ctx: Ctx, api: Api) {
     if (ctx.settings().get().binAuto) (api.emptyBinOld as () => Promise<number>)().catch(() => {});
   }, 6 * 3600_000);
 }
+
+// Once a month, if there's a good amount to free, a reminder to clean up.
+// The first month starts counting the day the app is first used.
+export function cleanTimer(ctx: Ctx) {
+  const check = async () => {
+    const s = ctx.settings().get() as { cleanReminder?: boolean; library?: string; lastCleanReminder?: number };
+    if (!s.cleanReminder || !s.library) return;
+    if (!s.lastCleanReminder) return ctx.settings().set({ lastCleanReminder: Date.now() });
+    if (Date.now() - (s.lastCleanReminder ?? 0) < 30 * DAY) return;
+    const r = await ctx.call("cleanup").catch(() => null);
+    if (!r) return;
+    const bytes = r.exact.size + r.sizes.size + r.bursts.size + r.bad.size + r.rejected.size + r.cache;
+    ctx.settings().set({ lastCleanReminder: Date.now() });
+    if (bytes < 200 * 1024 * 1024) return;
+    // The window shows it (as a notification, outside quiet hours).
+    ctx.message(`clean:${bytes}`);
+  };
+  setTimeout(() => check().catch(() => {}), 60_000);
+  return setInterval(() => check().catch(() => {}), 6 * 3600_000);
+}

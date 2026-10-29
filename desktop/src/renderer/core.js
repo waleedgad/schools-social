@@ -364,6 +364,7 @@ window.hub.onCommand((c) => {
   if (c.startsWith("go:")) {
     const v = c.slice(3);
     if (v === "students-import") return go("students", { import: true });
+    if (v === "cleanup-bin") return go("cleanup", { bin: true });
     return go(v);
   }
   if (c === "undo") return doUndo();
