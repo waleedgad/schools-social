@@ -314,6 +314,19 @@ export function libraryApi(ctx: Ctx): Api {
     };
   }
 
+  // The guest list of an event: adults named in its photos (teachers, staff,
+  // parents with the student they belong to, visitors), with photo counts.
+  function whoWasThere(ids: number[]) {
+    if (!ids.length) return [];
+    const rows = all<{ id: string; name_en: string | null; name_ar: string | null; kind: string; n: number }>(
+      `select s.id, s.name_en, s.name_ar, s.kind, count(distinct f.photo_id) n from faces f join students s on s.id = f.student_id
+       where f.photo_id in (${marks(ids.length)}) and f.status in ('confirmed', 'manual') and s.kind <> 'student' group by s.id order by s.kind, n desc`,
+      ...ids,
+    );
+    const parentOf = (id: string) => all<{ name_en: string | null; name_ar: string | null; class_name: string | null }>("select s.name_en, s.name_ar, s.class_name from links x join students s on s.id = x.b where x.a = ? and x.kind = 'parent'", id);
+    return rows.map((r) => ({ ...r, of: r.kind === "parent" ? parentOf(r.id) : [] }));
+  }
+
   async function setHidden(ids: number[], hidden: boolean) {
     const before = all<{ id: number; hidden: number }>(`select id, hidden from photos where id in (${marks(ids.length)})`, ...ids);
     run(`update photos set hidden = ? where id in (${marks(ids.length)})`, hidden ? 1 : 0, ...ids);
@@ -341,6 +354,7 @@ export function libraryApi(ctx: Ctx): Api {
       return undo.length;
     },
     photoInfo: (id: number) => info(id),
+    whoWasThere: (ids: number[]) => whoWasThere(ids),
     setHidden: (ids: number[], hidden: boolean) => setHidden(ids, hidden),
     setAlbumShared: async (id: number, shared: boolean) => {
       run("update albums set shared = ? where id = ?", shared ? 1 : 0, id);

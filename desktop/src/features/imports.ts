@@ -612,6 +612,15 @@ foreach ($f in $dcim.GetFolder.Items()) { $dest.CopyHere($f, 4 + 16 + 1024); Wri
           ...photos,
         ).map((r) => r.class_name)
       : [];
+    // A recognised class teacher helps too: a teacher of one class counts
+    // like two students of that class in each photo they are in.
+    if (photos.length)
+      for (const r of all<{ teacher_id: string; class_name: string; classes: number }>(
+        `select ct.teacher_id, ct.class_name, (select count(*) from class_teachers c2 where c2.teacher_id = ct.teacher_id) classes from faces f join class_teachers ct on ct.teacher_id = f.student_id
+         where f.photo_id in (${marks(photos.length)}) and f.status in ('confirmed', 'manual', 'auto')`,
+        ...photos,
+      ))
+        if (r.classes === 1) classes.push(r.class_name, r.class_name);
     const unnamed = photos.length ? one<{ n: number }>(`select count(*) n from faces where photo_id in (${marks(photos.length)}) and status in ('unknown', 'suggested')`, ...photos)?.n ?? 0 : 0;
     const noClass = photos.length ? one<{ n: number }>(`select count(*) n from photos where id in (${marks(photos.length)}) and class_name is null`, ...photos)?.n ?? 0 : 0;
     const events = photos.length ? all(`select event_key key, event_title title, event_date date, count(*) n from photos where id in (${marks(photos.length)}) and event_key is not null group by event_key`, ...photos) : [];

@@ -35,7 +35,7 @@ function timeOf(iso: string, timeZone: string, locale: string) {
 }
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-export default async function CalendarPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ month?: string; week?: string; view?: string; spread?: string; countdown?: string }> }) {
+export default async function CalendarPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ month?: string; week?: string; day?: string; year?: string; view?: string; spread?: string; countdown?: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const { membership, workspaces } = await requireMembership(locale);
@@ -47,7 +47,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
   const schoolId = membership.school.id;
   const timeZone = membership.school.timezone || "Africa/Cairo";
   const sp = await searchParams;
-  const view = sp.view === "week" ? "week" : "month";
+  const view = (["week", "day", "list", "overview"] as const).find((v) => v === sp.view) ?? "month";
   const today = dayKey(new Date().toISOString(), timeZone);
 
   // The visible range: a month (Saturday-first weeks, as in Egyptian
@@ -58,7 +58,20 @@ export default async function CalendarPage({ params, searchParams }: { params: P
   let prev: Record<string, string>;
   let next: Record<string, string>;
   const fmt = (opts: Intl.DateTimeFormatOptions, d: Date) => new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-GB", { ...opts, timeZone: "UTC" }).format(d);
-  if (view === "week") {
+  if (view === "day") {
+    start = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? "") ? new Date(`${sp.day}T00:00:00Z`) : new Date(`${today}T00:00:00Z`);
+    count = 1;
+    label = fmt({ weekday: "long", day: "numeric", month: "long", year: "numeric" }, start);
+    prev = { view, day: iso(new Date(start.getTime() - 86400_000)) };
+    next = { view, day: iso(new Date(start.getTime() + 86400_000)) };
+  } else if (view === "overview") {
+    const y = /^\d{4}$/.test(sp.year ?? "") ? Number(sp.year) : Number(today.slice(0, 4));
+    start = new Date(Date.UTC(y, 0, 1));
+    count = Math.round((Date.UTC(y + 1, 0, 1) - start.getTime()) / 86400_000);
+    label = String(y);
+    prev = { view, year: String(y - 1) };
+    next = { view, year: String(y + 1) };
+  } else if (view === "week") {
     const base = /^\d{4}-\d{2}-\d{2}$/.test(sp.week ?? "") ? new Date(`${sp.week}T00:00:00Z`) : new Date(`${today}T00:00:00Z`);
     start = new Date(base.getTime() - ((base.getUTCDay() + 1) % 7) * 86400_000);
     count = 7;
@@ -128,7 +141,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
     return {
       key,
       day: d.getUTCDate(),
-      inMonth: view === "week" || (sp.month ? key.slice(0, 7) === sp.month : key.slice(0, 7) === today.slice(0, 7)),
+      inMonth: view === "week" || view === "day" || view === "overview" || (sp.month ? key.slice(0, 7) === sp.month : key.slice(0, 7) === today.slice(0, 7)),
       today: key === today,
       past: key < today,
       events: allEvents
@@ -184,7 +197,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
   const have = new Set((withPhotos ?? []).map((r) => r.event_id as string));
   const photosMissing = expected.filter((e) => !have.has(e.id as string));
   // Each week's category mix.
-  const weeks = Array.from({ length: count / 7 }, (_, w) => {
+  const weeks = Array.from({ length: view === "day" || view === "overview" ? 0 : count / 7 }, (_, w) => {
     const list = days.slice(w * 7, w * 7 + 7).flatMap((d) => d.posts);
     const mix = new Map<string, { color: string; name: string; n: number }>();
     for (const p of list) if (p.categoryId && p.color) mix.set(p.categoryId, { color: p.color, name: p.category ?? "", n: (mix.get(p.categoryId)?.n ?? 0) + 1 });
@@ -208,7 +221,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
           <ButtonLink href={{ pathname: "/calendar", query: { view } }} variant="quiet" className="!px-2.5 !py-1.5 text-xs">{t("calendar.today")}</ButtonLink>
           <ButtonLink href={{ pathname: "/calendar", query: next }} variant="ghost" className="!px-2">›</ButtonLink>
           <div className="ms-1 flex rounded-lg border border-border bg-surface p-0.5">
-            {(["month", "week"] as const).map((v) => (
+            {(["day", "week", "month", "list", "overview"] as const).map((v) => (
               <ButtonLink key={v} href={{ pathname: "/calendar", query: { view: v } }} variant={view === v ? "primary" : "ghost"} className="!px-2.5 !py-1 text-xs">
                 {t(`calendar.views.${v}`)}
               </ButtonLink>
@@ -224,8 +237,67 @@ export default async function CalendarPage({ params, searchParams }: { params: P
       {canWrite && gaps.map((g) => (
         <Notice key={g[0]} tone="info">{t("more.calendar.gap", { from: fmt({ weekday: "short", day: "numeric", month: "short" }, new Date(`${g[0]}T00:00:00Z`)), to: fmt({ weekday: "short", day: "numeric", month: "short" }, new Date(`${g[g.length - 1]}T00:00:00Z`)), count: g.length })} <Link href="/posts" className="font-semibold underline">{t("more.calendar.makeWeek")}</Link></Notice>
       ))}
-      <CalendarGrid locale={locale} days={days} weekdays={weekdays} view={view} canWrite={canWrite} />
-      <Card title={t("more.calendar.balance")}>
+      {view === "list" ? (
+        <Card className="!p-0">
+          <ul className="divide-y divide-border">
+            {days.filter((d) => d.inMonth && (d.posts.length || d.events.length || d.holiday || (!d.past && d.slots.length))).map((d) => (
+              <li key={d.key} className={`flex gap-3 p-3 ${d.today ? "bg-accent-bg/40" : ""}`}>
+                <Link href={{ pathname: "/calendar", query: { view: "day", day: d.key } }} className="w-24 shrink-0 text-sm">
+                  <b className="block">{fmt({ weekday: "short", day: "numeric" }, new Date(`${d.key}T00:00:00Z`))}</b>
+                  <span className="text-xs text-muted">{fmt({ month: "short" }, new Date(`${d.key}T00:00:00Z`))}</span>
+                </Link>
+                <div className="min-w-0 grow space-y-1 text-sm">
+                  {d.holiday && <p className="text-xs text-muted">🏖 {d.holiday}</p>}
+                  {d.events.map((e) => <p key={e.id} className="text-xs font-semibold text-warn">{e.photos && "📷 "}{e.repeat && "↻ "}{e.title}</p>)}
+                  {d.posts.map((p) => (
+                    <Link key={p.id} href={`/posts/${p.id}`} className="flex items-center gap-2 rounded-lg border border-border p-1.5 hover:border-accent" style={p.color ? { borderInlineStartColor: p.color, borderInlineStartWidth: 3 } : undefined}>
+                      {p.cover && (
+                        // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
+                        <img src={p.cover} alt="" className="size-9 shrink-0 rounded object-cover" />
+                      )}
+                      <span className="min-w-0 grow truncate">{p.time && <b className="me-1">{p.time}</b>}{p.text || t(`posts.status.${p.status}`)}</span>
+                      <span className="shrink-0 text-xs text-muted">{t(`posts.status.${p.status}`)}</span>
+                    </Link>
+                  ))}
+                  {canWrite && !d.past && d.slots.map((sl) => (
+                    <Link key={sl.time} href={{ pathname: "/posts/new", query: { day: d.key } }} className="block rounded-lg border border-dashed border-border px-2 py-1 text-xs text-faint hover:border-accent hover:text-accent">
+                      {sl.time} {sl.category ?? ""} · {t("more.calendar.noPostYet")}
+                    </Link>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : view === "overview" ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 12 }, (_, m) => {
+            const inM = days.filter((d) => Number(d.key.slice(5, 7)) === m + 1);
+            const list = inM.flatMap((d) => d.posts);
+            const mix = new Map<string, { color: string; name: string; n: number }>();
+            for (const p of list) if (p.categoryId && p.color) mix.set(p.categoryId, { color: p.color, name: p.category ?? "", n: (mix.get(p.categoryId)?.n ?? 0) + 1 });
+            const posted = list.filter((p) => p.status === "published").length;
+            const planned = list.length - posted;
+            const evs = inM.reduce((a, d) => a + d.events.length, 0);
+            const month = `${label}-${String(m + 1).padStart(2, "0")}`;
+            return (
+              <Link key={m} href={{ pathname: "/calendar", query: { view: "month", month } }} className="rounded-xl border border-border bg-surface p-3 hover:border-accent">
+                <div className="flex items-baseline justify-between">
+                  <b>{fmt({ month: "long" }, new Date(Date.UTC(2026, m, 1)))}</b>
+                  <span className="text-xs text-muted">{t("more.calendar.posts", { count: list.length })}</span>
+                </div>
+                <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-grey-bg">
+                  {[...mix.values()].map((x) => <div key={x.name} title={`${x.name}: ${x.n}`} style={{ width: `${(x.n / Math.max(1, list.length)) * 100}%`, background: x.color }} />)}
+                </div>
+                <p className="mt-2 text-xs text-muted">{t("more.calendar.overviewLine", { posted, planned, events: evs })}</p>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <CalendarGrid locale={locale} days={days} weekdays={weekdays} view={view === "day" ? "day" : view} canWrite={canWrite} />
+      )}
+      {weeks.length > 0 && <Card title={t("more.calendar.balance")}>
         <ul className="space-y-1.5">
           {weeks.map((w) => (
             <li key={w.from} className="flex items-center gap-2 text-xs">
@@ -237,7 +309,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
             </li>
           ))}
         </ul>
-      </Card>
+      </Card>}
       {canWrite && (upcoming ?? []).length > 0 && (
         <Card title={t("more.calendar.countdown")}>
           <form action={makeCountdown} className="flex flex-wrap items-end gap-3">

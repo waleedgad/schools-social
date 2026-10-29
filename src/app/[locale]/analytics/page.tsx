@@ -1,5 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { AppShell } from "@/components/shell";
+import { PrintButton } from "@/components/print-button";
+import { Icon } from "@/components/icons";
 import { Card, Empty, Pills, Stat } from "@/components/ui";
 import { Link, redirect } from "@/i18n/navigation";
 import { thumbPath } from "@/lib/images";
@@ -36,7 +38,8 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
   const since = new Date(Date.now() - days * 86400_000);
   const before = new Date(since.getTime() - days * 86400_000);
 
-  const [{ data: posts }, { data: earlier }, { data: cats }, { data: followers }] = await Promise.all([
+  const yearAgo = new Date(Date.now() - 365 * 86400_000);
+  const [{ data: posts }, { data: earlier }, { data: cats }, { data: followers }, { data: history }] = await Promise.all([
     supabase
       .from("posts")
       .select("id, caption_ar, caption_en, published_at, category_id, post_metrics(platform, likes, comments, shares, reach, saves), post_photos(position, photo:photos(storage_path, edited_path))")
@@ -47,6 +50,7 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
     supabase.from("posts").select("id, post_metrics(likes, comments, shares, reach)").eq("school_id", schoolId).eq("status", "published").gte("published_at", before.toISOString()).lt("published_at", since.toISOString()),
     supabase.from("categories").select("id, name_ar, name_en, color").eq("school_id", schoolId).order("position"),
     supabase.from("account_metrics").select("platform, day, followers").eq("school_id", schoolId).gte("day", since.toISOString().slice(0, 10)).order("day"),
+    supabase.from("posts").select("published_at, post_metrics(likes, comments, shares, reach)").eq("school_id", schoolId).eq("status", "published").gte("published_at", yearAgo.toISOString()).limit(3000),
   ]);
 
   const list = posts ?? [];
@@ -77,13 +81,58 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
   const maxHour = Math.max(1, ...hours.map((x) => x.avg));
   const bestHour = hours.filter((x) => x.count >= 2).sort((a, b) => b.avg - a.avg)[0];
 
+  // The last twelve months, month by month.
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() - 11 + i);
+    return d.toISOString().slice(0, 7);
+  }).map((m) => {
+    const mine = (history ?? []).filter((p) => (p.published_at as string).startsWith(m));
+    const sum = (k: string) => mine.reduce((a, p) => a + ((p.post_metrics ?? []) as Record<string, number>[]).reduce((b, x) => b + (x[k] ?? 0), 0), 0);
+    return { m, posts: mine.length, reach: sum("reach"), likes: sum("likes"), comments: sum("comments") };
+  });
+
+  // Plain-language insights from the numbers above (no AI needed, so they
+  // work on the free plan and never guess).
+  const fmtPct = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n)}%`;
+  const insights: string[] = [];
+  const sortedCats = [...byCat].filter((x) => x.count >= 2).sort((a, b) => b.avg - a.avg);
+  if (sortedCats.length >= 2 && sortedCats[sortedCats.length - 1].avg > 0)
+    insights.push(t("more.analytics.catInsight", { best: categoryName(sortedCats[0].c as { name_ar: string; name_en: string }, locale), worst: categoryName(sortedCats[sortedCats.length - 1].c as { name_ar: string; name_en: string }, locale), times: (sortedCats[0].avg / sortedCats[sortedCats.length - 1].avg).toFixed(1) }));
+  if (bestHour) insights.push(t("more.analytics.hourInsight", { hour: `${bestHour.h}:00` }));
+  const wd = Array.from({ length: 7 }, (_, w) => {
+    const mine = list.filter((p) => new Date(p.published_at).getUTCDay() === w);
+    return { w, count: mine.length, avg: mine.length ? mine.reduce((a, p) => a + engagement(p), 0) / mine.length : 0 };
+  }).filter((x) => x.count >= 2).sort((a, b) => b.avg - a.avg)[0];
+  if (wd) insights.push(t("more.analytics.dayInsight", { day: new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-GB", { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 4 + wd.w))) }));
+  const multi = list.filter((p) => p.post_photos.length > 1);
+  const single = list.filter((p) => p.post_photos.length === 1);
+  if (multi.length >= 2 && single.length >= 2) {
+    const a = multi.reduce((x, p) => x + engagement(p), 0) / multi.length;
+    const b = single.reduce((x, p) => x + engagement(p), 0) / single.length;
+    if (b > 0) insights.push(t(a >= b ? "more.analytics.carouselBetter" : "more.analytics.singleBetter", { pct: fmtPct(Math.abs(a - b) / b * 100) }));
+  }
+  const prevCount = (earlier ?? []).length;
+  if (prevCount) insights.push(t("more.analytics.countInsight", { now: list.length, before: prevCount }));
+  const rc = change("reach");
+  if (rc !== null) insights.push(t("more.analytics.reachInsight", { pct: fmtPct(rc) }));
+
   const fb = (followers ?? []).filter((f) => f.platform === "facebook");
   const ig = (followers ?? []).filter((f) => f.platform === "instagram");
   const growth = (rows: typeof fb) => (rows.length > 1 ? (rows[rows.length - 1].followers as number) - (rows[0].followers as number) : null);
 
   return (
     <AppShell locale={locale} membership={membership} workspaces={workspaces} active="analytics" title={t("analytics.title")} subtitle={t("analytics.subtitle")}>
-      <Pills items={[7, 30, 90].map((d) => ({ label: t("analytics.lastDays", { count: d }), href: { pathname: "/analytics", query: { days: String(d) } }, on: d === days }))} />
+      <div className="flex flex-wrap items-center gap-2">
+        <Pills items={[7, 30, 90].map((d) => ({ label: t("analytics.lastDays", { count: d }), href: { pathname: "/analytics", query: { days: String(d) } }, on: d === days }))} />
+        <span className="grow" />
+        <a href={`/api/analytics?days=${days}`} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-semibold hover:bg-background print:hidden">
+          <Icon name="download" />
+          {t("more.analytics.csv")}
+        </a>
+        <PrintButton label={t("more.analytics.pdf")} />
+      </div>
       {!list.length ? (
         <Empty icon="analytics" title={t("analytics.empty")} body={t("analytics.emptyHint")} />
       ) : (
@@ -95,6 +144,13 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
             <Stat label={t("analytics.comments")} value={total("comments").toLocaleString()} change={change("comments")} />
             <Stat label={t("analytics.shares")} value={total("shares").toLocaleString()} change={change("shares")} />
           </div>
+          {insights.length > 0 && (
+            <Card title={t("more.analytics.insights")}>
+              <ul className="list-disc space-y-1 ps-5 text-sm">
+                {insights.map((x) => <li key={x}>{x}</li>)}
+              </ul>
+            </Card>
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
             <Card title={t("analytics.best")}>
               <ul className="divide-y divide-border">
@@ -157,6 +213,32 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
               )}
             </Card>
           </div>
+          <Card title={t("more.analytics.history")}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted">
+                  <tr>
+                    <th className="py-1 text-start font-semibold">{t("more.analytics.month")}</th>
+                    <th className="text-end font-semibold">{t("analytics.posts")}</th>
+                    <th className="text-end font-semibold">{t("analytics.reach")}</th>
+                    <th className="text-end font-semibold">{t("analytics.likes")}</th>
+                    <th className="text-end font-semibold">{t("analytics.comments")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {months.map((r) => (
+                    <tr key={r.m}>
+                      <td className="py-1.5">{new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-GB", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${r.m}-01T00:00:00Z`))}</td>
+                      <td className="text-end">{r.posts}</td>
+                      <td className="text-end">{r.reach.toLocaleString()}</td>
+                      <td className="text-end">{r.likes.toLocaleString()}</td>
+                      <td className="text-end">{r.comments.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </>
       )}
     </AppShell>

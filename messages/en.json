@@ -318,7 +318,10 @@
     "today": "Today",
     "views": {
       "month": "Month",
-      "week": "Week"
+      "week": "Week",
+      "day": "Day",
+      "list": "List",
+      "overview": "Year"
     },
     "spread": "{count, plural, one {# post was} other {# posts were}} given free times.",
     "paused": "Posting is paused, so nothing goes out until it's resumed.",
@@ -701,7 +704,7 @@
       "share": "Share"
     },
     "ai": {
-      "hint": "Tell the AI anything extra, choose the style, and it writes three versions. It uses the photos, the event, the category and your brand voice.",
+      "hint": "Pick a ready-made prompt or write your own, choose the style and how many versions. It uses the photos, the event, the category and your brand voice.",
       "prompt": "Anything to mention? For example: thank Ms Mona's class",
       "toneAuto": "Tone: our usual",
       "tones": {
@@ -1449,7 +1452,81 @@
       "countdown": "Countdown posts",
       "countdownEvent": "Before which event?",
       "daysBefore": "{count, plural, one {# day} other {# days}}",
-      "makeCountdown": "Make countdown ideas"
+      "makeCountdown": "Make countdown ideas",
+      "noPostYet": "No post yet, add one",
+      "overviewLine": "{posted} posted · {planned} planned · {events} school events"
+    },
+    "composer": {
+      "ai": {
+        "template": "Ready-made prompt…",
+        "words": "Words",
+        "wordsN": "{count} words",
+        "options": "Options",
+        "prompts": {
+          "recap": {
+            "label": "Event recap",
+            "text": "Write a recap of this event: what the students did, what they learned and one proud moment."
+          },
+          "achievement": {
+            "label": "Achievement",
+            "text": "Celebrate an achievement: what it was, and thank the teachers who helped. Proud, not boastful."
+          },
+          "welcome": {
+            "label": "Welcome back",
+            "text": "A warm welcome back to school for students and parents, with one practical reminder."
+          },
+          "occasion": {
+            "label": "Occasion",
+            "text": "A greeting for this occasion from the whole school family. Short, warm and respectful."
+          },
+          "thanks": {
+            "label": "Thank a teacher",
+            "text": "Thank the teacher or staff member behind this activity, by role, and say what it meant to the students."
+          },
+          "learning": {
+            "label": "Learning in class",
+            "text": "Show learning in class: the subject, what the students practised, and why it matters."
+          },
+          "sports": {
+            "label": "Sports result",
+            "text": "Report a sports match or day: the teams, the spirit, the result, and thanks to the coaches."
+          },
+          "trip": {
+            "label": "Trip",
+            "text": "A school trip: where they went, what they saw and learned, and thanks to the hosts."
+          },
+          "reminder": {
+            "label": "Reminder for parents",
+            "text": "A clear reminder for parents: what, when, and what to bring or do. Friendly, not bossy."
+          },
+          "exams": {
+            "label": "Exams good luck",
+            "text": "Wish the students good luck before exams, with a calm tip for students and parents."
+          },
+          "results": {
+            "label": "Results day",
+            "text": "Congratulate the students on their results and thank teachers and parents, without naming anyone."
+          },
+          "admissions": {
+            "label": "Open day / admissions",
+            "text": "Invite families thinking of joining: what makes the school special, with the date and how to book."
+          }
+        }
+      }
+    },
+    "analytics": {
+      "csv": "Download spreadsheet",
+      "pdf": "Print or save as PDF",
+      "insights": "What the numbers say",
+      "history": "Month by month",
+      "month": "Month",
+      "catInsight": "{best} posts get {times}× the response of {worst} posts.",
+      "hourInsight": "Posts around {hour} do best. Try putting your strongest post there.",
+      "dayInsight": "{day} is your best day of the week.",
+      "carouselBetter": "Posts with several photos do {pct} better than single photos.",
+      "singleBetter": "Single photos do {pct} better than posts with several photos.",
+      "countInsight": "{now} posts in this period, {before} in the one before.",
+      "reachInsight": "Reach changed by {pct} compared with the period before."
     }
   }
 }

@@ -166,3 +166,15 @@ kbd {
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+/* Printing (or saving as PDF) shows only the page itself. */
+@media print {
+  aside,
+  header,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

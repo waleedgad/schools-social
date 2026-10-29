@@ -770,7 +770,15 @@ async function drawInfo() {
     box.innerHTML = `<h2>${ids.length ? plural(ids.length, "photo selected", "photos selected", "صورة محددة") : plural(list.length, "photo", "photos", "صورة")}</h2>
       <dl><dt>${L("Picks", "المختارة")}</dt><dd>${num(list.filter((p) => p.flag === 1).length)}</dd><dt>${L("Used in posts", "في منشورات")}</dt><dd>${num(list.filter((p) => p.posts).length)}</dd>
       <dt>${L("Faces named", "وجوه مسماة")}</dt><dd>${num(list.reduce((s, p) => s + p.tagged, 0))}</dd><dt>${L("Faces to name", "وجوه بلا أسماء")}</dt><dd>${num(list.reduce((s, p) => s + p.unnamed, 0))}</dd>
-      <dt>${L("Originals missing", "أصول مفقودة")}</dt><dd>${num(list.filter((p) => p.offline).length)}</dd></dl>`;
+      <dt>${L("Originals missing", "أصول مفقودة")}</dt><dd>${num(list.filter((p) => p.offline).length)}</dd></dl><div id="ip-who"></div>`;
+    if (lib.filter.event && list.length) {
+      const who = await call("whoWasThere", list.map((p) => p.id).slice(0, 4000));
+      const el = $("#ip-who", box);
+      if (el && who?.length)
+        el.innerHTML = `<div class="col gap4"><b>${L("Who was there", "من حضر")}</b><span class="muted tiny">${L("Teachers, staff, parents and visitors named in these photos", "المعلمون والموظفون وأولياء الأمور والزوار المسمَّون في هذه الصور")}</span>${who
+          .map((s) => `<div class="row nowrap small">${avatar(s)}<span class="grow">${esc(name(s))}<div class="muted tiny">${esc(KINDS()[s.kind] ?? "")}${s.of.length ? ` · ${L("parent of", "ولي أمر")} ${esc(s.of.map((o) => [name(o), o.class_name].filter(Boolean).join(" ")).join(", "))}` : ""}</div></span><span class="tag">${num(s.n)}</span></div>`)
+          .join("")}</div>`;
+    }
     return;
   }
   const p = await call("photoInfo", ids[0]);

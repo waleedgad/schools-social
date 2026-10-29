@@ -179,7 +179,7 @@ function captionOptions(formData: FormData): CaptionOptions {
     words: words > 0 ? Math.min(400, words) : null,
     emoji: formData.get("emoji") !== "off",
     hashtags: formData.get("withHashtags") !== "off",
-    count: Math.min(3, Math.max(1, Number(formData.get("count") ?? 3))),
+    count: Math.min(5, Math.max(1, Number(formData.get("count") ?? 3))),
     prompt: String(formData.get("prompt") ?? "").slice(0, 500) || null,
     splitInstagram: formData.get("splitIg") === "on",
   };

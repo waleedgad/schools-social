@@ -34,7 +34,7 @@ const DOT: Record<string, string> = {
 
 // Drag a post onto another day to move it (same time of day). Click an
 // empty day or a dashed slot to start a post for that day.
-export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { locale: string; days: CalDay[]; weekdays: string[]; view: "month" | "week"; canWrite: boolean }) {
+export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { locale: string; days: CalDay[]; weekdays: string[]; view: "month" | "week" | "day"; canWrite: boolean }) {
   const t = useTranslations("calendar");
   const ts = useTranslations("posts.status");
   const router = useRouter();
@@ -49,14 +49,14 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
 
   return (
     <div className={`overflow-hidden rounded-xl border border-border bg-border ${pending ? "opacity-70" : ""}`}>
-      <div className="hidden grid-cols-7 gap-px md:grid">
+      <div className={`hidden grid-cols-7 gap-px ${view === "day" ? "" : "md:grid"}`}>
         {weekdays.map((w) => (
           <div key={w} className="bg-surface-2 px-2 py-1.5 text-center text-[11px] font-bold uppercase text-muted">
             {w}
           </div>
         ))}
       </div>
-      <div className="grid gap-px md:grid-cols-7">
+      <div className={`grid gap-px ${view === "day" ? "" : "md:grid-cols-7"}`}>
         {days.map((d) => (
           <div
             key={d.key}
@@ -71,7 +71,7 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
               const id = e.dataTransfer.getData("text/post");
               if (id) drop(d.key, id);
             }}
-            className={`group flex flex-col gap-1 p-1.5 ${view === "week" ? "min-h-72" : "min-h-28"} ${d.inMonth ? (d.noPost ? "bg-[repeating-linear-gradient(135deg,var(--surface),var(--surface)_6px,var(--surface-2)_6px,var(--surface-2)_12px)]" : "bg-surface") : "bg-surface-2 text-faint"} ${over === d.key ? "!bg-accent-bg" : ""} ${!d.inMonth && view === "month" ? "hidden md:flex" : ""}`}
+            className={`group flex flex-col gap-1 p-1.5 ${view === "day" ? "min-h-96 p-3" : view === "week" ? "min-h-72" : "min-h-28"} ${d.inMonth ? (d.noPost ? "bg-[repeating-linear-gradient(135deg,var(--surface),var(--surface)_6px,var(--surface-2)_6px,var(--surface-2)_12px)]" : "bg-surface") : "bg-surface-2 text-faint"} ${over === d.key ? "!bg-accent-bg" : ""} ${!d.inMonth && view === "month" ? "hidden md:flex" : ""}`}
           >
             <div className="flex items-center justify-between">
               <span className={`grid size-6 place-items-center rounded-full text-xs font-semibold ${d.today ? "bg-accent text-accent-foreground" : ""}`}>{d.day}</span>

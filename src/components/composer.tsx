@@ -74,6 +74,7 @@ export type ComposerData = {
 };
 
 const area = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20";
+const PROMPT_KEYS = ["recap", "achievement", "welcome", "occasion", "thanks", "learning", "sports", "trip", "reminder", "exams", "results", "admissions"] as const;
 const REWRITES = ["shorter", "longer", "warmer", "formal", "emoji", "fixSpelling"] as const;
 
 function ratioOf(p: Photo) {
@@ -208,6 +209,7 @@ function Preview({ data, platform, caption, photos }: { data: ComposerData; plat
 export function Composer({ data }: { data: ComposerData }) {
   const t = useTranslations("composer");
   const tp = useTranslations("posts");
+  const tm = useTranslations("more.composer");
   const router = useRouter();
   const p = data.post;
   const locked = p.status === "publishing" || p.status === "published";
@@ -233,6 +235,9 @@ export function Composer({ data }: { data: ComposerData }) {
   const [check, setCheck] = useState<CaptionCheck | null>(null);
   const [checking, setChecking] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [words, setWords] = useState(0);
+  const [count, setCount] = useState(3);
   const form = useRef<HTMLFormElement>(null);
 
   useEffect(() => setDirty(true), [ar, en, ig, tags, firstComment, platforms, category, frame, photos]);
@@ -675,7 +680,22 @@ export function Composer({ data }: { data: ComposerData }) {
                   {hidden}
                   {splitIg && <input type="hidden" name="splitIg" value="on" />}
                   <p className="text-xs text-muted">{t("ai.hint")}</p>
-                  <textarea name="prompt" rows={2} maxLength={500} placeholder={t("ai.prompt")} className={area} />
+                  <select
+                    aria-label={tm("ai.template")}
+                    className={area}
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) setPrompt(e.target.value);
+                    }}
+                  >
+                    <option value="">{tm("ai.template")}</option>
+                    {PROMPT_KEYS.map((k) => (
+                      <option key={k} value={tm(`ai.prompts.${k}.text`)}>
+                        {tm(`ai.prompts.${k}.label`)}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea name="prompt" rows={2} maxLength={500} placeholder={t("ai.prompt")} className={area} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
                   <div className="grid grid-cols-2 gap-2">
                     <select name="tone" className={area} defaultValue="">
                       <option value="">{t("ai.toneAuto")}</option>
@@ -685,12 +705,11 @@ export function Composer({ data }: { data: ComposerData }) {
                         </option>
                       ))}
                     </select>
-                    <select name="words" className={area} defaultValue="0">
-                      <option value="0">{t("ai.lengthAuto")}</option>
-                      <option value="40">{t("ai.short")}</option>
-                      <option value="90">{t("ai.medium")}</option>
-                      <option value="180">{t("ai.long")}</option>
-                    </select>
+                    <label className="col-span-2 flex items-center gap-2 text-xs">
+                      <span>{tm("ai.words")}</span>
+                      <input type="range" name="words" min={0} max={250} step={10} value={words} onChange={(e) => setWords(Number(e.target.value))} className="grow accent-[var(--accent)]" />
+                      <span className="w-14 text-end text-muted">{words ? tm("ai.wordsN", { count: words }) : t("ai.lengthAuto")}</span>
+                    </label>
                     <select name="emoji" className={area} defaultValue="on">
                       <option value="on">{t("ai.emojiOn")}</option>
                       <option value="off">{t("ai.emojiOff")}</option>
@@ -700,7 +719,15 @@ export function Composer({ data }: { data: ComposerData }) {
                       <option value="off">{t("ai.tagsOff")}</option>
                     </select>
                   </div>
-                  <input type="hidden" name="count" value="3" />
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span>{tm("ai.options")}</span>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button key={n} type="button" onClick={() => setCount(n)} className={`size-7 rounded-full border text-xs font-semibold ${count === n ? "border-accent bg-accent-bg text-accent-ink" : "border-border"}`}>
+                        {n}
+                      </button>
+                    ))}
+                    <input type="hidden" name="count" value={count} />
+                  </div>
                   <Button icon="sparkle" className="w-full">
                     {p.caption_ar || p.caption_en ? t("ai.again") : t("ai.write")}
                   </Button>
