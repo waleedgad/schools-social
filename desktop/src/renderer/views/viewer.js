@@ -31,11 +31,13 @@ async function drawViewer() {
     <div class="vtop"><b>${esc(p.name)}</b><span class="muted small">${num(V.i + 1)} / ${num(V.ids.length)}</span>
       ${V.opts.cull ? `<span class="tag info">${L("Culling: P / X moves on", "الفرز: P / X ينتقل للتالي")}</span>` : ""}
       <span class="grow"></span>
-      <button class="btn small ${p.flag === 1 ? "on" : ""}" id="v-pick">✓ ${L("Pick", "اختيار")}</button>
-      <button class="btn small ${p.flag === -1 ? "on" : ""}" id="v-rej">✕ ${L("Reject", "رفض")}</button>
+      <button class="btn small ${p.flag === 1 ? "on" : ""}" id="v-pick">${icon("flag", 14)} ${L("Pick", "اختيار")}</button>
+      <button class="btn small ${p.flag === -1 ? "on" : ""}" id="v-rej">${icon("x", 14)} ${L("Reject", "رفض")}</button>
       <span id="v-stars">${[1, 2, 3, 4, 5].map((n) => `<button class="btn small ghost" data-star="${n}" style="color: ${n <= p.rating ? "#ffd257" : "#59606d"}; padding: 4px 3px">★</button>`).join("")}</span>
-      <button class="btn small" id="v-close">✕ ${L("Close", "إغلاق")}</button></div>
+      <button class="btn small" id="v-info" title="I">${icon("info", 14)}</button><button class="btn small" id="v-close">${icon("x", 14)} ${L("Close", "إغلاق")}</button></div>
     <div class="vbody"><div class="stage"><div class="imgbox"><img id="v-img" src="hub://preview/${shown}" />
+      <div class="vmissing hide" id="v-miss">${icon("image-off", 16)} <span>${L("The original isn't on this computer now (moved, renamed, or on a drive that isn't connected). This is its small copy.", "الأصل ليس على هذا الجهاز الآن (نُقل أو أُعيدت تسميته أو على قرص غير موصول). هذه نسخته الصغيرة.")}</span>
+        <button class="btn small" id="v-mfind">${L("Find missing…", "البحث عن المفقودة…")}</button><button class="btn small" id="v-mshow">${S.platform === "win32" ? L("Show in Explorer", "إظهار في المستكشف") : L("Show in Finder", "إظهار في Finder")}</button></div>
       ${faces.map((f) => (f.w ? `<div class="facebox ${f.status} ${f.status !== "suggested" && f.can_post === 0 ? "nopost" : ""}" data-face="${f.id}" style="left: ${f.x * 100}%; top: ${f.y * 100}%; width: ${f.w * 100}%; height: ${f.h * 100}%"><span class="nm">${esc(faceLabel(f))}</span></div>` : "")).join("")}
       ${V.before ? `<span class="tag" style="position: absolute; top: 8px; left: 8px">${L("Original", "الأصل")}</span>` : ""}</div></div>
       <aside class="vside" id="v-side"></aside></div>
@@ -43,7 +45,24 @@ async function drawViewer() {
     <div class="strip" id="v-strip"></div></div>`;
   drawSide(p);
   drawStrip();
+  // Never a broken picture: the small copy and a clear note instead.
+  const img = $("#v-img");
+  img.onerror = () => {
+    if (img.dataset.fell) return;
+    img.dataset.fell = "1";
+    img.src = `hub://thumb/${shown}`;
+    $("#v-miss").classList.remove("hide");
+  };
+  if (p.missing) $("#v-miss").classList.remove("hide");
+  $("#v-mfind").onclick = async () => {
+    const r = await call("findMissing");
+    if (r) toast(L(`Found ${r.found} of the missing photos`, `عُثر على ${num(r.found)} من الصور المفقودة`));
+    drawViewer();
+  };
+  $("#v-mshow").onclick = () => call("reveal", p.id);
+  onContext($("#overlay .viewer"), "[data-face], [data-fm]", (el) => faceItems(p.faces.find((f) => f.id === Number(el.dataset.face ?? el.dataset.fm))));
   $("#v-close").onclick = closeViewer;
+  $("#v-info").onclick = () => $("#v-side")?.classList.toggle("hide");
   $("#v-pick").onclick = () => flagHere(p.flag === 1 ? 0 : 1);
   $("#v-rej").onclick = () => flagHere(p.flag === -1 ? 0 : -1);
   $$("[data-star]").forEach((b) => (b.onclick = () => rateHere(Number(b.dataset.star) === p.rating ? 0 : Number(b.dataset.star))));
@@ -67,9 +86,9 @@ function drawSide(p) {
       <span class="muted">${p.width ?? "?"}×${p.height ?? "?"} · ${fmtBytes(p.size)}${p.quality ? ` · ${L("quality", "الجودة")} ${p.quality}/10` : ""}</span>
       <div class="row">${p.remote_id ? `<span class="tag info">☁ ${L("On the website", "على الموقع")}</span>` : ""}${p.is_raw || p.raw.length ? `<span class="tag">RAW</span>` : ""}${p.edits.length ? `<span class="tag violet">✎ ${L("Edited", "معدّلة")}</span>` : ""}</div></div>
     <div class="col gap4"><b>${L("People", "الأشخاص")}</b>
-      ${named.map((f) => `<div class="who">${avatar({ ...f, id: f.student_id, portrait: null })}<div class="grow"><div>${esc(name(f))}</div><div class="muted tiny">${esc(f.class_name ?? "")}</div></div>${f.can_post === 0 ? `<span class="tag bad" title="${L("Can't appear in posts", "لا يظهر في المنشورات")}">⛔</span>` : ""}<button class="btn small ghost" data-untag="${f.id}" title="${L("Remove", "إزالة")}">✕</button></div>`).join("")}
-      ${sug.map((f) => `<div class="who"><img src="hub://face/${f.id}" /><div class="grow"><div>${esc(S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en)}?</div><div class="muted tiny">${L("match", "تطابق")} ${Math.round((f.suggest_score ?? 0) * 100)}%</div></div><button class="btn small" data-yes="${f.id}" title="Y">✓</button><button class="btn small" data-no="${f.id}" title="N">✕</button></div>`).join("")}
-      ${unknown.map((f) => `<div class="who"><img src="hub://face/${f.id}" /><div class="grow muted">${L("Who is this?", "من هذا؟")}</div><button class="btn small" data-name="${f.id}">${L("Name", "تسمية")}</button></div>`).join("")}
+      ${named.map((f) => `<div class="who" data-fm="${f.id}">${avatar({ ...f, id: f.student_id, portrait: null })}<div class="grow"><div>${esc(name(f))}</div><div class="muted tiny">${esc(f.class_name ?? "")}</div></div>${f.can_post === 0 ? `<span class="tag bad" title="${L("Can't appear in posts", "لا يظهر في المنشورات")}">⛔</span>` : ""}<button class="btn small ghost" data-untag="${f.id}" title="${L("Remove", "إزالة")}">✕</button></div>`).join("")}
+      ${sug.map((f) => `<div class="who" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div>${esc(S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en)}?</div><div class="muted tiny">${L("match", "تطابق")} ${Math.round((f.suggest_score ?? 0) * 100)}%</div></div><button class="btn small" data-yes="${f.id}" title="Y">✓</button><button class="btn small" data-no="${f.id}" title="N">✕</button></div>`).join("")}
+      ${unknown.map((f) => `<div class="who" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div class="muted">${L("Who is this?", "من هذا؟")}</div><div class="row gap4" data-guess="${f.id}"></div></div><button class="btn small" data-name="${f.id}">${L("Name", "تسمية")}</button></div>`).join("")}
       ${!p.faces.length ? `<span class="muted">${p.faces_scanned === 1 ? L("No faces found.", "لم يتم العثور على وجوه.") : L("Looking for faces…", "جارٍ البحث عن وجوه…")}</span>` : ""}
       <button class="btn small" id="v-tag">+ ${L("Tag someone (T)", "وسم شخص (T)")}</button></div>
     ${p.edits.length || p.original ? `<div class="col gap4"><b>${L("Versions", "النسخ")}</b>
@@ -79,18 +98,24 @@ function drawSide(p) {
     <div class="col gap4"><b>${L("File", "الملف")}</b>
       <button class="btn small" id="v-finder">${L("Show in Finder", "إظهار في Finder")}</button>
       <button class="btn small" id="v-editor">${L("Open in editing app", "فتح في تطبيق التعديل")}</button>
-      <button class="btn small primary" id="v-post">✎ ${L("New post with this photo", "منشور جديد بهذه الصورة")}</button></div>`;
+      <button class="btn small primary" id="v-post">${icon("square-pen", 14)} ${L("New post with this photo", "منشور جديد بهذه الصورة")}</button></div>`;
   $$("[data-untag]", side).forEach((b) => (b.onclick = () => faceAction("rejectFaces", [Number(b.dataset.untag)])));
   $$("[data-yes]", side).forEach((b) => (b.onclick = () => confirmSuggestion(p.faces.find((f) => f.id === Number(b.dataset.yes)))));
   $$("[data-no]", side).forEach((b) => (b.onclick = () => faceAction("rejectFaces", [Number(b.dataset.no)])));
   $$("[data-name]", side).forEach((b) => (b.onclick = () => faceMenu(p.faces.find((f) => f.id === Number(b.dataset.name)))));
+  // The three likeliest people, one click each.
+  $$("[data-guess]", side).forEach(async (box) => {
+    const id = Number(box.dataset.guess);
+    const g = (await quiet("faceGuesses", id)) ?? [];
+    box.innerHTML = g.map((x, i) => `<button class="btn small" data-pickg="${esc(x.studentId)}" title="${Math.round(x.score * 100)}%">${esc(name(x.student))}</button>`).join("");
+    $$("[data-pickg]", box).forEach((b) => (b.onclick = () => faceAction("confirmFaces", [id], b.dataset.pickg)));
+  });
   $("#v-tag", side).onclick = tagHere;
   $("#v-finder", side).onclick = () => call("reveal", p.id);
   $("#v-editor", side).onclick = () => call("openEditor", [p.id]);
   $("#v-post", side).onclick = async () => {
     closeOverlay();
-    lib.sel = new Set([p.id]);
-    if (App.view === "library") newPostFromSelection();
+    newPostFromSelection([p.id]);
   };
 }
 
@@ -138,6 +163,21 @@ function faceMenu(f) {
     }
     close?.(e);
   };
+}
+
+// Right-click on a face: name, not this person, not a face, main photo.
+function faceItems(f) {
+  if (!f) return null;
+  const who = f.student_id ? name(f) : f.status === "suggested" ? (S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en) : null;
+  return [
+    f.status === "suggested" && { label: L(`Yes, it's ${who}`, `نعم، إنه ${who}`), key: "Y", run: () => confirmSuggestion(f) },
+    { label: f.student_id ? L("Someone else…", "شخص آخر…") : L("Name…", "تسمية…"), run: () => faceMenu({ ...f, status: "unknown" }) },
+    (f.student_id || f.status === "suggested") && { label: L(`Not ${who}`, `ليس ${who}`), key: "N", run: () => faceAction("rejectFaces", [f.id]) },
+    f.w && { label: L("Not a face", "ليس وجهًا"), run: () => faceAction("hideFaces", [f.id]) },
+    "-",
+    f.student_id && f.w && { label: L(`Set as ${who}'s main photo`, `تعيين كصورة رئيسية لـ ${who}`), run: () => call("setMainFace", f.student_id, f.id).then(() => toast(L("Main photo set", "تم تعيين الصورة الرئيسية"))) },
+    f.student_id && { label: L(`All photos of ${who}`, `كل صور ${who}`), run: () => { closeOverlay(); go("student", { id: f.student_id }); } },
+  ];
 }
 
 function tagHere() {
@@ -196,6 +236,8 @@ function viewerKeys(e) {
     return drawViewer();
   }
   if (k === "c") return openCompare(V.ids.slice(V.i, V.i + 2), true);
+  if (k === "i") return $("#v-side")?.classList.toggle("hide");
+  if (k === "6" || k === "7" || k === "8" || k === "9") return call("label", [V.photo.id], { 6: "red", 7: "yellow", 8: "green", 9: null }[k]).then(drawViewer);
 }
 
 // Two to four shots side by side; keep the best, reject the rest.

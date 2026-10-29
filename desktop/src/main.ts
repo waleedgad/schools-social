@@ -13,7 +13,11 @@ import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRej
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { SHOW_FROM, SURE } from "./core/faces";
 import { groupMoves, planFiling } from "./core/filing";
-import { eventFolder, guessEvent, isLibraryFile, placeFromPath, safeName } from "./core/library";
+import { eventFolder, guessEvent, isLibraryFile, placeFromPath, safeName, setTermDates, type TermDates } from "./core/library";
+import type { Ctx } from "./features/ctx";
+import { nameMatches } from "./core/names";
+import { binTimer, manageApi } from "./features/manage";
+import { libraryApi, PHOTO_COLUMNS } from "./features/library";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
@@ -56,7 +60,35 @@ type Settings = {
   // 0.4
   autoName: boolean;
   faceVision: boolean;
+  motion: "full" | "less";
+  fileAsk: boolean;
+  rawFolders: boolean;
+  finderTags: boolean;
+  lockOriginals: boolean;
+  archive: string | null;
+  binAuto: boolean;
+  cleanReminder: boolean;
+  importPhotographer: string;
+  importCategory: string;
+  importJunk: boolean;
+  importSkipDup: boolean;
+  splitGap: number;
+  importAutoOpen: boolean;
+  importEject: boolean;
+  importErase: boolean;
+  blurNoPost: boolean;
+  teamImportAlert: boolean;
+  terms: TermDates[];
+  todayLayout: unknown;
+  wizard: Record<string, boolean>;
+  lastCleanReminder: number;
 };
+
+const SETTABLE: (keyof Settings)[] = [
+  "language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "cleanStrict", "rejectMonths", "selfFiling",
+  "autoName", "faceVision", "motion", "fileAsk", "rawFolders", "finderTags", "lockOriginals", "binAuto", "cleanReminder", "importPhotographer", "importCategory", "importJunk",
+  "importSkipDup", "splitGap", "importAutoOpen", "importEject", "importErase", "blurNoPost", "teamImportAlert", "todayLayout", "wizard", "lastCleanReminder",
+];
 
 // The app connects to this address by itself. A school using its own copy
 // of the web app can still type another address if this one fails.
@@ -82,6 +114,9 @@ let pushTimer: NodeJS.Timeout | null = null;
 let changed = new Set<string>();
 let timers: NodeJS.Timeout[] = [];
 let aura: AuraDownload | null = null;
+let features: Record<string, (...args: never[]) => unknown> = {};
+// Imports running in the background (Import tab and sidebar progress).
+let importJobs: () => unknown[] = () => [];
 
 // The sign-in session is encrypted with the operating system's key store.
 const sessionFile = () => data("session.bin");
@@ -243,6 +278,31 @@ function state() {
     selfFiling: s.selfFiling,
     autoName: s.autoName,
     faceVision: s.faceVision,
+    motion: s.motion,
+    fileAsk: s.fileAsk,
+    rawFolders: s.rawFolders,
+    finderTags: s.finderTags,
+    lockOriginals: s.lockOriginals,
+    archive: s.archive,
+    archiveDisk: disk(s.archive),
+    binAuto: s.binAuto,
+    cleanReminder: s.cleanReminder,
+    lastCleanReminder: s.lastCleanReminder,
+    importPhotographer: s.importPhotographer,
+    importCategory: s.importCategory,
+    importJunk: s.importJunk,
+    importSkipDup: s.importSkipDup,
+    splitGap: s.splitGap,
+    importAutoOpen: s.importAutoOpen,
+    importEject: s.importEject,
+    importErase: s.importErase,
+    blurNoPost: s.blurNoPost,
+    teamImportAlert: s.teamImportAlert,
+    terms: s.terms,
+    todayLayout: s.todayLayout,
+    wizard: s.wizard,
+    imports: importJobs(),
+    binCount: one<{ n: number }>("select count(*) n from bin")?.n ?? 0,
     platform: process.platform,
     faceModel: aura?.status ?? null,
     webChecking: Object.keys(webChecks.get().pending).length,
@@ -274,8 +334,10 @@ function push(what = "status") {
   }, 500);
 }
 
-function remember(action: string, detail: string, undo: unknown) {
-  db.prepare("insert into history (at, action, detail, undo) values (?, ?, ?, ?)").run(Date.now(), action, detail, undo ? JSON.stringify(undo) : null);
+function remember(action: string, detail: string, undo: unknown, photos?: number[]) {
+  db.prepare("insert into history (at, action, detail, undo, who, photos) values (?, ?, ?, ?, ?, ?)").run(
+    Date.now(), action, detail, undo ? JSON.stringify(undo) : null, settings.get().email ?? null, photos?.length ? JSON.stringify(photos.slice(0, 2000)) : null,
+  );
   db.prepare("delete from history where id < (select max(id) - 500 from history)").run();
 }
 
@@ -480,152 +542,6 @@ async function findMissing(dir: string) {
 
 // ---------- Library queries ----------
 
-type Filter = {
-  event?: string;
-  year?: string;
-  term?: string;
-  className?: string;
-  album?: string;
-  student?: string;
-  search?: string;
-  minRating?: number;
-  flag?: number;
-  ids?: number[];
-  sort?: "time" | "quality" | "name";
-  limit?: number;
-};
-
-const PHOTO_COLUMNS = `p.id, p.name, p.width, p.height, p.rating, p.flag, p.label, p.face_count, p.is_raw, p.quality, p.taken_at,
-  p.event_key, p.event_title, p.class_name, p.remote_id, p.thumb, p.faces_scanned,
-  (select count(*) from photos r where r.pair_of = p.id) as has_raw,
-  (select count(*) from photos e where e.edited_of = p.id and e.missing = 0) as edits,
-  (select count(*) from faces f where f.photo_id = p.id and f.status in ('confirmed', 'manual')) as tagged,
-  (select count(*) from faces f where f.photo_id = p.id and f.status = 'suggested') as suggested,
-  (select count(*) from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed', 'manual') and s.can_post = 0) as no_post`;
-
-function photos(f: Filter) {
-  const { where, args } = photoWhere(f);
-  const order = f.sort === "quality" ? "p.quality desc" : f.sort === "name" ? "p.name" : "p.taken_at, p.name";
-  return all(`select ${PHOTO_COLUMNS} from photos p where ${where.join(" and ")} order by ${order} limit ?`, ...args, f.limit ?? 6000);
-}
-
-function countPhotos(f: Filter) {
-  const { where, args } = photoWhere(f);
-  return one<{ n: number }>(`select count(*) n from photos p where ${where.join(" and ")}`, ...args)?.n ?? 0;
-}
-
-function photoWhere(f: Filter) {
-  const where = ["p.missing = 0", "p.pair_of is null", "p.dup_of is null", "p.edited_of is null"];
-  const args: unknown[] = [];
-  if (f.ids?.length) {
-    where.push(`p.id in (${marks(f.ids.length)})`);
-    args.push(...f.ids);
-  }
-  if (f.event) {
-    where.push("p.event_key = ?");
-    args.push(f.event);
-  }
-  if (f.year) {
-    where.push("p.year = ?");
-    args.push(f.year);
-  }
-  if (f.term) {
-    where.push("p.term = ?");
-    args.push(f.term);
-  }
-  if (f.className) {
-    where.push(`(p.class_name = ? or exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed','manual') and s.class_name = ?))`);
-    args.push(f.className, f.className);
-  }
-  if (f.student) {
-    where.push("exists (select 1 from faces f where f.photo_id = p.id and f.student_id = ? and f.status in ('confirmed', 'manual'))");
-    args.push(f.student);
-  }
-  if (f.minRating) {
-    where.push("p.rating >= ?");
-    args.push(f.minRating);
-  }
-  if (f.flag !== undefined && f.flag !== null) {
-    where.push("p.flag = ?");
-    args.push(f.flag);
-  }
-  if (f.search) {
-    where.push("(p.name like ? or p.event_title like ? or p.class_name like ?)");
-    args.push(`%${f.search}%`, `%${f.search}%`, `%${f.search}%`);
-  }
-  switch (f.album) {
-    case "picks":
-      where.push("p.flag = 1");
-      break;
-    case "rejected":
-      where.push("p.flag = -1");
-      break;
-    case "five":
-      where.push("p.rating = 5");
-      break;
-    case "week":
-      where.push("p.added_at > ?");
-      args.push(Date.now() - 7 * 86400_000);
-      break;
-    case "untagged":
-      where.push("exists (select 1 from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested'))");
-      break;
-    case "nofaces":
-      where.push("p.faces_scanned = 1 and p.face_count = 0");
-      break;
-    case "notsent":
-      where.push("p.remote_id is null and p.flag = 1");
-      break;
-    case "sent":
-      where.push("p.remote_id is not null");
-      break;
-    case "nopost":
-      where.push("exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed','manual') and s.can_post = 0)");
-      break;
-    case "noevent":
-      where.push("p.event_key is null");
-      break;
-    case "raw":
-      where.push("(p.is_raw = 1 or exists (select 1 from photos r where r.pair_of = p.id))");
-      break;
-    case "ready":
-      where.push("p.flag = 1 and p.remote_id is null");
-      break;
-    case "tocull":
-      where.push("p.flag = 0 and p.rating = 0 and p.added_at > ?");
-      args.push(Date.now() - 30 * 86400_000);
-      break;
-    case "fix":
-      where.push("p.flag >= 0 and p.sharpness is not null and (p.sharpness < 25 or p.brightness < 0.11 or p.brightness > 0.92)");
-      break;
-    case "lastyear":
-      where.push("substr(p.taken_at, 6, 5) = ? and substr(p.taken_at, 1, 4) < ?");
-      args.push(new Date().toISOString().slice(5, 10), String(new Date().getFullYear()));
-      break;
-    default:
-      if (f.album?.startsWith("my:")) {
-        const album = one<{ id: number; rule: string | null }>("select id, rule from albums where id = ?", Number(f.album.slice(3)));
-        if (!album) where.push("0");
-        else if (!album.rule) {
-          where.push("exists (select 1 from album_photos a where a.album_id = ? and a.photo_id = p.id)");
-          args.push(album.id);
-        } else ruleWhere(JSON.parse(album.rule), where, args);
-      }
-  }
-  return { where, args };
-}
-
-function tree() {
-  const rows = all<{ year: string | null; term: string | null; event_key: string | null; event_title: string | null; event_date: string | null; n: number; picks: number }>(
-    `select year, term, event_key, event_title, max(event_date) event_date, count(*) n, sum(flag = 1) picks from photos
-     where missing = 0 and pair_of is null and dup_of is null and edited_of is null group by year, term, event_key order by year desc, term desc, event_date desc`,
-  );
-  const classes = all<{ event_key: string; class_name: string; n: number }>(
-    "select event_key, class_name, count(*) n from photos where missing = 0 and class_name is not null and pair_of is null and dup_of is null group by event_key, class_name order by class_name",
-  );
-  return { rows, classes };
-}
-
 function photo(id: number) {
   const p = one(`select p.*, ${PHOTO_COLUMNS.replace(/p\.id, /, "")} from photos p where p.id = ?`, id);
   if (!p) return null;
@@ -659,9 +575,11 @@ function students(f: { className?: string; search?: string; year?: string; term?
     where.push("s.class_name = ?");
     args.push(f.className);
   }
+  // Search by spelling too: "Mohamed" finds Muhammad (names.ts).
+  const spelled = f.search ? all<{ id: string; name_en: string | null; name_ar: string | null }>("select id, name_en, name_ar from students").filter((s) => nameMatches(f.search!, s.name_en, s.name_ar)).map((s) => s.id).slice(0, 400) : [];
   if (f.search) {
-    where.push("(s.name_en like ? or s.name_ar like ? or s.id like ? or s.class_name like ?)");
-    args.push(...Array(4).fill(`%${f.search}%`));
+    where.push(`(s.name_en like ? or s.name_ar like ? or s.id like ? or s.class_name like ?${spelled.length ? ` or s.id in (${marks(spelled.length)})` : ""})`);
+    args.push(...Array(4).fill(`%${f.search}%`), ...spelled);
   }
   const period: string[] = [];
   const pargs: unknown[] = [];
@@ -801,6 +719,9 @@ async function undo() {
   } else if (u.kind === "faces") restoreFaces(u.rows, u.inserted);
   else if (u.kind === "move") await engine?.moveBack(u.items);
   else if (u.kind === "canPost") db.prepare("update students set can_post = ? where id = ?").run(u.value, u.id);
+  else if (u.kind === "bin") await (features.restoreBin as (ids: number[]) => Promise<number>)(u.ids);
+  else if (u.kind === "student") db.prepare(`update students set ${u.field} = ? where id = ?`).run(u.value, u.id);
+  else if (u.kind === "sql") for (const [sql, args] of u.steps as [string, unknown[]][]) db.prepare(sql).run(...(args as never[]));
   db.prepare("update history set undo = null where id = ?").run(h.id);
   push("all");
   return h.action;
@@ -1041,29 +962,6 @@ function fileSoon(id: number) {
 // ---------- Albums ----------
 
 // A smart album is a set of rules; every rule must match.
-type AlbumRule = { minRating?: number; picked?: boolean; className?: string; event?: string; student?: string; from?: string; to?: string; people?: "none" | "some" | "group"; sent?: boolean };
-function ruleWhere(r: AlbumRule, where: string[], args: unknown[]) {
-  if (r.minRating) (where.push("p.rating >= ?"), args.push(r.minRating));
-  if (r.picked) where.push("p.flag = 1");
-  if (r.className) (where.push("p.class_name = ?"), args.push(r.className));
-  if (r.event) (where.push("p.event_title like ?"), args.push(`%${r.event}%`));
-  if (r.student) (where.push("exists (select 1 from faces f where f.photo_id = p.id and f.student_id = ? and f.status in ('confirmed', 'manual'))"), args.push(r.student));
-  if (r.from) (where.push("coalesce(p.taken_at, p.event_date) >= ?"), args.push(r.from));
-  if (r.to) (where.push("coalesce(p.taken_at, p.event_date) <= ?"), args.push(`${r.to}T23:59:59`));
-  if (r.people === "none") where.push("p.faces_scanned = 1 and p.face_count = 0");
-  if (r.people === "some") where.push("p.face_count between 1 and 4");
-  if (r.people === "group") where.push("p.face_count >= 5");
-  if (r.sent !== undefined) where.push(r.sent ? "p.remote_id is not null" : "p.remote_id is null");
-}
-
-function albumCounts() {
-  const ids = ["all", "week", "picks", "five", "untagged", "nofaces", "nopost", "notsent", "sent", "noevent", "raw", "rejected", "ready", "tocull", "fix", "lastyear"];
-  const out: Record<string, number> = {};
-  for (const id of ids) out[id] = countPhotos({ album: id });
-  const mine = all<{ id: number; name: string; rule: string | null }>("select id, name, rule from albums order by name");
-  return { counts: out, mine: mine.map((a) => ({ ...a, n: countPhotos({ album: `my:${a.id}` }), cover: (photos({ album: `my:${a.id}`, limit: 1 })[0] as { id?: number } | undefined)?.id ?? null })) };
-}
-
 // ---------- Yearbooks and graduation books ----------
 
 // Lays the book out in a hidden window and prints it to an A4 PDF.
@@ -1096,16 +994,8 @@ function bookSpec(o: Partial<BookSpec>): BookSpec {
 
 // The Bin is the Mac's Trash: nothing is deleted outright, and the web copy
 // goes too (see removeWebCopiesOf).
-async function binPhotos(ids: number[]) {
-  const rows = all<{ id: number; path: string; hash: string | null; remote_id: string | null }>(`select id, path, hash, remote_id from photos where id in (${marks(ids.length)})`, ...ids);
-  for (const r of rows) {
-    await shell.trashItem(r.path).catch(() => {});
-    db.prepare("update photos set missing = 1 where id = ?").run(r.id);
-  }
-  removeWebCopiesOf(rows);
-  remember("bin", `${rows.length}`, null);
-  push("photos");
-  return rows.length;
+function binPhotos(ids: number[]) {
+  return (features.bin as (ids: number[]) => Promise<number>)(ids);
 }
 
 
@@ -1175,7 +1065,9 @@ async function newPost(ids: number[]) {
   const postId = String(made.id ?? "");
   if (!postId) throw new Error(String(made.error ?? "post"));
   lastMessage = "";
-  remember("post", postId, null);
+  db.prepare(`update photos set posts = posts + 1 where id in (${marks(rows.length)})`).run(...rows.map((r) => r.id));
+  remember("post", postId, null, rows.map((r) => r.id));
+  push("photos");
   return postId;
 }
 
@@ -1204,7 +1096,12 @@ async function appApi(action: string, payload: Record<string, unknown> = {}) {
 function search(q: string) {
   const like = `%${q}%`;
   return {
-    students: all("select id, name_en, name_ar, class_name from students where name_en like ? or name_ar like ? or id like ? order by name_en limit 8", like, like, like),
+    students: (() => {
+      const direct = all<{ id: string }>("select id, name_en, name_ar, class_name, kind from students where name_en like ? or name_ar like ? or id like ? order by name_en limit 8", like, like, like);
+      if (direct.length >= 8) return direct;
+      const more = all<{ id: string; name_en: string | null; name_ar: string | null }>("select id, name_en, name_ar, class_name, kind from students").filter((s) => !direct.some((d) => d.id === s.id) && nameMatches(q, s.name_en, s.name_ar));
+      return [...direct, ...more].slice(0, 8);
+    })(),
     events: all(
       "select event_key, event_title, max(event_date) event_date, count(*) n from photos where missing = 0 and event_title like ? group by event_key order by event_date desc limit 8",
       like,
@@ -1222,9 +1119,14 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 640,
     title: "School Social Hub",
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 18 },
-    backgroundColor: "#f7f6f2",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    trafficLightPosition: { x: 18, y: 20 },
+    // See-through sidebar: the Mac's own sidebar material, Mica on Windows 11.
+    ...(process.platform === "darwin"
+      ? { vibrancy: "sidebar" as const, visualEffectState: "followWindow" as const, backgroundColor: "#00000000" }
+      : process.platform === "win32"
+        ? { backgroundMaterial: "mica" as const, titleBarOverlay: { color: "#00000000", symbolColor: "#6b7180", height: 40 } }
+        : { backgroundColor: "#f5f6f8" }),
     icon: path.join(__dirname, "renderer", "icon.png"),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, webviewTag: true },
   });
@@ -1246,6 +1148,33 @@ function createWindow() {
       e.preventDefault();
       win?.hide();
     }
+  });
+}
+
+// Right-click menus are the system's own: the window sends the items, the
+// chosen item's id comes back (null when the menu was closed).
+type MenuSpec = { id?: string; type?: "separator"; label?: string; key?: string | null; enabled?: boolean; checked?: boolean; sub?: MenuSpec[] };
+function popupMenu(items: MenuSpec[]) {
+  return new Promise<string | null>((resolve) => {
+    let picked: string | null = null;
+    const build = (list: MenuSpec[]): Electron.MenuItemConstructorOptions[] =>
+      list.map((it) =>
+        it.type === "separator"
+          ? { type: "separator" }
+          : {
+              label: it.label ?? "",
+              enabled: it.enabled !== false,
+              ...(it.checked !== undefined && it.checked !== null ? { type: "checkbox" as const, checked: !!it.checked } : {}),
+              ...(it.key ? { accelerator: it.key, registerAccelerator: false } : {}),
+              ...(it.sub ? { submenu: build(it.sub) } : {}),
+              click: () => {
+                picked = it.id ?? null;
+                resolve(picked);
+              },
+            },
+      );
+    if (!win || win.isDestroyed()) return resolve(null);
+    Menu.buildFromTemplate(build(items)).popup({ window: win, callback: () => setTimeout(() => resolve(picked), 80) });
   });
 }
 
@@ -1366,7 +1295,30 @@ app.whenReady().then(async () => {
     selfFiling: false,
     autoName: true,
     faceVision: true,
+    motion: "full",
+    fileAsk: false,
+    rawFolders: true,
+    finderTags: false,
+    lockOriginals: false,
+    archive: null,
+    binAuto: true,
+    cleanReminder: true,
+    importPhotographer: "",
+    importCategory: "",
+    importJunk: true,
+    importSkipDup: true,
+    splitGap: 2,
+    importAutoOpen: true,
+    importEject: true,
+    importErase: false,
+    blurNoPost: true,
+    teamImportAlert: true,
+    terms: [],
+    todayLayout: null,
+    wizard: {},
+    lastCleanReminder: 0,
   });
+  setTermDates(settings.get().terms);
   try {
     backupBeforeUpdate();
   } catch (e) {
@@ -1396,8 +1348,31 @@ app.whenReady().then(async () => {
     }
   });
 
+  const ctx: Ctx = {
+    db: () => db,
+    settings: () => settings as never,
+    engine: () => engine,
+    win: () => win,
+    client: () => client(),
+    push,
+    remember,
+    log,
+    data,
+    chooseFolder,
+    removeWebCopiesOf,
+    sendWin,
+    appApi: (action, payload) => appApi(action, payload ?? {}),
+    message: (m) => {
+      lastMessage = m;
+      push();
+    },
+  };
+  features = { ...manageApi(ctx), ...libraryApi(ctx) };
+  timers.push(binTimer(ctx, features));
+
   const api: Record<string, (...args: never[]) => unknown> = {
     state: () => state(),
+    contextMenu: (items: MenuSpec[], _at: unknown) => popupMenu(items),
     connect: (server: string) => connect(server),
     signIn: (email: string, password: string) => signIn(email, password),
     signOut: async () => {
@@ -1422,8 +1397,7 @@ app.whenReady().then(async () => {
     },
     clearBackup: () => settings.set({ backup: null }),
     set: (key: keyof Settings, value: never) => {
-      const allowed: (keyof Settings)[] = ["language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "cleanStrict", "rejectMonths", "selfFiling", "autoName", "faceVision"];
-      if (!allowed.includes(key)) throw new Error("bad-setting");
+      if (!SETTABLE.includes(key)) throw new Error("bad-setting");
       settings.set({ [key]: value } as Partial<Settings>);
       if (key === "openAtLogin") app.setLoginItemSettings({ openAtLogin: !!value, openAsHidden: true });
       if (key === "language") createMenu();
@@ -1461,8 +1435,6 @@ app.whenReady().then(async () => {
     retryAura: () => startAura(),
     retryFailed: () => queue.retryFailed(),
 
-    tree: () => tree(),
-    photos: (f: Filter) => photos(f),
     photo: (id: number) => photo(id),
     rate: (ids: number[], n: number) => setPhotos(ids, "rating", n),
     flag: (ids: number[], n: number) => setPhotos(ids, "flag", n),
@@ -1491,7 +1463,6 @@ app.whenReady().then(async () => {
       push();
     },
     clearEditor: () => settings.set({ editor: null }),
-    bin: (ids: number[]) => binPhotos(ids),
     duplicates: () => engine?.duplicates() ?? [],
     cleanup: () => cleanupReport(),
     bookOptions: () => ({
@@ -1531,8 +1502,7 @@ app.whenReady().then(async () => {
       shell.openPath(dir);
       return { made, total: list.length };
     },
-    albums: () => albumCounts(),
-    newAlbum: (name: string, rule: AlbumRule | null, ids: number[] = []) => {
+    newAlbum: (name: string, rule: Record<string, unknown> | null, ids: number[] = []) => {
       const r = db.prepare("insert into albums (name, rule, added_at) values (?, ?, ?)").run(name.slice(0, 80), rule ? JSON.stringify(rule) : null, Date.now());
       const id = Number(r.lastInsertRowid);
       const add = db.prepare("insert or ignore into album_photos (album_id, photo_id) values (?, ?)");
@@ -1577,7 +1547,7 @@ app.whenReady().then(async () => {
       return s.library ? removeEmptyFolders(await emptyFolders(s.library)) : 0;
     },
     clearPreviews: () => rm(path.join(data("cache"), "previews"), { recursive: true, force: true }),
-    openBin: () => shell.openPath(path.join(app.getPath("home"), ".Trash")),
+    openBin: () => send("go:cleanup"),
 
     importSource: async (dir?: string) => {
       if (!dir) dir = (await chooseFolder("Photos to import (memory card, phone or photographer's folder)")) ?? undefined;
@@ -1708,11 +1678,14 @@ app.whenReady().then(async () => {
       if (sb && s.schoolId) sb.from("students").update({ consent_social: value ? "yes" : "no" }).eq("school_id", s.schoolId).eq("student_code", id).then(() => {});
       push("students");
     },
-    addStudent: (s: { id: string; name_en: string; name_ar: string; class_name: string }) => {
-      const id = s.id?.trim() || `X${Date.now().toString(36)}`;
-      db.prepare("insert into students (id, name_en, name_ar, class_name, stage, grade, can_post, added_at) values (?, ?, ?, ?, ?, ?, 1, ?)").run(
-        id, s.name_en || null, s.name_ar || null, s.class_name || null, null, null, Date.now(),
+    addStudent: (s: { id: string; name_en: string; name_ar: string; class_name: string; kind?: string; linkTo?: string }) => {
+      const kind = ["student", "teacher", "staff", "parent", "visitor"].includes(s.kind ?? "") ? s.kind! : "student";
+      const id = s.id?.trim() || `${kind === "student" ? "X" : kind[0].toUpperCase()}${Date.now().toString(36)}`;
+      db.prepare("insert into students (id, name_en, name_ar, class_name, stage, grade, can_post, kind, added_at) values (?, ?, ?, ?, ?, ?, 1, ?, ?)").run(
+        id, s.name_en || null, s.name_ar || null, kind === "student" ? s.class_name || null : null, null, null, kind, Date.now(),
       );
+      // A parent is linked to their student.
+      if (s.linkTo) db.prepare("insert or ignore into links (a, b, kind) values (?, ?, 'parent')").run(id, s.linkTo);
       push("students");
       return id;
     },
@@ -1741,6 +1714,8 @@ app.whenReady().then(async () => {
     isThis: (studentIds?: string[]) => isThisQueue(studentIds),
     unknownGroups: () => (engine?.unknownGroups() ?? []).map((ids) => ({ ids, photos: [...new Set(faceRowsFor(ids).map((f) => f.photo_id))].length })),
     confirmFaces: (ids: number[], studentId: string) => confirmFaces(ids, studentId),
+    faceGuesses: (faceId: number) =>
+      (engine?.guesses(faceId) ?? []).map((g) => ({ ...g, student: one("select id, name_en, name_ar, class_name, kind, portrait, can_post from students where id = ?", g.studentId) })).filter((g) => g.student),
     rejectFaces: (ids: number[]) => rejectFaces(ids),
     hideFaces: (ids: number[]) => hideFaces(ids),
     tagPhotos: (ids: number[], studentId: string) => tagPhotos(ids, studentId),
@@ -1775,8 +1750,7 @@ app.whenReady().then(async () => {
     history: () => all("select id, at, action, detail, undo is not null as can_undo from history order by id desc limit 200"),
     search: (q: string) => search(q),
     showFile: (file: string) => shell.showItemInFolder(file),
-    reportProblem: (text: string) =>
-      shell.openExternal(`mailto:?subject=${encodeURIComponent(`School Social Hub ${app.getVersion()} problem`)}&body=${encodeURIComponent(`${text}\n\n---\n${process.platform} ${process.arch} · ${app.getVersion()}`)}`),
+    ...features,
   };
   let importFiles: string[] = [];
   let importBatch = new Map<string, string[]>();

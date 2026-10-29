@@ -339,7 +339,7 @@ function inside(a: number[], b: number[]) {
   return cx > b[0] && cx < b[0] + b[2] && cy > b[1] && cy < b[1] + b[3];
 }
 
-export type Known = { studentId: string; embedding: Float32Array; className?: string | null; kind?: string | null; gender?: string | null };
+export type Known = { studentId: string; embedding: Float32Array; className?: string | null; kind?: string | null; gender?: string | null; at?: string | null; penalty?: number };
 export type Match = { studentId: string; score: number; runnerUp: number; twin?: boolean };
 
 // Every candidate for one face, best first: the closest known face of each
@@ -348,7 +348,8 @@ export function ranked(embedding: Float32Array, known: Known[], r: Recogniser = 
   const best = new Map<string, number>();
   for (const k of known) {
     if (k.embedding.length !== embedding.length) continue;
-    const s = cosine(embedding, k.embedding);
+    // Faces grow: an example from years before or after counts a little less.
+    const s = cosine(embedding, k.embedding) - (k.penalty ?? 0);
     if (s > (best.get(k.studentId) ?? -1)) best.set(k.studentId, s);
   }
   return [...best.entries()].map(([studentId, raw]) => ({ studentId, score: scaled(raw, r) })).sort((a, b) => b.score - a.score);

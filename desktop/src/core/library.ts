@@ -22,13 +22,44 @@ export function isLibraryFile(file: string) {
   return isPhoto(file) || (!path.basename(file).startsWith(".") && isRaw(file));
 }
 
-// School years run September to August, with term 2 from February.
+// The school's own term dates (Settings → School calendar, shared with the
+// website). Without them: school years run September to August, with
+// term 2 from February.
+export type TermDates = { name: string; start: string; end: string };
+let TERMS: TermDates[] = [];
+export function setTermDates(list: TermDates[]) {
+  TERMS = (list ?? []).filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t.start) && /^\d{4}-\d{2}-\d{2}$/.test(t.end)).sort((a, b) => a.start.localeCompare(b.start));
+}
+
+// A term starting from July on opens a school year; earlier ones belong to
+// the year that started the summer before.
+const yearOfTerm = (t: TermDates) => {
+  const y = Number(t.start.slice(0, 4));
+  return Number(t.start.slice(5, 7)) >= 7 ? y : y - 1;
+};
+
+// The term a day is in, or during a holiday the term that started last in
+// the same school year.
+function termFor(date: Date) {
+  const d = isoDate(date);
+  const inside = TERMS.find((t) => d >= t.start && d <= t.end);
+  if (inside) return inside;
+  const last = TERMS.filter((t) => t.start <= d).at(-1);
+  const next = TERMS.find((t) => t.start > d);
+  if (last && next && yearOfTerm(last) === yearOfTerm(next)) return last;
+  return null;
+}
+
 export function schoolYear(date: Date) {
+  const t = termFor(date);
+  if (t) return `${yearOfTerm(t)}-${yearOfTerm(t) + 1}`;
   const y = date.getFullYear();
   return date.getMonth() >= 8 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 }
 
 export function term(date: Date) {
+  const t = termFor(date);
+  if (t) return `Term ${TERMS.filter((x) => yearOfTerm(x) === yearOfTerm(t)).indexOf(t) + 1}`;
   const m = date.getMonth();
   return m >= 8 || m === 0 ? "Term 1" : "Term 2";
 }
@@ -77,7 +108,9 @@ export function placeFromPath(library: string, file: string): Place {
   const eventIndex = structured ? i : parts.length - 1;
   const name = parts[eventIndex];
   const match = /^(\d{4}-\d{2}-\d{2})[\s_-]+(.+)$/.exec(name);
-  const className = structured && parts.length > eventIndex + 1 ? parts.slice(eventIndex + 1).join(" / ").slice(0, 60) : null;
+  // "RAW" and "Edited" folders inside an event hold the same photos, not a class.
+  const inner = parts.slice(eventIndex + 1).filter((p) => !/^(raw|edited)$/i.test(p));
+  const className = structured && inner.length ? inner.join(" / ").slice(0, 60) : null;
   return {
     year,
     term: termName,

@@ -164,6 +164,14 @@ create table if not exists books (
   updated_at integer not null
 );
 
+create table if not exists bin (
+  photo_id integer primary key,
+  from_path text not null,
+  bin_path text,
+  at integer not null,
+  why text
+);
+
 create table if not exists history (
   id integer primary key,
   at integer not null,
@@ -204,6 +212,12 @@ export function openDb(file: string): Db {
   addColumn(db, "photos", "camera", "text");
   addColumn(db, "photos", "posts", "integer not null default 0");
   addColumn(db, "photos", "words", "text");
+  addColumn(db, "photos", "smile", "real");
+  addColumn(db, "photos", "problems", "text");
+  addColumn(db, "photos", "clip", "blob");
+  addColumn(db, "faces", "smile", "real");
+  addColumn(db, "albums", "shared", "integer not null default 0");
+  addColumn(db, "albums", "remote_id", "text");
   addColumn(db, "history", "who", "text");
   addColumn(db, "history", "photos", "text");
   db.exec("create index if not exists students_kind on students (kind, class_name)");

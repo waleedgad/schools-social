@@ -71,3 +71,42 @@ export async function visionFaces(jpeg: Buffer): Promise<VisionFace[] | null> {
     await rm(dir, { recursive: true, force: true });
   }
 }
+
+// Green Finder tag on picks: the Mac's own "Green" tag, added or taken off.
+// Only the tag is written, never a name or a face.
+const TAG_SCRIPT = `
+ObjC.import('Foundation');
+function run(argv) {
+  var on = argv[0] === '1';
+  var n = 0;
+  for (var i = 1; i < argv.length; i++) {
+    var url = $.NSURL.fileURLWithPath(argv[i]);
+    var out = Ref();
+    url.getResourceValueForKeyError(out, $.NSURLTagNamesKey, null);
+    var tags = (out[0] && !out[0].isNil()) ? ObjC.deepUnwrap(out[0]) : [];
+    tags = tags.filter(function (t) { return t !== 'Green'; });
+    if (on) tags.push('Green');
+    if (url.setResourceValueForKeyError($(tags), $.NSURLTagNamesKey, null)) n++;
+  }
+  return String(n);
+}
+`;
+
+export async function finderTags(files: string[], on: boolean) {
+  if (process.platform !== "darwin" || !files.length) return 0;
+  const dir = await mkdtemp(path.join(tmpdir(), "hub-tags-"));
+  try {
+    const script = path.join(dir, "tags.js");
+    await writeFile(script, TAG_SCRIPT);
+    let done = 0;
+    for (let i = 0; i < files.length; i += 200) {
+      const out = await new Promise<string>((resolve) =>
+        execFile("/usr/bin/osascript", ["-l", "JavaScript", script, on ? "1" : "0", ...files.slice(i, i + 200)], { timeout: 60_000 }, (_e, stdout) => resolve(stdout ?? "0")),
+      );
+      done += Number(out.trim()) || 0;
+    }
+    return done;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}

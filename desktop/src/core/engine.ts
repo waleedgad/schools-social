@@ -6,7 +6,7 @@ import { watch, type FSWatcher } from "chokidar";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { assignPhoto, cosine, findFaces, guessTraits, isSure, SAME_PERSON, SHOW_FROM, traitCentres, type VisionFace } from "./faces";
+import { assignPhoto, cosine, findFaces, guessTraits, isSure, ranked, SAME_PERSON, SHOW_FROM, traitCentres, type Recogniser, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -71,7 +71,8 @@ export class Engine {
   private skipped(file: string) {
     const rel = path.relative(this.o.library, file);
     if (rel.startsWith("..")) return true;
-    if (rel.split(path.sep).some((p) => p.startsWith(".") || p === "Bin")) return true;
+    // "_" folders (for example "_Staff", and the app's own "_Bin") are never read or sent.
+    if (rel.split(path.sep).some((p) => p.startsWith(".") || p.startsWith("_") || p === "Bin")) return true;
     const skips = this.db.prepare("select path from folders where skip = 1").all() as { path: string }[];
     return skips.some((s) => file === s.path || file.startsWith(s.path + path.sep));
   }
@@ -98,7 +99,16 @@ export class Engine {
     return reset.length;
   }
 
+  // Libraries from 0.3 have no "problems" yet: fill them from what is known.
+  backfillProblems() {
+    const rows = this.db.prepare("select id, sharpness, brightness from photos where problems is null and sharpness is not null").all() as { id: number; sharpness: number; brightness: number }[];
+    const up = this.db.prepare("update photos set problems = ? where id = ?");
+    tx(this.db, () => rows.forEach((r) => up.run(photoProblems(r.sharpness, r.brightness, []) ?? "", r.id)));
+    return rows.length;
+  }
+
   async start() {
+    this.backfillProblems();
     const fixed = this.dedupePeople();
     if (fixed) this.o.log?.(`one person per photo: ${fixed} faces freed`);
     this.timer = setInterval(() => this.pump(), 400);
@@ -107,7 +117,7 @@ export class Engine {
       alwaysStat: true,
       depth: 10,
       awaitWriteFinish: { stabilityThreshold: 1500, pollInterval: 250 },
-      ignored: (p, stats) => path.basename(p).startsWith(".") || (!!stats?.isFile() && !isLibraryFile(p)),
+      ignored: (p, stats) => path.basename(p).startsWith(".") || (path.basename(p).startsWith("_") && p !== this.o.library) || (!!stats?.isFile() && !isLibraryFile(p)),
     });
     this.watcher.on("add", (file, stats) => stats && this.seen(file, stats.size, stats.mtimeMs));
     this.watcher.on("change", (file, stats) => stats && this.seen(file, stats.size, stats.mtimeMs));
@@ -168,7 +178,8 @@ export class Engine {
     };
     try {
       await walk(this.o.library);
-      const missing = [...known.keys()].filter((p) => !present.has(p));
+      // Photos moved to the archive drive live outside the library: they are not missing.
+      const missing = [...known.keys()].filter((p) => !present.has(p) && !path.relative(this.o.library, p).startsWith(".."));
       const mark = this.db.prepare("update photos set missing = 1 where path = ?");
       tx(this.db, () => missing.forEach((p) => mark.run(p)));
       const back = this.db.prepare("update photos set missing = 0 where path = ? and missing = 1");
@@ -365,6 +376,7 @@ export class Engine {
           editedOf,
           id,
         );
+      this.db.prepare("update photos set problems = ? where id = ?").run(photoProblems(q.sharpness, q.brightness, []), id);
       if (this.o.faces() && !twin && !pairOf) this.faceWork.push(id);
       this.o.onPhotoReady?.(id);
       this.o.onChange("photos");
@@ -437,9 +449,14 @@ export class Engine {
         });
         const usable = found.filter((f) => f.usable);
         const biggest = usable.reduce((mx, f) => Math.max(mx, f.box[2]), 0);
+        // Smiles, from the face points: a wider mouth for the distance
+        // between the eyes. Used by the smile finder and "Best photos".
+        const smiles = usable.map((f) => smileOf(f.landmarks)).filter((v): v is number => v !== null);
+        const smile = smiles.length ? smiles.reduce((a, b) => a + b, 0) / smiles.length : null;
+        const problems = photoProblems(p.sharpness as number, p.brightness as number, usable.map((f) => f.box));
         this.db
-          .prepare("update photos set faces_scanned = 1, face_count = ?, quality = ? where id = ?")
-          .run(usable.length, score(p.sharpness as number, p.brightness as number, usable.length, biggest), id);
+          .prepare("update photos set faces_scanned = 1, face_count = ?, quality = ?, smile = ?, problems = ? where id = ?")
+          .run(usable.length, score(p.sharpness as number, p.brightness as number, usable.length, biggest) + (smile ? Math.max(0, smile - 0.85) * 4 : 0), smile, problems, id);
       });
       this.o.onChange("faces");
       this.o.onNamed?.([id]);
@@ -490,12 +507,12 @@ export class Engine {
   knownFaces(model = this.faceModel) {
     const rows = this.db
       .prepare(
-        `select f.student_id, f.embedding, s.class_name, s.kind, s.gender from faces f left join students s on s.id = f.student_id
+        `select f.student_id, f.embedding, s.class_name, s.kind, s.gender, coalesce(p.taken_at, p.event_date) at from faces f left join students s on s.id = f.student_id left join photos p on p.id = f.photo_id
          where f.student_id is not null and f.status in ('confirmed', 'portrait') and f.auto = 0 and f.embedding is not null and f.model = ?`,
       )
-      .all(model) as { student_id: string; embedding: Uint8Array; class_name: string | null; kind: string | null; gender: string | null }[];
+      .all(model) as { student_id: string; embedding: Uint8Array; class_name: string | null; kind: string | null; gender: string | null; at: string | null }[];
     const info = this.peopleInfo();
-    return rows.map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding), className: r.class_name, kind: r.kind ?? "student", gender: info.get(r.student_id)?.gender ?? null }));
+    return rows.map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding), className: r.class_name, kind: r.kind ?? "student", gender: info.get(r.student_id)?.gender ?? null, at: r.at }));
   }
 
   // A class photo is matched against that class (and the adults) first;
@@ -504,6 +521,10 @@ export class Engine {
   private knownFor(className: string | null, at: string | null, known = this.knownFaces()) {
     const info = this.peopleInfo();
     const day = at?.slice(0, 10) ?? null;
+    // Students change as they grow: examples more than two years away from
+    // this photo count a little less, so recent faces lead.
+    const year = day ? Number(day.slice(0, 4)) : null;
+    if (year) known = known.map((k) => (k.at && k.kind === "student" ? { ...k, penalty: 0.03 * Math.max(0, Math.abs(Number(k.at.slice(0, 4)) - year) - 2) } : k));
     const inTime = known.filter((k) => {
       const p = info.get(k.studentId);
       if (!p || !day) return !p?.left;
@@ -514,6 +535,36 @@ export class Engine {
     if (!className) return inTime;
     const mine = inTime.filter((k) => k.className === className || k.kind !== "student");
     return mine.some((k) => k.kind === "student") ? mine : inTime;
+  }
+
+  // The three most likely people for one face (the "1 2 3" guesses), with
+  // the same checks as suggestions: once per photo, not someone said "no"
+  // to, boy or girl, student or adult.
+  guesses(faceId: number, n = 3) {
+    const f = this.db
+      .prepare("select f.id, f.photo_id, f.embedding, f.model, f.rejected, p.class_name, coalesce(p.taken_at, p.event_date) at from faces f join photos p on p.id = f.photo_id where f.id = ?")
+      .get(faceId) as { id: number; photo_id: number; embedding: Uint8Array | null; model: string; rejected: string; class_name: string | null; at: string | null } | undefined;
+    if (!f?.embedding) return [];
+    const model = (f.model as Recogniser) ?? "sface";
+    const all = this.knownFaces(model);
+    const known = this.knownFor(f.class_name, f.at, all);
+    const emb = fromBlob(f.embedding);
+    const taken = new Set((this.db.prepare("select student_id from faces where photo_id = ? and id != ? and status in ('confirmed', 'manual') and student_id is not null").all(f.photo_id, f.id) as { student_id: string }[]).map((r) => r.student_id));
+    const rejected = new Set((f.rejected ?? "").split(",").filter(Boolean));
+    const traits = traitCentres(all, emb.length);
+    const t = guessTraits(emb, traits);
+    const info = this.peopleInfo();
+    return ranked(emb, known, model)
+      .filter((c) => !taken.has(c.studentId) && !rejected.has(c.studentId))
+      .filter((c) => {
+        const who = info.get(c.studentId);
+        if (!who) return true;
+        if (t.gender && who.gender && t.gender !== who.gender) return false;
+        if (t.adult === true && who.kind === "student") return false;
+        if (t.adult === false && who.kind !== "student") return false;
+        return true;
+      })
+      .slice(0, n);
   }
 
   // After a confirmation, look again at every face nobody has named yet, in
@@ -893,6 +944,26 @@ export class Engine {
   }
 }
 
+// Mouth width over eye distance: about 0.8 to 0.9 for a still face, more
+// when smiling. YuNet points: right eye, left eye, nose, right and left mouth corners.
+export function smileOf(l: number[]) {
+  if (!l || l.length < 10) return null;
+  const eyes = Math.hypot(l[2] - l[0], l[3] - l[1]);
+  const mouth = Math.hypot(l[8] - l[6], l[9] - l[7]);
+  return eyes > 0 ? mouth / eyes : null;
+}
+
+// What might be wrong with a photo, in words the Library shows as badges.
+export function photoProblems(sharpness: number | null, brightness: number | null, faces: number[][]) {
+  const out: string[] = [];
+  if (sharpness !== null && sharpness < 25) out.push("blurry");
+  if (brightness !== null && brightness < 0.11) out.push("dark");
+  if (brightness !== null && brightness > 0.92) out.push("bright");
+  if (faces.some((b) => b[1] < 0.004 && b[3] > 0.06)) out.push("head-cut");
+  if (faces.length >= 1 && faces.every((b) => b[2] < 0.025)) out.push("faces-small");
+  return out.join(",") || null;
+}
+
 function boxIou(a: number[], b: number[]) {
   const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
   const x2 = Math.min(a[0] + a[2], b[0] + b[2]), y2 = Math.min(a[1] + a[3], b[1] + b[3]);
@@ -903,7 +974,7 @@ function boxIou(a: number[], b: number[]) {
 const like = (prefix: string) => prefix.replace(/[\\%_]/g, (c) => `\\${c}`) + "%";
 
 // A rename, or a copy and delete when the library spans two drives.
-async function moveFile(from: string, to: string) {
+export async function moveFile(from: string, to: string) {
   const { rename, unlink } = await import("node:fs/promises");
   try {
     await rename(from, to);
@@ -914,7 +985,7 @@ async function moveFile(from: string, to: string) {
   }
 }
 
-async function freeName(file: string) {
+export async function freeName(file: string) {
   if (!existsSync(file)) return file;
   const ext = path.extname(file);
   const base = file.slice(0, -ext.length || undefined);
