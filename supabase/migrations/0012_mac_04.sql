@@ -307,3 +307,26 @@ create policy "writers or comms remove book texts" on public.book_texts for dele
 create policy "members comment on books" on public.book_comments for insert with check (public.is_member(school_id) and user_id = auth.uid());
 create policy "comms resolve book comments" on public.book_comments for update
   using (public.has_role(school_id, array['admin', 'comms_lead', 'comms']::public.app_role[]));
+
+-- The school admin marks a problem report as seen or fixed.
+create policy "admins mark reports" on public.problem_reports for update
+  using (public.has_role(school_id, array['admin']::public.app_role[]));
+
+-- Ticking a student off an event's shot list on the phone (any member of
+-- the school taking photos; the list holds names and counts only).
+create function public.tick_shot(p_event uuid, p_code text, p_done boolean)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if not exists (select 1 from public.events e where e.id = p_event and public.is_member(e.school_id)) then
+    raise exception 'not allowed';
+  end if;
+  update public.events set shot_list = (
+    select coalesce(jsonb_agg(case when x.v ->> 'code' = p_code then jsonb_set(x.v, '{done}', to_jsonb(p_done)) else x.v end order by x.n), '[]'::jsonb)
+    from jsonb_array_elements(shot_list) with ordinality as x (v, n)
+  ) where id = p_event;
+end;
+$$;
+revoke execute on function public.tick_shot(uuid, text, boolean) from public, anon;
+grant execute on function public.tick_shot(uuid, text, boolean) to authenticated;

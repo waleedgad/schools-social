@@ -505,7 +505,13 @@
       "posting": "Posting",
       "photos": "Photos",
       "school": "School"
-    }
+    },
+    "check": "Is this …?",
+    "shots": "Shot lists",
+    "coverage": "Coverage",
+    "books": "Yearbooks",
+    "albums": "Albums",
+    "reports": "Problem reports"
   },
   "shell": {
     "newPost": "New post",
@@ -551,7 +557,9 @@
     "manageStaff": "Invite and manage people",
     "manageSettings": "School settings",
     "viewActivity": "See the activity log",
-    "confirmFaces": "Confirm faces"
+    "confirmFaces": "Confirm faces",
+    "viewCoverage": "See coverage",
+    "reviewBooks": "Review yearbooks"
   },
   "board": {
     "title": "Posts",
@@ -871,7 +879,15 @@
       "balance": "Category mix",
       "numbers": "Last 30 days",
       "upload": "Upload",
-      "mine": "My photos"
+      "mine": "My photos",
+      "plan": "Plan for today",
+      "progress": "This week's plan",
+      "waiting": "Waiting on others",
+      "occasions": "Coming up",
+      "alerts": "Team news",
+      "checks": "For you to check",
+      "coverage": "Students not seen lately",
+      "inbox": "Comments to answer"
     },
     "empty": {
       "approvals": "Nothing waiting. 🎉",
@@ -881,7 +897,12 @@
       "problems": "No failed or returned posts.",
       "waitingMac": "All uploads are checked.",
       "balance": "Not enough posts yet.",
-      "mine": "You haven't uploaded photos yet."
+      "mine": "You haven't uploaded photos yet.",
+      "waiting": "Nothing has been waiting more than a day.",
+      "occasions": "No occasions or events in the next 30 days.",
+      "alerts": "No team news this week.",
+      "checks": "Nothing for you to check.",
+      "coverage": "No numbers from the Mac yet."
     },
     "waitingMac": "{count, plural, one {# photo is} other {# photos are}} waiting. They'll be checked when the Mac app is open.",
     "tooMuch": "Most recent posts are {name}. Mix in other categories.",
@@ -890,7 +911,34 @@
     "uploadHint": "Upload them and the comms team takes it from there.",
     "photoNo": "not for posting",
     "photoWaiting": "checking",
-    "photoReady": "ready"
+    "photoReady": "ready",
+    "alert": {
+      "import": "{by} imported {count} photos: {title}",
+      "book": "Yearbook sent for review: {title}",
+      "assigned": "{by} gave you a post",
+      "remind": "Reminder from {from}: {text}"
+    },
+    "plan": {
+      "approve": "{count, plural, one {# post} other {# posts}} to approve",
+      "empty": "{count, plural, one {# posting time today has} other {# posting times today have}} no post yet",
+      "faces": "{count, plural, one {# face} other {# faces}} to check (Is this …?)",
+      "event": "Today: {title}",
+      "problems": "{count, plural, one {# post needs} other {# posts need}} attention",
+      "nothing": "All clear for today."
+    },
+    "progress": {
+      "count": "{have} of {want} posting times filled",
+      "noSlots": "No weekly posting times yet.",
+      "setSlots": "Set them up"
+    },
+    "waitingFor": "waiting {hours} h",
+    "remind": "Remind #{n}",
+    "makePost": "Make the post",
+    "markRead": "Mark read",
+    "shotList": "Shot list: {title} ({day})",
+    "bookToCheck": "Check the names: {title}",
+    "coverageLine": "{none} of {total} students have no good photo yet; {posts} aren't in any post.",
+    "inboxHint": "Answer comments from Facebook and Instagram, with suggested replies."
   },
   "setup": {
     "title": "Set up your school",
@@ -1104,5 +1152,163 @@
     "card": "Announcement",
     "cardHint": "Pick a ready design, type the headline in Arabic and English, and the image is made for you.",
     "cardButton": "Design an announcement"
+  },
+  "more": {
+    "check": {
+      "title": "Is this …?",
+      "subtitle": "Faces the Mac isn't sure of, from your classes",
+      "no": "No",
+      "yes": "Yes",
+      "question": "Is this",
+      "noClasses": "You have no classes yet. Ask the school admin to add your classes on the People page.",
+      "noPhoto": "Photo not available",
+      "none": "Nothing to check",
+      "noneHint": "When the Mac isn't sure who someone is, it asks you here.",
+      "thanks": "Thank you. You answered {count, plural, one {# check} other {# checks}}.",
+      "privacy": "Your answer goes to the Mac, which names the face there. Faces are never stored on the website."
+    },
+    "shots": {
+      "title": "Shot lists",
+      "subtitle": "Who still needs a good photo at each event",
+      "none": "No shot lists",
+      "noneHint": "On the Mac, Coverage > Send to phone makes a shot list for an event. Or use Fill the gap on Coverage here.",
+      "progress": "{done} of {total} done",
+      "upload": "Upload photos",
+      "missing": "This shot list isn't available.",
+      "todo": "Still to take",
+      "done": "Done",
+      "all": "Everyone",
+      "allClasses": "All classes",
+      "allDone": "Everyone on the list has a photo. Well done!",
+      "nobody": "Nobody here.",
+      "tick": "Tick off",
+      "untick": "Untick",
+      "good": "{count, plural, =0 {No good photos} one {# good photo} other {# good photos}}",
+      "hint": "Fewest good photos first. Upload the photos as usual; the Mac checks them."
+    },
+    "coverage": {
+      "title": "Coverage",
+      "subtitle": "Who is in photos and posts",
+      "updated": "From the Mac, {when}",
+      "made": "Shot list made for {count, plural, one {# student} other {# students}}.",
+      "noClasses": "No classes yet",
+      "noClassesHint": "Ask the school admin to add your classes on the People page.",
+      "none": "No numbers yet",
+      "noneHint": "The Mac sends coverage after it reads the library and the faces.",
+      "allClasses": "All classes",
+      "students": "Students",
+      "withGood": "Have a good photo",
+      "inPosts": "In a post",
+      "ready": "Ready for the yearbook",
+      "list": "Students",
+      "fill": "Fill the gap: make a shot list",
+      "search": "Search a name (any spelling)",
+      "missing": "No good photo",
+      "few": "1 or 2 only",
+      "often": "Too often",
+      "everyone": "Everyone",
+      "nobody": "Nobody in this list.",
+      "last": "last photo {date}",
+      "good": "{count, plural, =0 {No good photos} one {# good} other {# good}}",
+      "posts": "{count, plural, =0 {No posts} one {# post} other {# posts}}",
+      "tooOften": "Too often",
+      "privacy": "Only counts come from the Mac. Faces and photos stay on the school's computer."
+    },
+    "books": {
+      "title": "Yearbooks",
+      "subtitle": "Books sent from the Mac for review",
+      "none": "No yearbooks to review",
+      "noneHint": "On the Mac, Yearbooks > Send for review puts a book here.",
+      "missing": "This yearbook isn't available.",
+      "pages": "{count, plural, one {# page} other {# pages}}",
+      "version": "version {v}",
+      "checked": "{count, plural, one {# name checked} other {# names checked}}",
+      "approve": "Approve the book",
+      "reopen": "Back to review",
+      "status": {
+        "review": "In review",
+        "approved": "Approved",
+        "printing": "Printing"
+      },
+      "kind": {
+        "grade": "Grade book",
+        "class": "Class book",
+        "student": "Student book",
+        "graduation": "Graduation book"
+      },
+      "tabs": {
+        "pages": "Pages",
+        "names": "Check names",
+        "texts": "Texts for the book"
+      },
+      "saved": {
+        "names": "Names saved. The Mac fixes the spelling in the class list.",
+        "text": "Text added. The Mac puts it in the book."
+      },
+      "noPicture": "No picture for this page.",
+      "pageOf": "Page {n} of {total}",
+      "comments": "Comments on this page",
+      "done": "Done",
+      "markDone": "Mark done",
+      "noComments": "No comments yet.",
+      "addComment": "Add a comment",
+      "send": "Send",
+      "namesTitle": "Check the names of your class",
+      "namesHint": "Leave the box empty if the name is right. Type the right spelling if it's wrong.",
+      "noNames": "No students found in this book.",
+      "noClassNames": "None of your classes' students are in this book.",
+      "onPages": "on pages {pages}",
+      "notInBook": "not in the book yet",
+      "ok": "checked",
+      "fixed": "fixed",
+      "fixPlaceholder": "Right spelling (if wrong)",
+      "missingStudents": "{count, plural, one {# student of the class isn't} other {# students of the class aren't}} in the book yet. The comms team will add them.",
+      "saveNames": "Save the names",
+      "textsTitle": "Texts collected",
+      "noTexts": "No texts yet.",
+      "remove": "Remove",
+      "addText": "Add a text",
+      "textKindLabel": "What is it?",
+      "textKind": {
+        "teacher": "Class teacher's message",
+        "principal": "Principal's word",
+        "quote": "Student's quote",
+        "other": "Other text"
+      },
+      "forClass": "For class",
+      "textBody": "Text",
+      "textHint": "Arabic or English. Up to 1,500 characters.",
+      "addTextButton": "Add the text"
+    },
+    "albums": {
+      "title": "Albums",
+      "subtitle": "Shared from the Mac: pick photos and make a post",
+      "none": "No albums shared yet",
+      "noneHint": "On the Mac, right-click an album and choose Share with the team.",
+      "cantUse": "Can't post",
+      "waiting": "Mac check",
+      "makePost": "Make a post with these"
+    },
+    "reports": {
+      "title": "Problem reports",
+      "subtitle": "Your reports and what happened to them",
+      "subtitleAdmin": "Reports from everyone at the school",
+      "sent": "Thank you. Your report was sent.",
+      "new": "Report a problem",
+      "what": "What went wrong?",
+      "send": "Send the report",
+      "open": "Not fixed yet",
+      "all": "All",
+      "none": "No reports",
+      "status": {
+        "open": "Sent",
+        "seen": "Being looked at",
+        "fixed": "Fixed"
+      },
+      "screenshot": "Screenshot",
+      "log": "Technical log",
+      "markSeen": "Mark seen",
+      "markFixed": "Mark fixed"
+    }
   }
 }

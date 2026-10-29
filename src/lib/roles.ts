@@ -31,6 +31,8 @@ const PERMISSIONS = {
   manageSettings: ["admin"],
   viewActivity: ["admin", "principal"],
   confirmFaces: ["admin", "comms_lead", "comms", "teacher"],
+  viewCoverage: [...COMMS, "principal", "teacher"],
+  reviewBooks: [...COMMS, "principal", "teacher"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

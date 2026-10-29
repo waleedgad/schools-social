@@ -11,7 +11,8 @@ import { CommandPalette, MobileNavToggle, Shortcuts, ThemeToggle, WorkspaceSwitc
 
 export type NavKey =
   | "today" | "posts" | "calendar" | "analytics" | "library" | "upload" | "students"
-  | "categories" | "accounts" | "people" | "settings" | "activity" | "help" | "inbox";
+  | "categories" | "accounts" | "people" | "settings" | "activity" | "help" | "inbox"
+  | "check" | "shots" | "coverage" | "books" | "albums" | "reports";
 
 type Item = { key: NavKey; href: string; icon: IconName; permission: Permission; section: "main" | "posting" | "photos" | "school" };
 
@@ -23,12 +24,18 @@ const ITEMS: Item[] = [
   { key: "analytics", href: "/analytics", icon: "analytics", permission: "viewAnalytics", section: "posting" },
   { key: "library", href: "/library", icon: "library", permission: "viewLibrary", section: "photos" },
   { key: "upload", href: "/upload", icon: "upload", permission: "upload", section: "photos" },
+  { key: "albums", href: "/albums", icon: "album", permission: "viewLibrary", section: "photos" },
+  { key: "check", href: "/check", icon: "face", permission: "confirmFaces", section: "photos" },
+  { key: "shots", href: "/shots", icon: "camera", permission: "upload", section: "photos" },
+  { key: "coverage", href: "/coverage", icon: "chart", permission: "viewCoverage", section: "photos" },
   { key: "students", href: "/students", icon: "students", permission: "manageConsent", section: "photos" },
+  { key: "books", href: "/books", icon: "book", permission: "reviewBooks", section: "school" },
   { key: "categories", href: "/categories", icon: "categories", permission: "manageCategories", section: "school" },
   { key: "accounts", href: "/accounts", icon: "accounts", permission: "pauseAccounts", section: "school" },
   { key: "people", href: "/staff", icon: "people", permission: "manageStaff", section: "school" },
   { key: "settings", href: "/settings", icon: "settings", permission: "manageSettings", section: "school" },
   { key: "activity", href: "/activity", icon: "activity", permission: "viewActivity", section: "school" },
+  { key: "reports", href: "/reports", icon: "warning", permission: "upload", section: "school" },
 ];
 
 async function counts(schoolId: string, membership: Membership) {
@@ -46,6 +53,10 @@ async function counts(schoolId: string, membership: Membership) {
   if (can(membership.role, "viewLibrary", p)) {
     const { count } = await supabase.from("photos").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("check_status", "waiting");
     if (count) out.library = count;
+  }
+  if (can(membership.role, "confirmFaces", p)) {
+    const { count } = await supabase.from("face_checks").select("id", { count: "exact", head: true }).eq("school_id", schoolId).is("answer", null);
+    if (count) out.check = count;
   }
   return out;
 }
