@@ -1,7 +1,7 @@
 {
   "name": "school-social-desktop",
   "productName": "School Social Hub Library",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The school's photo library on the Mac: import, faces, picks and posts for School Social Hub.",
   "main": "dist/main.js",
   "private": true,

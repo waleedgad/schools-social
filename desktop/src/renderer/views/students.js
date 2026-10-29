@@ -441,6 +441,7 @@ async function importList(file) {
 // notes. Teachers see the classes they teach; parents see their students.
 App.views.student = {
   async render(main, params) {
+    if (params.id == null) return go("students");
     const d = await call("profile", params.id);
     if (!d) return go("students");
     const s = d.student;
