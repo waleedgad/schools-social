@@ -34,6 +34,7 @@ export async function saveCategory(formData: FormData) {
     hashtags: str(formData, "hashtags", 300) || null,
     frame_id: str(formData, "frame", 40) || null,
     needs_extra_approval: formData.get("extra") === "on",
+    language_mode: ["both", "separate", "ar", "en"].includes(str(formData, "languageMode", 10)) ? str(formData, "languageMode", 10) : "both",
   };
   if (!row.name_ar) back(locale, "categories", { error: "name" });
   const { error } = id ? await supabase.from("categories").update(row).eq("id", id) : await supabase.from("categories").insert({ ...row, position: 99 });
@@ -247,5 +248,21 @@ export async function saveTermDates(formData: FormData) {
     .map((name, i) => ({ name: name.trim().slice(0, 40), start: starts[i], end: ends[i] }))
     .filter((t) => t.name && /^\d{4}-\d{2}-\d{2}$/.test(t.start) && /^\d{4}-\d{2}-\d{2}$/.test(t.end));
   await supabase.from("schools").update({ term_dates: terms }).eq("id", schoolId);
-  redirect({ href: { pathname: "/settings", query: { saved: "1", tab: "school" } }, locale });
+  redirect({ href: { pathname: "/settings", query: { saved: "1", tab: "calendar" } }, locale });
+}
+
+// Holidays (no posts go out on them, if the school wants) and the weekdays
+// the school never posts on. The Mac's calendar uses the same.
+export async function saveHolidays(formData: FormData) {
+  const { locale, schoolId, supabase } = await lead(formData, "manageSettings");
+  const names = formData.getAll("holName").map(String);
+  const starts = formData.getAll("holStart").map(String);
+  const ends = formData.getAll("holEnd").map(String);
+  const holidays = names
+    .map((name, i) => ({ name: name.trim().slice(0, 80), start: starts[i], end: /^\d{4}-\d{2}-\d{2}$/.test(ends[i]) ? ends[i] : starts[i] }))
+    .filter((t) => t.name && /^\d{4}-\d{2}-\d{2}$/.test(t.start))
+    .slice(0, 60);
+  const weekdays = formData.getAll("noPostDay").map(Number).filter((n) => n >= 0 && n <= 6);
+  await supabase.from("schools").update({ holidays, no_post_days: { weekdays, holidays: formData.get("noPostHolidays") === "on" } }).eq("id", schoolId);
+  redirect({ href: { pathname: "/settings", query: { saved: "1", tab: "calendar" } }, locale });
 }

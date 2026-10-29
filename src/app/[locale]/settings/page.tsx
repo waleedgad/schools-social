@@ -1,8 +1,11 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Icon, type IconName } from "@/components/icons";
+import { SettingsSearch } from "@/components/settings-search";
 import { AppShell } from "@/components/shell";
-import { Button, Card, Field, Notice, Pills, Select, TextArea, Toggle } from "@/components/ui";
-import { redirect } from "@/i18n/navigation";
-import { saveApprovals, savePermissions, saveTermDates, setSelfFiling } from "@/lib/actions/brand";
+import { Button, Card, Field, Notice, Select, TextArea, Toggle } from "@/components/ui";
+import { Link, redirect } from "@/i18n/navigation";
+import { saveApprovals, saveHolidays, savePermissions, saveTermDates, setSelfFiling } from "@/lib/actions/brand";
+import { removeComputer } from "@/lib/actions/team";
 import { saveSettings } from "@/lib/actions/settings";
 import { isAiConfigured } from "@/lib/ai";
 import { isMetaConfigured } from "@/lib/meta";
@@ -12,8 +15,18 @@ import { isAdminConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const TIME_ZONES = ["Africa/Cairo", "Asia/Riyadh", "Asia/Dubai", "Asia/Kuwait", "Asia/Qatar", "Asia/Amman", "Europe/London"];
-const TABS = ["school", "approvals", "roles", "library", "setup"] as const;
+const TABS = ["school", "calendar", "approvals", "roles", "library", "computers", "setup"] as const;
 type Tab = (typeof TABS)[number];
+const TAB_ICONS: Record<Tab, IconName> = { school: "settings", calendar: "calendar", approvals: "check", roles: "people", library: "library", computers: "keyboard", setup: "bolt" };
+// Pages of their own that sit in the same list, like System Settings.
+const PAGES: { key: string; href: string; icon: IconName }[] = [
+  { key: "categories", href: "/categories", icon: "categories" },
+  { key: "accounts", href: "/accounts", icon: "accounts" },
+  { key: "people", href: "/staff", icon: "people" },
+  { key: "activity", href: "/activity", icon: "activity" },
+  { key: "reports", href: "/reports", icon: "warning" },
+  { key: "help", href: "/help", icon: "help" },
+];
 
 export default async function SettingsPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ saved?: string; error?: string; tab?: string }> }) {
   const { locale } = await params;
@@ -29,18 +42,49 @@ export default async function SettingsPage({ params, searchParams }: { params: P
   const [{ data: school }, { data: people }] = await Promise.all([
     supabase
       .from("schools")
-      .select("name, default_locale, timezone, brand_voice, hashtags, caption_languages, approve_by, lead_self_publish, extra_approval, extra_approvers, extra_timeout_hours, extra_timeout_action, photo_limit, permissions, self_filing, term_dates")
+      .select("name, default_locale, timezone, brand_voice, hashtags, caption_languages, approve_by, lead_self_publish, extra_approval, extra_approvers, extra_timeout_hours, extra_timeout_action, photo_limit, permissions, self_filing, term_dates, holidays, no_post_days, computer_limit")
       .eq("id", schoolId)
       .single(),
     supabase.from("memberships").select("user_id, full_name, role").eq("school_id", schoolId).eq("active", true).in("role", ["admin", "principal", "comms_lead"]),
   ]);
   const terms = ((school?.term_dates ?? []) as { name: string; start: string; end: string }[]);
+  const holidays = ((school?.holidays ?? []) as { name: string; start: string; end: string }[]);
+  const noPost = ((school?.no_post_days ?? {}) as { weekdays?: number[]; holidays?: boolean });
+  const { data: computers } = tab === "computers" ? await supabase.from("computers").select("id, name, platform, last_seen_at, created_at").eq("school_id", schoolId).order("last_seen_at", { ascending: false }) : { data: [] };
+  const weekdayName = (d: number) => new Date(Date.UTC(2026, 0, 4 + d)).toLocaleDateString(locale === "ar" ? "ar-EG" : "en-GB", { weekday: "long", timeZone: "UTC" });
+  // Words each entry answers to in the search, in both languages.
+  const words = (k: string) => `${t(`settings.tabs.${k}`)} ${t(`more.settings.words.${k}`)}`.toLowerCase();
   const overrides = (school?.permissions ?? {}) as Record<string, Record<string, boolean>>;
   const hidden = <input type="hidden" name="locale" value={locale} />;
 
   return (
     <AppShell locale={locale} membership={membership} workspaces={workspaces} active="settings" title={t("settings.title")}>
-      <Pills items={TABS.map((k) => ({ label: t(`settings.tabs.${k}`), href: { pathname: "/settings", query: { tab: k } }, on: k === tab }))} />
+      <div className="grid gap-5 md:grid-cols-[220px_1fr]">
+      <nav className="md:sticky md:top-20 md:self-start">
+        <SettingsSearch placeholder={t("more.settings.search")} empty={t("more.settings.noMatch")} />
+        <ul className="flex flex-col gap-0.5">
+          {TABS.map((k) => (
+            <li key={k} data-set={words(k)}>
+              <Link href={{ pathname: "/settings", query: { tab: k } }} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${k === tab ? "bg-accent-bg font-semibold text-accent-ink" : "hover:bg-background"}`}>
+                <Icon name={TAB_ICONS[k]} className={k === tab ? "" : "text-faint"} />
+                {t(`settings.tabs.${k}`)}
+              </Link>
+            </li>
+          ))}
+          <li className="px-2 pb-1 pt-3 text-[10px] font-bold uppercase tracking-widest text-faint">{t("more.settings.morePages")}</li>
+          {PAGES.map((p) => (
+            <li key={p.key} data-set={`${t(`more.settings.pages.${p.key}`)} ${t(`more.settings.words.${p.key}`)}`.toLowerCase()}>
+              <Link href={p.href} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-background">
+                <Icon name={p.icon} className="text-faint" />
+                <span className="grow">{t(`more.settings.pages.${p.key}`)}</span>
+                <Icon name="chevron" className="text-faint rtl:rotate-180" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className="min-w-0 space-y-5">
+      <h2 className="text-xl font-bold">{t(`settings.tabs.${tab}`)}</h2>
       {sp.saved && <Notice tone="good">{t("settings.saved")}</Notice>}
       {sp.error && <Notice>{t("settings.error")}</Notice>}
 
@@ -73,6 +117,11 @@ export default async function SettingsPage({ params, searchParams }: { params: P
               <Button>{t("common.save")}</Button>
             </form>
           </Card>
+        </>
+      )}
+
+      {tab === "calendar" && (
+        <>
           <Card title={t("settings.terms")}>
             <form action={saveTermDates} className="space-y-2">
               {hidden}
@@ -87,7 +136,62 @@ export default async function SettingsPage({ params, searchParams }: { params: P
               <Button variant="quiet">{t("common.save")}</Button>
             </form>
           </Card>
+          <Card title={t("more.settings.holidays")}>
+            <form action={saveHolidays} className="space-y-3">
+              {hidden}
+              <p className="text-sm text-muted">{t("more.settings.holidaysHint")}</p>
+              {[...holidays, ...Array.from({ length: 3 }, () => ({ name: "", start: "", end: "" }))].slice(0, holidays.length + 3).map((h, i) => (
+                <div key={i} className="grid grid-cols-[1fr_9rem_9rem] gap-2">
+                  <input name="holName" defaultValue={h.name} placeholder={t("more.settings.holidayName")} maxLength={80} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="holStart" type="date" defaultValue={h.start} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="holEnd" type="date" defaultValue={h.end} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                </div>
+              ))}
+              <fieldset className="space-y-2 border-t border-border pt-3">
+                <legend className="text-sm font-semibold">{t("more.settings.noPostDays")}</legend>
+                <div className="flex flex-wrap gap-3">
+                  {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                    <label key={d} className="flex items-center gap-1.5 text-sm">
+                      <input type="checkbox" name="noPostDay" value={d} defaultChecked={(noPost.weekdays ?? []).includes(d)} />
+                      {weekdayName(d)}
+                    </label>
+                  ))}
+                </div>
+                <Toggle name="noPostHolidays" defaultChecked={noPost.holidays ?? true} label={t("more.settings.noPostHolidays")} hint={t("more.settings.noPostHint")} />
+              </fieldset>
+              <Button variant="quiet">{t("common.save")}</Button>
+            </form>
+          </Card>
         </>
+      )}
+
+      {tab === "computers" && (
+        <Card title={t("more.settings.computers", { count: computers?.length ?? 0, limit: (school?.computer_limit as number | undefined) ?? 2 })}>
+          <p className="mb-3 text-sm text-muted">{t("more.settings.computersHint")}</p>
+          {!computers?.length ? (
+            <p className="text-sm text-muted">{t("more.settings.noComputers")}</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {computers.map((c) => (
+                <li key={c.id as string} className="flex items-center gap-3 py-2 text-sm">
+                  <Icon name="keyboard" className="text-faint" />
+                  <div className="grow">
+                    <b>{(c.name as string) || t("more.settings.computer")}</b>
+                    <span className="block text-xs text-muted">{c.platform === "darwin" ? "Mac" : c.platform === "win32" ? "Windows" : ((c.platform as string) ?? "")} · {t("more.settings.lastSeen", { when: new Date(c.last_seen_at as string).toLocaleString(locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: membership.school.timezone }) })}</span>
+                  </div>
+                  {membership.role === "admin" && (
+                    <form action={removeComputer}>
+                      {hidden}
+                      <input type="hidden" name="id" value={c.id as string} />
+                      <Button variant="danger" className="!py-1 text-xs">{t("more.settings.removeComputer")}</Button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-3 text-xs text-muted">{t("more.settings.computersMore")}</p>
+        </Card>
       )}
 
       {tab === "approvals" && (
@@ -215,6 +319,8 @@ export default async function SettingsPage({ params, searchParams }: { params: P
           </ul>
         </Card>
       )}
+      </div>
+      </div>
     </AppShell>
   );
 }

@@ -105,6 +105,11 @@ export default async function CategoriesPage({ params, searchParams }: { params:
                     </option>
                   ))}
                 </Select>
+                <Select label={t("more.settings.languageMode")} name="languageMode" defaultValue={editing?.language_mode ?? "both"} hint={t("more.settings.languageModeHint")}>
+                  {["both", "separate", "ar", "en"].map((m) => (
+                    <option key={m} value={m}>{t(`more.settings.languageModes.${m}`)}</option>
+                  ))}
+                </Select>
                 <Toggle name="extra" defaultChecked={editing?.needs_extra_approval} label={t("brandPage.needsExtra")} hint={t("brandPage.needsExtraHint")} />
                 <Button className="w-full">{t("common.save")}</Button>
               </form>

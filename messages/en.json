@@ -371,7 +371,9 @@
       "approvals": "Approvals",
       "roles": "Roles",
       "library": "Library",
-      "setup": "Setup status"
+      "setup": "Setup status",
+      "calendar": "School calendar",
+      "computers": "Computers"
     },
     "moreOnBrand": "The full brand voice is on the Brand and categories page.",
     "terms": "Term dates",
@@ -1309,6 +1311,72 @@
       "log": "Technical log",
       "markSeen": "Mark seen",
       "markFixed": "Mark fixed"
+    },
+    "settings": {
+      "search": "Search settings",
+      "noMatch": "No setting matches.",
+      "morePages": "More",
+      "pages": {
+        "categories": "Brand and categories",
+        "accounts": "Facebook and Instagram",
+        "people": "People and roles",
+        "activity": "Activity log",
+        "reports": "Problem reports",
+        "help": "Help"
+      },
+      "words": {
+        "school": "name language time zone captions brand voice hashtags اسم لغة توقيت",
+        "calendar": "terms holidays no posting days weekend term dates فصول عطلات إجازات",
+        "approvals": "approve principal extra approver photo limit اعتماد موافقة",
+        "roles": "permissions abilities roles صلاحيات أدوار",
+        "library": "self filing folder library ملفات مكتبة",
+        "computers": "mac windows computer devices plan limit أجهزة ماك ويندوز",
+        "setup": "status keys database ai meta إعداد",
+        "categories": "category colour frame hashtags language logo brand فئات",
+        "accounts": "facebook instagram connect pause فيسبوك إنستجرام",
+        "people": "invite teacher staff classes دعوة معلم",
+        "activity": "log history audit سجل",
+        "reports": "problems bugs بلاغات مشاكل",
+        "help": "guide videos مساعدة"
+      },
+      "holidays": "Holidays",
+      "holidaysHint": "The calendar shows these, and no posts are planned on them if you choose so below.",
+      "holidayName": "Holiday name",
+      "noPostDays": "Days the school doesn't post",
+      "noPostHolidays": "Don't post on holidays either",
+      "noPostHint": "Make a week and the posting times skip these days. You can still post on them by hand.",
+      "computers": "Library computers: {count} of {limit}",
+      "computersHint": "Macs and Windows computers signed in to the school's photo library. Your plan sets how many.",
+      "noComputers": "No computers yet. Sign in on the Mac app to add one.",
+      "computer": "Computer",
+      "lastSeen": "last seen {when}",
+      "removeComputer": "Remove",
+      "computersMore": "To add more computers, ask about a bigger plan.",
+      "languageMode": "Languages for this category",
+      "languageModeHint": "Both in one post, or a separate Arabic and English post.",
+      "languageModes": {
+        "both": "Arabic and English in one post",
+        "separate": "Separate Arabic and English posts",
+        "ar": "Arabic only",
+        "en": "English only"
+      }
+    },
+    "students": {
+      "kinds": {
+        "student": "Students",
+        "teacher": "Teachers",
+        "staff": "Staff",
+        "parent": "Parents",
+        "visitor": "Visitors"
+      },
+      "left": "Left or graduated",
+      "search": "Search a name (Arabic or English, any spelling)",
+      "stage": "Stage",
+      "grade": "Grade",
+      "class": "Class",
+      "classTeacher": "class teacher {name}",
+      "leftOn": "left {date}",
+      "birthdays": "Birthdays this week"
     }
   }
 }

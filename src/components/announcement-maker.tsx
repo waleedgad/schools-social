@@ -10,13 +10,13 @@ import { createClient } from "@/lib/supabase/client";
 
 type Category = { id: string; name: string };
 
-export function AnnouncementMaker({ locale, schoolId, userId, schoolName, categories, day }: { locale: string; schoolId: string; userId: string; schoolName: string; categories: Category[]; day: string | null }) {
+export function AnnouncementMaker({ locale, schoolId, userId, schoolName, categories, day, title = "" }: { locale: string; schoolId: string; userId: string; schoolName: string; categories: Category[]; day: string | null; title?: string }) {
   const t = useTranslations("announce");
   const router = useRouter();
   const canvas = useRef<HTMLCanvasElement>(null);
   const [template, setTemplate] = useState<Template>("clean");
   const [size, setSize] = useState<Size>("post");
-  const [text, setText] = useState<Text>({ ar: "", en: "", details: "", school: schoolName, accent: "#2f6fdf", ink: "#1b1d22" });
+  const [text, setText] = useState<Text>({ ar: /[\u0600-\u06FF]/.test(title) ? title : "", en: /[\u0600-\u06FF]/.test(title) ? "" : title, details: "", school: schoolName, accent: "#2f6fdf", ink: "#1b1d22" });
   const [category, setCategory] = useState("");
   const [designs, setDesigns] = useState<Design[]>([]);
   const [images] = useState(() => new Map<string, HTMLImageElement>());

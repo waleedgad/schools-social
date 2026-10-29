@@ -371,7 +371,9 @@
       "approvals": "الاعتمادات",
       "roles": "الأدوار",
       "library": "المكتبة",
-      "setup": "حالة الإعداد"
+      "setup": "حالة الإعداد",
+      "calendar": "تقويم المدرسة",
+      "computers": "الأجهزة"
     },
     "moreOnBrand": "أسلوب المدرسة الكامل في صفحة الهوية والتصنيفات.",
     "terms": "مواعيد الفصول الدراسية",
@@ -1309,6 +1311,72 @@
       "log": "السجل التقني",
       "markSeen": "علّمه كمقروء",
       "markFixed": "علّمه كمُصلح"
+    },
+    "settings": {
+      "search": "ابحث في الإعدادات",
+      "noMatch": "لا يوجد إعداد مطابق.",
+      "morePages": "المزيد",
+      "pages": {
+        "categories": "الهوية والفئات",
+        "accounts": "فيسبوك وإنستجرام",
+        "people": "الأشخاص والأدوار",
+        "activity": "سجل النشاط",
+        "reports": "بلاغات المشاكل",
+        "help": "المساعدة"
+      },
+      "words": {
+        "school": "name language time zone captions brand voice hashtags اسم لغة توقيت نصوص وسوم",
+        "calendar": "terms holidays no posting days weekend فصول عطلات إجازات أيام",
+        "approvals": "approve principal extra approver photo limit اعتماد موافقة مدير",
+        "roles": "permissions abilities roles صلاحيات أدوار",
+        "library": "self filing folder library ملفات مكتبة مجلد",
+        "computers": "mac windows computer devices plan limit أجهزة ماك ويندوز",
+        "setup": "status keys database ai meta إعداد",
+        "categories": "category colour frame hashtags language logo brand فئات ألوان إطار",
+        "accounts": "facebook instagram connect pause فيسبوك إنستجرام ربط",
+        "people": "invite teacher staff classes دعوة معلم موظف",
+        "activity": "log history audit سجل",
+        "reports": "problems bugs بلاغات مشاكل",
+        "help": "guide videos مساعدة فيديو"
+      },
+      "holidays": "العطلات",
+      "holidaysHint": "يعرضها التقويم، ولا تُخطط منشورات فيها إن اخترت ذلك بالأسفل.",
+      "holidayName": "اسم العطلة",
+      "noPostDays": "أيام لا تنشر فيها المدرسة",
+      "noPostHolidays": "لا تنشر في العطلات أيضاً",
+      "noPostHint": "عند صنع أسبوع ومواعيد النشر تُتخطى هذه الأيام. يمكنك النشر فيها يدوياً.",
+      "computers": "أجهزة المكتبة: {count} من {limit}",
+      "computersHint": "أجهزة ماك وويندوز المسجلة في مكتبة صور المدرسة. خطتك تحدد عددها.",
+      "noComputers": "لا أجهزة بعد. سجّل الدخول من تطبيق الماك لإضافة جهاز.",
+      "computer": "جهاز",
+      "lastSeen": "آخر ظهور {when}",
+      "removeComputer": "إزالة",
+      "computersMore": "لإضافة أجهزة أكثر، اسأل عن خطة أكبر.",
+      "languageMode": "لغات هذه الفئة",
+      "languageModeHint": "اللغتان في منشور واحد، أو منشور عربي وآخر إنجليزي.",
+      "languageModes": {
+        "both": "العربية والإنجليزية في منشور واحد",
+        "separate": "منشور عربي ومنشور إنجليزي",
+        "ar": "العربية فقط",
+        "en": "الإنجليزية فقط"
+      }
+    },
+    "students": {
+      "kinds": {
+        "student": "الطلاب",
+        "teacher": "المعلمون",
+        "staff": "الموظفون",
+        "parent": "أولياء الأمور",
+        "visitor": "الزوار"
+      },
+      "left": "غادروا أو تخرجوا",
+      "search": "ابحث عن اسم (عربي أو إنجليزي، بأي تهجئة)",
+      "stage": "المرحلة",
+      "grade": "الصف",
+      "class": "الفصل",
+      "classTeacher": "رائد الفصل {name}",
+      "leftOn": "غادر {date}",
+      "birthdays": "أعياد الميلاد هذا الأسبوع"
     }
   }
 }
