@@ -8,7 +8,6 @@ import { watch, type FSWatcher } from "chokidar";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, safeStorage, shell, Tray } from "electron";
 import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
-import { bookHtml, bookPages, type BookSpec } from "./core/books";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { SHOW_FROM, SURE } from "./core/faces";
@@ -24,6 +23,7 @@ import { todayApi } from "./features/today";
 import { facesApi } from "./features/faces";
 import { studentsApi } from "./features/students";
 import { coverageApi } from "./features/coverage";
+import { booksApi } from "./features/books";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { compareList, parseRows, readSheet, type Known, type StudentRow } from "./core/students";
@@ -994,34 +994,6 @@ function fileSoon(id: number) {
 // ---------- Albums ----------
 
 // A smart album is a set of rules; every rule must match.
-// ---------- Yearbooks and graduation books ----------
-
-// Lays the book out in a hidden window and prints it to an A4 PDF.
-async function printBook(spec: BookSpec, file: string) {
-  const pages = bookPages(db, spec);
-  if (!pages.length) throw new Error("empty-book");
-  const html = bookHtml(spec, pages);
-  const tmp = data(`book-${Date.now()}.html`);
-  writeFileSync(tmp, html);
-  const w = new BrowserWindow({ show: false, width: 900, height: 1200, webPreferences: { offscreen: true } });
-  try {
-    await w.loadFile(tmp);
-    // Wait for every photo (previews are made on demand).
-    await w.webContents.executeJavaScript("Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })))");
-    const pdf = await w.webContents.printToPDF({ pageSize: "A4", printBackground: true, margins: { marginType: "none" } });
-    writeFileSync(file, pdf);
-    return { file, pages: pages.length };
-  } finally {
-    w.destroy();
-    await rm(tmp, { force: true });
-  }
-}
-
-function bookSpec(o: Partial<BookSpec>): BookSpec {
-  const s = settings.get();
-  return { kind: o.kind ?? "yearbook", year: o.year ?? "", grade: o.grade ?? null, className: o.className ?? null, studentId: o.studentId ?? null, school: s.schoolName ?? "", language: o.language ?? s.language };
-}
-
 // ---------- Clean up ----------
 
 // The Bin is the Mac's Trash: nothing is deleted outright, and the web copy
@@ -1404,7 +1376,7 @@ app.whenReady().then(async () => {
   };
   const imports = importsApi(ctx);
   importJobs = imports.jobs;
-  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx), ...studentsApi(ctx), ...coverageApi(ctx) };
+  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx), ...studentsApi(ctx), ...coverageApi(ctx), ...booksApi(ctx) };
   imports.startWatching();
   const web = webSync(ctx);
   web.start();
@@ -1507,43 +1479,6 @@ app.whenReady().then(async () => {
     clearEditor: () => settings.set({ editor: null }),
     duplicates: () => engine?.duplicates() ?? [],
     cleanup: () => cleanupReport(),
-    bookOptions: () => ({
-      years: all<{ year: string }>("select distinct year from photos where year is not null and missing = 0 order by year desc").map((r) => r.year),
-      grades: all<{ stage: string | null; grade: string }>("select distinct stage, grade from students where grade is not null").map((r) => r.grade),
-      classes: classes(),
-    }),
-    bookPreview: (o: Partial<BookSpec>) => {
-      const spec = bookSpec(o);
-      const pages = bookPages(db, spec);
-      return { pages: pages.length, html: bookHtml(spec, pages) };
-    },
-    makeBook: async (o: Partial<BookSpec>) => {
-      const spec = bookSpec(o);
-      const who = spec.studentId ? one<{ name_en: string | null; name_ar: string | null }>("select name_en, name_ar from students where id = ?", spec.studentId) : null;
-      const base = safeName([spec.kind === "graduation" ? "Graduation" : "Yearbook", spec.year, spec.grade, who?.name_en ?? who?.name_ar].filter(Boolean).join(" "));
-      const r = await dialog.showSaveDialog(win!, { title: "Save the book", defaultPath: path.join(app.getPath("desktop"), `${base}.pdf`), filters: [{ name: "PDF", extensions: ["pdf"] }] });
-      if (r.canceled || !r.filePath) return null;
-      const out = await printBook(spec, r.filePath);
-      shell.showItemInFolder(out.file);
-      return out;
-    },
-    // One book per student in a class, all into one folder.
-    makeClassBooks: async (o: Partial<BookSpec>) => {
-      const dir = await chooseFolder("Folder for the books");
-      if (!dir || !o.className) return null;
-      const list = all<{ id: string; name_en: string | null; name_ar: string | null }>("select id, name_en, name_ar from students where class_name = ? order by coalesce(name_en, name_ar)", o.className);
-      let made = 0;
-      for (const st of list) {
-        const spec = bookSpec({ ...o, studentId: st.id });
-        const file = path.join(dir, `${safeName(`${o.className} ${st.name_en ?? st.name_ar ?? st.id}`)}.pdf`);
-        lastMessage = `book:${made + 1}/${list.length}`;
-        push();
-        await printBook(spec, file).then(() => made++).catch(() => {});
-      }
-      lastMessage = "";
-      shell.openPath(dir);
-      return { made, total: list.length };
-    },
     newAlbum: (name: string, rule: Record<string, unknown> | null, ids: number[] = []) => {
       const r = db.prepare("insert into albums (name, rule, added_at) values (?, ?, ?)").run(name.slice(0, 80), rule ? JSON.stringify(rule) : null, Date.now());
       const id = Number(r.lastInsertRowid);

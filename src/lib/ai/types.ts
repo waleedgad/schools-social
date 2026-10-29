@@ -76,6 +76,10 @@ export type PlannedPost = { day: number; title: string; idea: string; category: 
 
 export type PhotoDescription = { id: string; altAr: string; altEn: string; topic: Topic };
 
+// A yearbook page to write for: only its kind, title and date (never photos or names).
+export type BookPageInput = { kind: string; title: string; date?: string | null };
+export type BookPageText = { titleAr: string; titleEn: string; textAr: string; textEn: string };
+
 export interface AiProvider {
   name: string;
   rankPhotos(photos: PhotoInput[], context: string): Promise<PhotoVerdict[]>;
@@ -87,6 +91,7 @@ export interface AiProvider {
   planPosts(input: { schoolName: string; days: number; events: string[]; categories: string[]; profile: SchoolProfile | null }): Promise<PlannedPost[]>;
   describePhotos(photos: PhotoInput[]): Promise<PhotoDescription[]>;
   suggestReplies(comment: string, postText: string, profile: SchoolProfile | null): Promise<string[]>;
+  bookTexts(input: { schoolName: string; year: string; book: string; pages: BookPageInput[]; profile: SchoolProfile | null }): Promise<BookPageText[]>;
 }
 
 export class AiLimitError extends Error {}

@@ -193,6 +193,21 @@ create table public.book_comments (
   created_at timestamptz not null default now()
 );
 
+-- Texts collected for a yearbook on the website: the class teacher's
+-- message for the class page, the principal's word, students' quotes.
+create table public.book_texts (
+  id uuid primary key default gen_random_uuid(),
+  book_id uuid not null references public.books (id) on delete cascade,
+  school_id uuid not null references public.schools (id) on delete cascade,
+  kind text not null default 'teacher' check (kind in ('teacher', 'principal', 'quote', 'other')),
+  class_name text check (char_length(class_name) <= 60),
+  student_code text check (char_length(student_code) <= 40),
+  body text not null check (char_length(body) between 1 and 1500),
+  user_id uuid references auth.users (id) on delete set null,
+  author_name text,
+  created_at timestamptz not null default now()
+);
+
 -- "Is this …?" checks for a class teacher's phone: the web copy of the
 -- photo, where the face is, and the suggested student. The answer goes back
 -- to the Mac, which names (or un-suggests) the face there.
@@ -249,6 +264,7 @@ alter table public.student_coverage enable row level security;
 alter table public.books enable row level security;
 alter table public.book_checks enable row level security;
 alter table public.book_comments enable row level security;
+alter table public.book_texts enable row level security;
 
 create policy "members read computers" on public.computers for select using (public.is_member(school_id));
 create policy "admins remove computers" on public.computers for delete using (public.has_role(school_id, array['admin']::public.app_role[]));
@@ -282,6 +298,10 @@ create policy "members check names" on public.book_checks for all
   using (public.is_member(school_id))
   with check (public.is_member(school_id) and checked_by = auth.uid());
 create policy "members read book comments" on public.book_comments for select using (public.is_member(school_id));
+create policy "members read book texts" on public.book_texts for select using (public.is_member(school_id));
+create policy "members write book texts" on public.book_texts for insert with check (public.is_member(school_id) and user_id = auth.uid());
+create policy "writers or comms remove book texts" on public.book_texts for delete
+  using (user_id = auth.uid() or public.has_role(school_id, array['admin', 'comms_lead', 'comms']::public.app_role[]));
 create policy "members comment on books" on public.book_comments for insert with check (public.is_member(school_id) and user_id = auth.uid());
 create policy "comms resolve book comments" on public.book_comments for update
   using (public.has_role(school_id, array['admin', 'comms_lead', 'comms']::public.app_role[]));

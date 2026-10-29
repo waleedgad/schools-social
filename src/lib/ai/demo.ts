@@ -1,5 +1,7 @@
 import type {
   AiProvider,
+  BookPageInput,
+  BookPageText,
   CaptionCheck,
   CaptionRequest,
   Captions,
@@ -95,5 +97,9 @@ export class DemoProvider implements AiProvider {
     return arabic
       ? ["شكراً جزيلاً لكلماتكم الطيبة! 💙", "سعداء بمتابعتكم، شكراً لكم.", "للاستفسار يرجى التواصل معنا برسالة خاصة."]
       : ["Thank you so much for your kind words! 💙", "We're glad you enjoyed it, thank you.", "Please send us a private message and we'll be happy to help."];
+  }
+
+  async bookTexts(input: { pages: BookPageInput[] }): Promise<BookPageText[]> {
+    return input.pages.map((p) => ({ titleAr: p.title, titleEn: p.title, textAr: "صفحة تجريبية: أضف مفتاح الذكاء الاصطناعي لنص حقيقي.", textEn: "Sample text: add the AI key for real page texts." }));
   }
 }

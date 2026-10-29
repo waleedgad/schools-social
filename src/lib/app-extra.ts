@@ -350,6 +350,29 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
       return { id: data.id };
     }
 
+    // Page titles and short texts for a yearbook, in Arabic and English.
+    // Only the pages' kinds, titles and dates go to the AI: no photos, no names.
+    case "bookTexts": {
+      if (!comms) return { error: "role" };
+      const pages = (Array.isArray(body.pages) ? (body.pages as { kind?: string; title?: string; date?: string }[]) : []).slice(0, 80).map((p) => ({ kind: String(p.kind ?? "page").slice(0, 30), title: String(p.title ?? "").slice(0, 120), date: p.date ? String(p.date).slice(0, 10) : null }));
+      const { data: school } = await supabase.from("schools").select("name, profile").eq("id", schoolId).single();
+      try {
+        return { texts: await getAi().bookTexts({ schoolName: school?.name ?? "", year: String(body.year ?? "").slice(0, 20), book: String(body.title ?? "Yearbook").slice(0, 120), pages, profile: (school?.profile ?? {}) as SchoolProfile }) };
+      } catch {
+        return { error: "ai" };
+      }
+    }
+
+    // Texts collected for a yearbook (the class teacher's message, the
+    // principal's word, students' quotes), written on the website.
+    case "bookCollected": {
+      if (!comms) return { error: "role" };
+      const { data: book } = await supabase.from("books").select("id").eq("school_id", schoolId).eq("mac_id", String(body.macId ?? "")).maybeSingle();
+      if (!book) return { texts: [] };
+      const { data } = await supabase.from("book_texts").select("id, kind, class_name, student_code, body, author_name, created_at").eq("book_id", book.id).order("created_at");
+      return { texts: data ?? [] };
+    }
+
     case "bookReview": {
       const { data: book } = await supabase.from("books").select("id, version, status").eq("school_id", schoolId).eq("mac_id", String(body.macId ?? "")).maybeSingle();
       if (!book) return { checks: [], comments: [] };

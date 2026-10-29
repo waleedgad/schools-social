@@ -3,6 +3,8 @@ import {
   PHOTO_ISSUES,
   TOPICS,
   type AiProvider,
+  type BookPageInput,
+  type BookPageText,
   type CaptionCheck,
   type CaptionRequest,
   type Captions,
@@ -264,6 +266,30 @@ export class GeminiProvider implements AiProvider {
       0.7,
     );
     return (out.replies ?? []).map((r) => String(r).slice(0, 500)).slice(0, 3);
+  }
+
+  async bookTexts(input: { schoolName: string; year: string; book: string; pages: BookPageInput[]; profile: SchoolProfile | null }): Promise<BookPageText[]> {
+    const list = input.pages.slice(0, 80);
+    const out = await this.generate<(BookPageText & { index: number })[]>(
+      [
+        {
+          text:
+            `Write page titles and one or two warm sentences for each page of "${input.book}", a school yearbook of ${input.schoolName} (a private school in Egypt) for ${input.year}. ` +
+            "Give each page an Arabic and an English title (short, at most 6 words) and an Arabic and an English text (at most 35 words, Modern Standard Arabic). " +
+            "Never invent names of people. Keep it positive and suitable for students and parents. " +
+            `${voiceText(input.profile)}\n\nPages:\n${list.map((p, i) => `${i}. ${p.kind}: ${p.title}${p.date ? ` (${p.date})` : ""}`).join("\n")}`,
+        },
+      ],
+      {
+        type: "ARRAY",
+        items: { type: "OBJECT", properties: { index: { type: "INTEGER" }, titleAr: STR, titleEn: STR, textAr: STR, textEn: STR }, required: ["index", "titleAr", "titleEn", "textAr", "textEn"] },
+      },
+      0.6,
+    );
+    return list.map((_, i) => {
+      const r = out.find((x) => x.index === i);
+      return { titleAr: (r?.titleAr ?? "").slice(0, 80), titleEn: (r?.titleEn ?? "").slice(0, 80), textAr: (r?.textAr ?? "").slice(0, 400), textEn: (r?.textEn ?? "").slice(0, 400) };
+    });
   }
 
   async describePhotos(photos: PhotoInput[]): Promise<PhotoDescription[]> {
