@@ -901,8 +901,10 @@ function moveDialog(ids) {
     <div class="note" id="mv-where"></div>
     <p class="muted small">${L("The files move on the disk. Names, faces, picks and ratings stay with them.", "تنتقل الملفات على القرص. تبقى معها الأسماء والوجوه والاختيارات والتقييمات.")}</p>
     <div class="row"><span class="grow"></span><button class="btn" id="mv-no">${L("Cancel", "إلغاء")}</button><button class="btn primary" id="mv-yes">${L("Move", "نقل")}</button></div>`);
+  // "" is "A new event…": Number("") is 0, which would pick the first event.
+  const pickEv = () => { const v = $("#mv-ev", m).value; return v === "" ? null : events[Number(v)]; };
   const where = async () => {
-    const ev = events[Number($("#mv-ev", m).value)];
+    const ev = pickEv();
     const date = ev ? ev.event_date || own : $("#mv-date", m).value || own;
     const title = ev ? ev.event_title : $("#mv-title", m).value.trim() || L("New event", "فعالية جديدة");
     const place = await quiet("placeFor", date);
@@ -917,7 +919,7 @@ function moveDialog(ids) {
   where();
   $("#mv-no", m).onclick = closeOverlay;
   $("#mv-yes", m).onclick = async () => {
-    const ev = events[Number($("#mv-ev", m).value)];
+    const ev = pickEv();
     const title = ev ? ev.event_title : $("#mv-title", m).value.trim();
     const date = ev ? ev.event_date || own : $("#mv-date", m).value || own;
     if (!title || title.length < 2) return $("#mv-title", m).focus();
