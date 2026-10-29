@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AiLimitError, getAi, type CaptionOptions, type Captions, type SchoolProfile } from "./ai";
+import { notify } from "./alerts";
 import { thumbPath } from "./images";
 import { isPaused, nextFreeSlot, spread, type Slot } from "./posting";
 import { loadPost } from "./posts";
@@ -165,6 +166,11 @@ export async function runIntent(
   }
 
   const { data: after } = await supabase.from("posts").select("status").eq("id", id).maybeSingle();
+  // Someone has to approve: tell them outside the app too (Slack, Teams, email).
+  if ((after?.status === "in_review" || after?.status === "waiting_extra") && after.status !== post.status) {
+    const text = ((merged.caption_ar || merged.caption_en || "") as string).slice(0, 200);
+    await notify(schoolId, "approval", after.status === "waiting_extra" ? `Waiting for your approval · بانتظار موافقتك` : `Post sent for approval · منشور للموافقة`, `${membership.fullName}: ${text}`, `/posts/${id}`);
+  }
   return { ok: true, status: (after?.status as string | undefined) ?? status };
 }
 

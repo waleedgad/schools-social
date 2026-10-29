@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { Link } from "@/i18n/navigation";
 import { signOut } from "@/lib/actions/auth";
+import { viewAs } from "@/lib/actions/workspace";
 import { can, type Permission } from "@/lib/roles";
 import type { Membership, Workspace } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -162,6 +163,14 @@ export async function AppShell({
         </div>
       </aside>
       <div className="flex min-w-0 grow flex-col">
+        {membership.viewingAs && (
+          <form action={viewAs} className="flex items-center justify-center gap-3 bg-violet-bg px-4 py-1.5 text-sm text-violet print:hidden">
+            <input type="hidden" name="locale" value={locale} />
+            <input type="hidden" name="role" value="" />
+            <span>{t("more.viewAs.banner", { role: t(`roles.${membership.viewingAs}`) })}</span>
+            <button className="font-semibold underline">{t("more.viewAs.back")}</button>
+          </form>
+        )}
         <header className="sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-border bg-surface/85 px-4 py-2 backdrop-blur-xl md:px-6">
           <MobileNavToggle label={t("shell.menu")} />
           <div className="min-w-0 grow leading-tight">

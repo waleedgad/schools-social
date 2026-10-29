@@ -5,9 +5,12 @@ import { AppShell } from "@/components/shell";
 import { Button, Card, Field, Notice, Select, TextArea, Toggle } from "@/components/ui";
 import { Link, redirect } from "@/i18n/navigation";
 import { saveApprovals, saveHolidays, savePermissions, saveTermDates, setSelfFiling } from "@/lib/actions/brand";
+import { addCover, removeCover, saveConnections, saveStages, testAlert } from "@/lib/actions/connections";
 import { removeComputer } from "@/lib/actions/team";
 import { saveSettings } from "@/lib/actions/settings";
 import { isAiConfigured } from "@/lib/ai";
+import { isEmailConfigured } from "@/lib/alerts";
+import { classListProviders } from "@/lib/class-lists";
 import { isMetaConfigured } from "@/lib/meta";
 import { can, defaultCan, PERMISSION_KEYS, ROLES } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
@@ -15,9 +18,9 @@ import { isAdminConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const TIME_ZONES = ["Africa/Cairo", "Asia/Riyadh", "Asia/Dubai", "Asia/Kuwait", "Asia/Qatar", "Asia/Amman", "Europe/London"];
-const TABS = ["school", "calendar", "approvals", "roles", "library", "computers", "setup"] as const;
+const TABS = ["school", "calendar", "approvals", "roles", "library", "computers", "connections", "setup"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_ICONS: Record<Tab, IconName> = { school: "settings", calendar: "calendar", approvals: "check", roles: "people", library: "library", computers: "keyboard", setup: "bolt" };
+const TAB_ICONS: Record<Tab, IconName> = { school: "settings", calendar: "calendar", approvals: "check", roles: "people", library: "library", computers: "keyboard", connections: "link", setup: "bolt" };
 // Pages of their own that sit in the same list, like System Settings.
 const PAGES: { key: string; href: string; icon: IconName }[] = [
   { key: "categories", href: "/categories", icon: "categories" },
@@ -28,7 +31,7 @@ const PAGES: { key: string; href: string; icon: IconName }[] = [
   { key: "help", href: "/help", icon: "help" },
 ];
 
-export default async function SettingsPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ saved?: string; error?: string; tab?: string }> }) {
+export default async function SettingsPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ saved?: string; error?: string; tab?: string; tested?: string; classes?: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const { membership, workspaces } = await requireMembership(locale);
@@ -50,6 +53,21 @@ export default async function SettingsPage({ params, searchParams }: { params: P
   const terms = ((school?.term_dates ?? []) as { name: string; start: string; end: string }[]);
   const holidays = ((school?.holidays ?? []) as { name: string; start: string; end: string }[]);
   const noPost = ((school?.no_post_days ?? {}) as { weekdays?: number[]; holidays?: boolean });
+  const [{ data: covers }, { data: everyone }, { data: stageRows }] = tab === "approvals"
+    ? await Promise.all([
+        supabase.from("approval_cover").select("id, from_user, to_user, starts_on, ends_on").eq("school_id", schoolId).gte("ends_on", new Date().toISOString().slice(0, 10)).order("starts_on"),
+        supabase.from("memberships").select("user_id, full_name, role, stages").eq("school_id", schoolId).eq("active", true).order("full_name"),
+        supabase.from("students").select("stage").eq("school_id", schoolId).not("stage", "is", null).limit(5000),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }];
+  const stages = [...new Set((stageRows ?? []).map((r) => r.stage as string))].sort();
+  const nameOf = (id: string) => (everyone ?? []).find((m) => m.user_id === id)?.full_name ?? "—";
+  const [{ data: links }, { data: recentEvents }] = tab === "connections"
+    ? await Promise.all([
+        supabase.from("school_integrations").select("slack_webhook, teams_webhook, email_alerts, alert_kinds, whatsapp_phone_id, whatsapp_event").eq("school_id", schoolId).maybeSingle(),
+        supabase.from("events").select("id, title, event_date").eq("school_id", schoolId).order("event_date", { ascending: false }).limit(40),
+      ])
+    : [{ data: null }, { data: [] }];
   const { data: computers } = tab === "computers" ? await supabase.from("computers").select("id, name, platform, last_seen_at, created_at").eq("school_id", schoolId).order("last_seen_at", { ascending: false }) : { data: [] };
   const weekdayName = (d: number) => new Date(Date.UTC(2026, 0, 4 + d)).toLocaleDateString(locale === "ar" ? "ar-EG" : "en-GB", { weekday: "long", timeZone: "UTC" });
   // Words each entry answers to in the search, in both languages.
@@ -245,6 +263,113 @@ export default async function SettingsPage({ params, searchParams }: { params: P
             <Button>{t("common.save")}</Button>
           </form>
         </Card>
+      )}
+
+      {tab === "approvals" && (
+        <Card title={t("more.cover.title")}>
+          <p className="mb-3 text-sm text-muted">{t("more.cover.hint")}</p>
+          {(covers ?? []).length > 0 && (
+            <ul className="mb-3 divide-y divide-border">
+              {(covers ?? []).map((c) => (
+                <li key={c.id as string} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <span>{t("more.cover.line", { from: nameOf(c.from_user as string), to: nameOf(c.to_user as string), start: c.starts_on as string, end: c.ends_on as string })}</span>
+                  <form action={removeCover}>
+                    {hidden}
+                    <input type="hidden" name="id" value={c.id as string} />
+                    <Button variant="danger" className="!px-2 !py-1 text-xs">{t("staff.remove")}</Button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form action={addCover} className="grid gap-3 sm:grid-cols-4 sm:items-end">
+            {hidden}
+            <Select label={t("more.cover.from")} name="from" defaultValue="">
+              {(everyone ?? []).filter((m) => ["admin", "comms_lead", "principal"].includes(m.role as string)).map((m) => <option key={m.user_id as string} value={m.user_id as string}>{m.full_name as string}</option>)}
+            </Select>
+            <Select label={t("more.cover.to")} name="to" required defaultValue="">
+              <option value="" disabled>—</option>
+              {(everyone ?? []).map((m) => <option key={m.user_id as string} value={m.user_id as string}>{m.full_name as string} · {t(`roles.${m.role}`)}</option>)}
+            </Select>
+            <Field label={t("more.cover.starts")} name="starts" type="date" required />
+            <Field label={t("more.cover.ends")} name="ends" type="date" required />
+            <Button className="sm:col-span-4 sm:justify-self-start">{t("more.cover.add")}</Button>
+          </form>
+        </Card>
+      )}
+      {tab === "approvals" && stages.length > 0 && (
+        <Card title={t("more.stages.title")}>
+          <p className="mb-3 text-sm text-muted">{t("more.stages.hint")}</p>
+          <ul className="divide-y divide-border">
+            {(everyone ?? []).filter((m) => m.role === "principal").map((m) => (
+              <li key={m.user_id as string} className="py-2">
+                <form action={saveStages} className="flex flex-wrap items-center gap-3 text-sm">
+                  {hidden}
+                  <input type="hidden" name="userId" value={m.user_id as string} />
+                  <b className="w-40">{m.full_name as string}</b>
+                  {stages.map((st) => (
+                    <label key={st} className="flex items-center gap-1"><input type="checkbox" name="stage" value={st} defaultChecked={((m.stages ?? []) as string[]).includes(st)} />{st}</label>
+                  ))}
+                  <Button variant="quiet" className="!px-2 !py-1 text-xs">{t("common.save")}</Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted">{t("more.stages.none")}</p>
+        </Card>
+      )}
+
+      {tab === "connections" && (
+        <>
+          {sp.tested && <Notice tone="good">{t("more.connections.tested")}</Notice>}
+          {sp.classes && <Notice tone={Number(sp.classes) > 0 ? "good" : "warn"}>{Number(sp.classes) > 0 ? t("more.connections.classesDone", { count: Number(sp.classes) }) : t(`more.connections.classesError.${sp.classes}`)}</Notice>}
+          <Card title={t("more.connections.alerts")}>
+            <form action={saveConnections} className="space-y-4">
+              {hidden}
+              <Toggle name="email" defaultChecked={!!links?.email_alerts} label={t("more.connections.email")} hint={isEmailConfigured() ? t("more.connections.emailHint") : t("more.connections.emailMissing")} />
+              <Field label={t("more.connections.slack")} name="slack" dir="ltr" defaultValue={(links?.slack_webhook as string) ?? ""} placeholder="https://hooks.slack.com/services/…" hint={t("more.connections.slackHint")} />
+              <Field label={t("more.connections.teams")} name="teams" dir="ltr" defaultValue={(links?.teams_webhook as string) ?? ""} placeholder="https://….webhook.office.com/…" hint={t("more.connections.teamsHint")} />
+              <fieldset className="flex flex-wrap gap-3 text-sm">
+                <legend className="mb-1 font-semibold">{t("more.connections.which")}</legend>
+                {["approval", "failed", "import", "remind", "book"].map((k) => (
+                  <label key={k} className="flex items-center gap-1"><input type="checkbox" name="kind" value={k} defaultChecked={((links?.alert_kinds as string[] | undefined) ?? ["approval", "failed", "import", "comment"]).includes(k)} />{t(`more.connections.kinds.${k}`)}</label>
+                ))}
+              </fieldset>
+              <fieldset className="space-y-3 border-t border-border pt-4">
+                <legend className="font-semibold">{t("more.connections.whatsapp")}</legend>
+                <p className="text-sm text-muted">{t(process.env.WHATSAPP_TOKEN ? "more.connections.whatsappHint" : "more.connections.whatsappMissing")}</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={t("more.connections.phoneId")} name="whatsappPhoneId" dir="ltr" defaultValue={(links?.whatsapp_phone_id as string) ?? ""} />
+                  <Select label={t("more.connections.intoEvent")} name="whatsappEvent" defaultValue={(links?.whatsapp_event as string) ?? ""}>
+                    <option value="">{t("more.connections.noEvent")}</option>
+                    {(recentEvents ?? []).map((e) => <option key={e.id as string} value={e.id as string}>{e.title as string} · {e.event_date as string}</option>)}
+                  </Select>
+                </div>
+              </fieldset>
+              <div className="flex gap-2">
+                <Button>{t("common.save")}</Button>
+                <Button variant="quiet" formAction={testAlert}>{t("more.connections.test")}</Button>
+              </div>
+            </form>
+          </Card>
+          <Card title={t("more.connections.classLists")}>
+            <p className="mb-3 text-sm text-muted">{t("more.connections.classListsHint")}</p>
+            <div className="flex flex-wrap gap-2">
+              {classListProviders().map((p) => (
+                <a key={p.key} href={p.ready ? `/api/class-lists/start?provider=${p.key}&locale=${locale}` : undefined} aria-disabled={!p.ready} className={`inline-flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${p.ready ? "hover:bg-background" : "pointer-events-none opacity-50"}`}>
+                  <Icon name="students" />
+                  {t(`more.connections.from.${p.key}`)}
+                </a>
+              ))}
+            </div>
+            {!classListProviders().some((p) => p.ready) && <p className="mt-2 text-xs text-muted">{t("more.connections.classListsMissing")}</p>}
+            <p className="mt-3 text-xs text-muted">
+              {t("more.connections.forMac")}{" "}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download, not a page */}
+              <a href="/api/class-lists/file" className="font-semibold text-accent underline">{t("more.connections.download")}</a>
+            </p>
+          </Card>
+        </>
       )}
 
       {tab === "roles" && (

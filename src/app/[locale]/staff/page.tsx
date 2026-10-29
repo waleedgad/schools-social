@@ -2,29 +2,32 @@ import { headers } from "next/headers";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { AppShell } from "@/components/shell";
 import { CopyButton } from "@/components/copy-button";
+import { StaffImport } from "@/components/staff-import";
 import { Button, Card, Field, Notice, Select } from "@/components/ui";
 import { redirect } from "@/i18n/navigation";
-import { changeRole, createInvite, removeMember, revokeInvite, setActive, setClasses } from "@/lib/actions/staff";
+import { changeRole, createInvite, emailInvite, removeMember, revokeInvite, setActive, setClasses } from "@/lib/actions/staff";
+import { viewAs } from "@/lib/actions/workspace";
+import { isEmailConfigured } from "@/lib/alerts";
 import { PAID_ROLES, ROLES, type Role } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
 type Member = { user_id: string; full_name: string; role: Role; active: boolean; last_seen_at: string | null; classes: string[] };
-type Invite = { id: string; email: string; role: Role; token: string; expires_at: string };
+type Invite = { id: string; email: string | null; phone: string | null; full_name: string | null; role: Role; token: string; expires_at: string };
 
 export default async function StaffPage({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; emailed?: string }>;
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const { user, membership, workspaces } = await requireMembership(locale);
   if (membership.role !== "admin") redirect({ href: "/today", locale });
 
-  const { error } = await searchParams;
+  const { error, emailed } = await searchParams;
   const t = await getTranslations();
   const format = await getFormatter();
   const supabase = await createClient();
@@ -39,7 +42,7 @@ export default async function StaffPage({
       .returns<Member[]>(),
     supabase
       .from("invites")
-      .select("id, email, role, token, expires_at")
+      .select("id, email, phone, full_name, role, token, expires_at")
       .eq("school_id", schoolId)
       .is("accepted_at", null)
       .gt("expires_at", new Date().toISOString())
@@ -57,6 +60,18 @@ export default async function StaffPage({
 
   return (
     <AppShell locale={locale} membership={membership} workspaces={workspaces} active="people" title={t("staff.title")}>
+
+        <Card>
+          <form action={viewAs} className="flex flex-wrap items-center gap-2 text-sm">
+            <input type="hidden" name="locale" value={locale} />
+            <span className="font-semibold">{t("more.viewAs.title")}</span>
+            <select name="role" defaultValue="teacher" className="rounded-lg border border-border bg-background px-2 py-1 text-sm">
+              {ROLES.filter((r) => r !== "admin").map((r) => <option key={r} value={r}>{t(`roles.${r}`)}</option>)}
+            </select>
+            <Button variant="quiet" className="!px-3 !py-1">{t("more.viewAs.go")}</Button>
+            <span className="text-xs text-muted">{t("more.viewAs.hint")}</span>
+          </form>
+        </Card>
 
         <Card className="space-y-4">
           <h2 className="font-semibold">{t("staff.members")}</h2>
@@ -140,20 +155,45 @@ export default async function StaffPage({
           </form>
         </Card>
 
+        <Card className="space-y-3">
+          <h2 className="font-semibold">{t("more.staffImport.title")}</h2>
+          <StaffImport locale={locale} />
+        </Card>
+
         <Card className="space-y-4">
           <h2 className="font-semibold">{t("staff.pending")}</h2>
+          {emailed && <Notice tone={emailed === "1" ? "good" : "danger"}>{t(emailed === "1" ? "more.staffImport.emailed" : "more.staffImport.emailFailed")}</Notice>}
           {!invites?.length && <p className="text-sm text-muted">{t("staff.noPending")}</p>}
           <ul className="divide-y divide-border">
             {(invites ?? []).map((i) => (
               <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
-                  <p dir="ltr" className="text-start">{i.email}</p>
+                  {i.full_name && <p className="font-semibold">{i.full_name}</p>}
+                  <p dir="ltr" className="text-start">{i.email ?? i.phone}</p>
                   <p className="text-sm text-muted">
                     {t(`roles.${i.role}`)} ·{" "}
                     {t("staff.expires", { date: format.dateTime(new Date(i.expires_at), { dateStyle: "medium" }) })}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {i.phone && (
+                    <a
+                      href={`https://wa.me/${i.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`${t("more.staffImport.waText", { school: membership.school.name })} ${origin}/${locale}/invite/${i.token}`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm font-semibold text-good"
+                    >
+                      WhatsApp
+                    </a>
+                  )}
+                  {i.email && isEmailConfigured() && (
+                    <form action={emailInvite}>
+                      <input type="hidden" name="locale" value={locale} />
+                      <input type="hidden" name="id" value={i.id} />
+                      <input type="hidden" name="link" value={`${origin}/${locale}/invite/${i.token}`} />
+                      <button className="text-sm font-semibold text-accent">{t("more.staffImport.email")}</button>
+                    </form>
+                  )}
                   <CopyButton
                     value={`${origin}/${locale}/invite/${i.token}`}
                     label={t("staff.copy")}

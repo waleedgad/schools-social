@@ -1,5 +1,6 @@
 import "server-only";
 import { getAi, type SchoolProfile } from "@/lib/ai";
+import { notify } from "@/lib/alerts";
 import { handlePosts } from "@/lib/app-posts";
 import { listComments, replyToComment } from "@/lib/meta";
 import type { PostCtx } from "@/lib/post-core";
@@ -130,6 +131,7 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
       const { data: post } = await supabase.from("posts").select("id, status, caption_ar, caption_en").eq("id", id).single();
       if (!post) return { error: "missing" };
       await supabase.from("team_alerts").insert({ school_id: schoolId, kind: "remind", created_by: userId, body: { post: id, from: membership.fullName, text: ((post.caption_ar || post.caption_en || "") as string).slice(0, 120) } });
+      await notify(schoolId, "remind", `Reminder: a post is waiting · تذكير: منشور ينتظر`, `${membership.fullName}: ${((post.caption_ar || post.caption_en || "") as string).slice(0, 160)}`, `/posts/${id}`);
       await supabase.from("post_comments").insert({ post_id: id, school_id: schoolId, user_id: userId, author_name: membership.fullName, body: locale === "ar" ? "تذكير: هذا المنشور ينتظر الموافقة." : "Reminder: this post is waiting for approval." });
       return { ok: true };
     }
@@ -231,6 +233,7 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
     // An import finished on the Mac: the comms team sees it on Today.
     case "notifyImport": {
       await supabase.from("team_alerts").insert({ school_id: schoolId, kind: "import", created_by: userId, body: { count: Number(body.count) || 0, title: String(body.title ?? "").slice(0, 120), photographer: body.photographer ? String(body.photographer).slice(0, 80) : null, by: membership.fullName } });
+      await notify(schoolId, "import", `New photos on the Mac · صور جديدة على الماك`, `${membership.fullName}: ${Number(body.count) || 0} · ${String(body.title ?? "").slice(0, 120)}`, "/library");
       return { ok: true };
     }
 

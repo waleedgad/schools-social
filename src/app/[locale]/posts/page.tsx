@@ -9,6 +9,7 @@ import { BOARD, categoryName } from "@/lib/posting";
 import { signedThumbs } from "@/lib/posts";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
+import { stageScope } from "@/lib/stages";
 import { createClient } from "@/lib/supabase/server";
 
 type Row = {
@@ -26,6 +27,7 @@ type Row = {
   assigned_to: string | null;
   created_by: string | null;
   updated_at: string;
+  event: { class_name: string | null } | null;
   post_photos: { position: number; photo: { storage_path: string; edited_path: string | null } | null }[];
 };
 
@@ -49,16 +51,17 @@ export default async function PostsPage({
 
   let query = supabase
     .from("posts")
-    .select("id, status, idea, caption_ar, caption_en, scheduled_at, published_at, due_on, urgent, sensitive, category_id, assigned_to, created_by, updated_at, post_photos(position, photo:photos(storage_path, edited_path))")
+    .select("id, status, idea, caption_ar, caption_en, scheduled_at, published_at, due_on, urgent, sensitive, category_id, assigned_to, created_by, updated_at, event:events(class_name), post_photos(position, photo:photos(storage_path, edited_path))")
     .eq("school_id", schoolId)
     .order("updated_at", { ascending: false })
     .limit(300);
   if (sp.category) query = query.eq("category_id", sp.category);
   if (sp.mine === "1") query = query.or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`);
   // Published posts older than 30 days drop off the board (they stay in the grid and analytics).
-  const [{ data: posts }, { data: categories }] = await Promise.all([
+  const [{ data: posts }, { data: categories }, inScope] = await Promise.all([
     query.returns<Row[]>(),
     supabase.from("categories").select("id, name_ar, name_en, color").eq("school_id", schoolId).order("position"),
+    stageScope(supabase, schoolId, user.id),
   ]);
 
   const cover = (p: Row) => {
@@ -70,6 +73,7 @@ export default async function PostsPage({
   const monthAgo = Date.now() - 30 * 86400_000;
 
   const items: BoardPost[] = (posts ?? [])
+    .filter((p) => !inScope || inScope(p.event?.class_name))
     .filter((p) => p.status !== "published" || Date.parse(p.published_at ?? p.updated_at) > monthAgo || view === "grid")
     .map((p) => {
       const c = p.category_id ? cats.get(p.category_id) : null;

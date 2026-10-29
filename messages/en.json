@@ -378,7 +378,8 @@
       "library": "Library",
       "setup": "Setup status",
       "calendar": "School calendar",
-      "computers": "Computers"
+      "computers": "Computers",
+      "connections": "Connections"
     },
     "moreOnBrand": "The full brand voice is on the Brand and categories page.",
     "terms": "Term dates",
@@ -1401,7 +1402,8 @@
         "people": "invite teacher staff classes دعوة معلم",
         "activity": "log history audit سجل",
         "reports": "problems bugs بلاغات مشاكل",
-        "help": "guide videos مساعدة"
+        "help": "guide videos مساعدة",
+        "connections": "slack teams email alerts whatsapp classroom google microsoft class lists integrations"
       },
       "holidays": "Holidays",
       "holidaysHint": "The calendar shows these, and no posts are planned on them if you choose so below.",
@@ -1552,6 +1554,100 @@
         "site": "Couldn't read that website. Check the address, or paste the text instead.",
         "page": "Couldn't read posts from the Facebook page. Connect it again in Accounts."
       }
+    },
+    "cover": {
+      "title": "Holiday cover",
+      "hint": "Someone else approves for set dates, for example while the principal is away.",
+      "line": "{to} approves for {from}, {start} to {end}",
+      "from": "Approver who is away",
+      "to": "Covered by",
+      "starts": "From",
+      "ends": "Until",
+      "add": "Add cover"
+    },
+    "stages": {
+      "title": "Heads of stage",
+      "hint": "A principal limited to some stages only sees posts about classes in those stages, plus whole-school posts.",
+      "none": "No stage ticked means they see every post."
+    },
+    "connections": {
+      "alerts": "Alerts outside the app",
+      "email": "Email alerts",
+      "emailHint": "Approvers, the comms team and teachers get an email for the alerts ticked below.",
+      "emailMissing": "Email needs a free Resend key (RESEND_API_KEY) in Vercel first.",
+      "slack": "Slack channel webhook",
+      "slackHint": "In Slack: Apps > Incoming Webhooks > Add to a channel, then paste the address.",
+      "teams": "Microsoft Teams channel webhook",
+      "teamsHint": "In Teams: the channel's ⋯ > Workflows > Post to a channel when a webhook request is received, then paste the address.",
+      "which": "Send alerts for",
+      "kinds": {
+        "approval": "posts waiting for approval",
+        "failed": "posts that didn't go out",
+        "import": "new photos from the Mac",
+        "remind": "reminders",
+        "book": "yearbooks to check"
+      },
+      "whatsapp": "WhatsApp photo intake",
+      "whatsappHint": "Staff send photos to the school's WhatsApp Business number; they arrive as uploads and wait for the Mac check. Only numbers saved on the People page are accepted.",
+      "whatsappMissing": "Needs the WhatsApp product on the school's Meta app (WHATSAPP_TOKEN and WHATSAPP_VERIFY_TOKEN in Vercel). The webhook address is /api/whatsapp.",
+      "phoneId": "WhatsApp phone number ID",
+      "intoEvent": "Put photos into",
+      "noEvent": "No event (sort later)",
+      "test": "Send a test alert",
+      "tested": "Test alert sent to the channels that are set up.",
+      "classLists": "Class lists from Google Classroom or Microsoft Teams",
+      "classListsHint": "Sign in with your school account once; we read your classes and the students in each (names and classes only). Running it again updates the same students.",
+      "classListsMissing": "Each needs a free Google or Microsoft app (client id and secret) in Vercel first.",
+      "from": {
+        "google": "From Google Classroom",
+        "microsoft": "From Microsoft Teams"
+      },
+      "classesDone": "{count} students added or updated from the class lists.",
+      "classesError": {
+        "denied": "The sign-in was cancelled or not allowed.",
+        "empty": "No classes with students were found for that account.",
+        "save": "Couldn't save the students. Try again.",
+        "failed": "Couldn't read the class lists. Try again."
+      },
+      "forMac": "The Mac app keeps the class lists: download them as a file and open it in the Mac's Students tab.",
+      "download": "Download for the Mac"
+    },
+    "staffImport": {
+      "title": "Invite your staff from a spreadsheet",
+      "hint": "Excel or CSV with columns: name, email or phone, role (teacher, staff, principal, photographer, comms), classes. Phone-only people get their link by WhatsApp.",
+      "error": "Couldn't read that file. Check it has a name column and an email or phone column.",
+      "done": "{count} invites made. Send each link below.",
+      "invite": "Invite {count} people",
+      "teacher": "teacher",
+      "email": "Send email",
+      "emailed": "Invite email sent.",
+      "emailFailed": "Couldn't send the email. Copy the link instead.",
+      "waText": "{school} invited you to School Social Hub:"
+    },
+    "invite": {
+      "bodyPhone": "{school} invited you to join as {role}.",
+      "signInAny": "Sign in or create an account with any email to accept."
+    },
+    "login": {
+      "google": "Continue with Google",
+      "azure": "Continue with Microsoft",
+      "providerError": "Couldn't start that sign-in. Use email instead.",
+      "noPassword": "No password? Get a code",
+      "sendCode": "Send me a code",
+      "code": "Code",
+      "verify": "Sign in",
+      "sentEmail": "We sent a code and a sign-in link to {to}.",
+      "sentPhone": "We sent a code to {to}.",
+      "badCode": "That code didn't work. Check it and try again.",
+      "codeError": "Couldn't send a code. Check the address.",
+      "phone": "Or phone number"
+    },
+    "viewAs": {
+      "title": "View as",
+      "go": "See the app as this role",
+      "hint": "You see exactly what they see, until you go back.",
+      "banner": "You're seeing the app as {role}.",
+      "back": "Back to my view"
     }
   }
 }

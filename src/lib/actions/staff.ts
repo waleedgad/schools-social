@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
-import { isRole } from "@/lib/roles";
+import { sendEmail } from "@/lib/alerts";
+import { isRole, type Role } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
-async function adminContext(formData: FormData) {
-  const locale = String(formData.get("locale") ?? "ar");
+async function adminContext(formData: FormData | string) {
+  const locale = typeof formData === "string" ? formData : String(formData.get("locale") ?? "ar");
   const { user, membership } = await requireMembership(locale);
   if (membership.role !== "admin") redirect({ href: "/today", locale });
   const supabase = await createClient();
@@ -104,4 +105,60 @@ export async function acceptInvite(formData: FormData) {
   if (error) redirect({ href: { pathname: `/invite/${token}`, query: { error: "1" } }, locale });
 
   redirect({ href: "/today", locale });
+}
+
+export type StaffRow = { name: string; email: string; phone: string; role: string; classes: string };
+
+const ROLE_WORDS: Record<string, Role> = {
+  admin: "admin", "مسؤول": "admin", "مدير النظام": "admin",
+  "comms lead": "comms_lead", "head of comms": "comms_lead", "مسؤول الإعلام": "comms_lead", "رئيس الإعلام": "comms_lead",
+  comms: "comms", marketing: "comms", media: "comms", "إعلام": "comms", "تسويق": "comms",
+  principal: "principal", "head of stage": "principal", "مدير": "principal", "مدير المدرسة": "principal", "مدير المرحلة": "principal", "ناظر": "principal",
+  teacher: "teacher", "معلم": "teacher", "معلمة": "teacher", "مدرس": "teacher", "مدرسة": "teacher",
+  staff: "staff", "موظف": "staff", "موظفة": "staff", "إداري": "staff",
+  photographer: "photographer", "مصور": "photographer", "مصورة": "photographer",
+};
+
+// The staff list from a spreadsheet: one invite per person, by email or
+// phone (the link then goes out on WhatsApp). People already invited and
+// waiting are skipped.
+export async function inviteMany(locale: string, rows: StaffRow[]) {
+  const { user, schoolId, supabase, audit } = await adminContext(locale);
+  const { data: waiting } = await supabase.from("invites").select("email, phone").eq("school_id", schoolId).is("accepted_at", null);
+  const have = new Set((waiting ?? []).flatMap((w) => [w.email, w.phone].filter(Boolean).map((x) => String(x).toLowerCase())));
+  const clean = rows
+    .slice(0, 300)
+    .map((r) => {
+      const email = r.email.trim().toLowerCase();
+      const phone = r.phone.replace(/[^\d+]/g, "").slice(0, 30);
+      const role = isRole(r.role.trim()) ? (r.role.trim() as Role) : (ROLE_WORDS[r.role.trim().toLowerCase()] ?? "teacher");
+      return {
+        school_id: schoolId,
+        invited_by: user.id,
+        email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? email : null,
+        phone: phone.length >= 8 ? phone : null,
+        full_name: r.name.trim().slice(0, 120) || null,
+        role,
+        classes: r.classes.split(/[,،;]/).map((c) => c.trim()).filter(Boolean).slice(0, 20),
+      };
+    })
+    .filter((r) => (r.email || r.phone) && !have.has(String(r.email ?? r.phone).toLowerCase()));
+  if (clean.length) {
+    const { error } = await supabase.from("invites").insert(clean);
+    if (error) return { ok: false, count: 0 };
+  }
+  await audit("invite.bulk", String(clean.length));
+  revalidatePath(`/${locale}/staff`);
+  return { ok: true, count: clean.length };
+}
+
+export async function emailInvite(formData: FormData) {
+  const { locale, schoolId, supabase, audit } = await adminContext(formData);
+  const id = String(formData.get("id") ?? "");
+  const link = String(formData.get("link") ?? "");
+  const { data: inv } = await supabase.from("invites").select("email, full_name, role").eq("id", id).eq("school_id", schoolId).maybeSingle();
+  const { data: school } = await supabase.from("schools").select("name").eq("id", schoolId).single();
+  const ok = inv?.email && link.includes("/invite/") ? await sendEmail([inv.email as string], `${school?.name ?? ""}: School Social Hub`, `${inv.full_name ? `${inv.full_name},\n\n` : ""}${school?.name} invited you to School Social Hub.\nمدرسة ${school?.name} تدعوك إلى School Social Hub.\n\n${link}`) : false;
+  if (ok) await audit("invite.emailed", String(inv?.email));
+  redirect({ href: { pathname: "/staff", query: { emailed: ok ? "1" : "0" } }, locale });
 }

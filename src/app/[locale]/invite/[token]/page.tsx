@@ -7,7 +7,7 @@ import type { Role } from "@/lib/roles";
 import { getSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
-type InviteInfo = { school_name: string; role: Role; email: string; expired: boolean; accepted: boolean };
+type InviteInfo = { school_name: string; role: Role; email: string | null; expired: boolean; accepted: boolean; full_name?: string | null };
 
 export default async function InvitePage({
   params,
@@ -33,7 +33,7 @@ export default async function InvitePage({
       ? t("invite.used")
       : invite.expired
         ? t("invite.expired")
-        : user && user.email?.toLowerCase() !== invite.email.toLowerCase()
+        : user && invite.email && user.email?.toLowerCase() !== invite.email.toLowerCase()
           ? t("invite.wrongEmail", { email: user.email ?? "" })
           : null;
 
@@ -45,7 +45,7 @@ export default async function InvitePage({
           <h1 className="text-xl font-bold">{t("invite.title")}</h1>
           {invite && (
             <p>
-              {t("invite.body", { school: invite.school_name, email: invite.email, role: t(`roles.${invite.role}`) })}
+              {invite.email ? t("invite.body", { school: invite.school_name, email: invite.email, role: t(`roles.${invite.role}`) }) : t("more.invite.bodyPhone", { school: invite.school_name, role: t(`roles.${invite.role}`) })}
             </p>
           )}
           {problem && <Notice>{problem}</Notice>}
@@ -53,10 +53,10 @@ export default async function InvitePage({
 
           {invite && !problem && !user && (
             <>
-              <p className="text-sm text-muted">{t("invite.signInFirst", { email: invite.email })}</p>
+              <p className="text-sm text-muted">{invite.email ? t("invite.signInFirst", { email: invite.email }) : t("more.invite.signInAny")}</p>
               <div className="flex gap-3">
                 <Link
-                  href={{ pathname: "/signup", query: { next: here, email: invite.email } }}
+                  href={{ pathname: "/signup", query: { next: here, ...(invite.email ? { email: invite.email } : {}) } }}
                   className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground"
                 >
                   {t("common.signUp")}
@@ -75,7 +75,7 @@ export default async function InvitePage({
             <form action={acceptInvite} className="space-y-4">
               <input type="hidden" name="locale" value={locale} />
               <input type="hidden" name="token" value={token} />
-              <Field label={t("common.fullName")} name="fullName" autoComplete="name" minLength={2} maxLength={120} required />
+              <Field label={t("common.fullName")} name="fullName" autoComplete="name" minLength={2} maxLength={120} required defaultValue={invite.full_name ?? ""} />
               <Button className="w-full">{t("invite.accept")}</Button>
             </form>
           )}

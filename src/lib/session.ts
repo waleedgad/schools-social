@@ -2,10 +2,13 @@ import { cookies } from "next/headers";
 import { redirect } from "@/i18n/navigation";
 import { isSupabaseConfigured } from "./supabase/config";
 import { createClient } from "./supabase/server";
-import type { PermissionOverrides, Role } from "./roles";
+import { isRole, type PermissionOverrides, type Role } from "./roles";
 
 export type Membership = {
   role: Role;
+  // An admin looking at the app as another role sees exactly what that role
+  // sees; this keeps their real role for the banner that takes them back.
+  viewingAs?: Role;
   fullName: string;
   school: { id: string; name: string; defaultLocale: string; timezone: string; permissions: PermissionOverrides };
 };
@@ -23,6 +26,7 @@ type MembershipRow = {
 // The school shown is the one picked in the switcher (a cookie), else the
 // first the person joined. Groups of schools and the owner use the switcher.
 export const WORKSPACE_COOKIE = "school";
+export const VIEW_AS_COOKIE = "view_as";
 
 export async function getSession() {
   if (!isSupabaseConfigured) return { user: null, membership: null, workspaces: [] as Workspace[] };
@@ -58,6 +62,12 @@ export async function getSession() {
         },
       }
     : null;
+
+  const viewAs = (await cookies()).get(VIEW_AS_COOKIE)?.value;
+  if (membership && membership.role === "admin" && viewAs && viewAs !== "admin" && isRole(viewAs)) {
+    membership.viewingAs = viewAs;
+    membership.role = viewAs;
+  }
 
   // "Last seen" for the People page, at most once every 10 minutes.
   if (row?.school && (!row.last_seen_at || Date.now() - Date.parse(row.last_seen_at) > 10 * 60_000)) {

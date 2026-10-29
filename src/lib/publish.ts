@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notify } from "./alerts";
 import { addComment, MetaError, publishStory, publishToFacebook, publishToInstagram } from "./meta";
 
 type Post = {
@@ -29,8 +30,10 @@ export function instagramText(p: Pick<Post, "caption_ar" | "caption_en" | "capti
 // Publishes one post that is already marked "publishing". Runs with the
 // server key. A platform that already worked is skipped on a retry.
 async function publishClaimed(admin: SupabaseClient, post: Post) {
-  const fail = (message: string) =>
-    admin.from("posts").update({ status: "failed", publish_error: message.slice(0, 500) }).eq("id", post.id);
+  const fail = async (message: string) => {
+    await admin.from("posts").update({ status: "failed", publish_error: message.slice(0, 500) }).eq("id", post.id);
+    await notify(post.school_id, "failed", "A post didn't go out · لم يُنشر منشور", message.slice(0, 300), `/posts/${post.id}`);
+  };
 
   const { data: rows } = await admin
     .from("post_photos")
