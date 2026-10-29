@@ -339,3 +339,26 @@ export async function splitEnglish(formData: FormData) {
   revalidatePath(`/${locale}/posts`);
   redirect({ href: `/posts/${copy}`, locale });
 }
+
+// Countdown posts before an event ("3 days to Sports Day"): one idea per
+// chosen day, each due that day and linked to the event's date.
+export async function makeCountdown(formData: FormData) {
+  const { locale, user, schoolId, supabase, audit } = await curator(formData);
+  const { data: ev } = await supabase.from("events").select("id, title, event_date, category_id").eq("id", String(formData.get("event") ?? "")).eq("school_id", schoolId).maybeSingle();
+  if (!ev) redirect({ href: "/calendar", locale });
+  const days = [...new Set(formData.getAll("days").map(Number).filter((n) => n >= 1 && n <= 30))];
+  const at = (n: number) => new Date(Date.parse(`${ev!.event_date}T00:00:00Z`) - n * 86400_000).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = days
+    .filter((n) => at(n) >= today)
+    .map((n) => ({
+      school_id: schoolId, created_by: user.id, status: "idea", event_id: ev!.id, category_id: ev!.category_id ?? null, due_on: at(n), countdown_to: ev!.event_date,
+      idea: locale === "ar" ? `باقي ${n} ${n === 1 ? "يوم" : n === 2 ? "يومان" : n <= 10 ? "أيام" : "يوماً"} على ${ev!.title}` : `${n} ${n === 1 ? "day" : "days"} to ${ev!.title}`,
+    }));
+  if (rows.length) {
+    await supabase.from("posts").insert(rows);
+    await audit("post.countdown", ev!.id as string, { count: rows.length });
+  }
+  revalidatePath(`/${locale}/calendar`);
+  redirect({ href: { pathname: "/calendar", query: { countdown: String(rows.length) } }, locale });
+}

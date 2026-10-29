@@ -324,7 +324,9 @@
     "paused": "Posting is paused, so nothing goes out until it's resumed.",
     "newOn": "New post on this day",
     "eventHint": "Make a post from this event",
-    "freeSlot": "free slot"
+    "freeSlot": "free slot",
+    "noPostDay": "No posting",
+    "lastYear": "Last year"
   },
   "settings": {
     "title": "School settings",
@@ -1436,6 +1438,18 @@
       "classTeacher": "class teacher {name}",
       "leftOn": "left {date}",
       "birthdays": "Birthdays this week"
+    },
+    "calendar": {
+      "countdownMade": "{count, plural, one {# countdown idea} other {# countdown ideas}} added to Ideas.",
+      "photosMissing": "No photos came in yet from {title}. Ask whoever took them to upload.",
+      "gap": "{count} days with posting times and no post, {from} to {to}.",
+      "makeWeek": "Make a week of posts",
+      "balance": "Category mix each week",
+      "posts": "{count, plural, =0 {no posts} one {# post} other {# posts}}",
+      "countdown": "Countdown posts",
+      "countdownEvent": "Before which event?",
+      "daysBefore": "{count, plural, one {# day} other {# days}}",
+      "makeCountdown": "Make countdown ideas"
     }
   }
 }

@@ -13,9 +13,12 @@ export type CalDay = {
   inMonth: boolean;
   today: boolean;
   past: boolean;
-  events: { id: string; title: string; kind: string }[];
+  events: { id: string; title: string; kind: string; photos: boolean; repeat: boolean }[];
+  holiday: string | null;
+  noPost: boolean;
+  lastYear: { id: string; text: string }[];
   term: string | null;
-  posts: { id: string; status: string; text: string; time: string | null; cover: string | null; color: string | null; category: string | null }[];
+  posts: { id: string; status: string; text: string; time: string | null; cover: string | null; color: string | null; category: string | null; categoryId: string | null; countdown: number | null }[];
   slots: { time: string; category: string | null; color: string | null }[];
 };
 
@@ -68,7 +71,7 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
               const id = e.dataTransfer.getData("text/post");
               if (id) drop(d.key, id);
             }}
-            className={`group flex flex-col gap-1 p-1.5 ${view === "week" ? "min-h-72" : "min-h-28"} ${d.inMonth ? "bg-surface" : "bg-surface-2 text-faint"} ${over === d.key ? "!bg-accent-bg" : ""} ${!d.inMonth && view === "month" ? "hidden md:flex" : ""}`}
+            className={`group flex flex-col gap-1 p-1.5 ${view === "week" ? "min-h-72" : "min-h-28"} ${d.inMonth ? (d.noPost ? "bg-[repeating-linear-gradient(135deg,var(--surface),var(--surface)_6px,var(--surface-2)_6px,var(--surface-2)_12px)]" : "bg-surface") : "bg-surface-2 text-faint"} ${over === d.key ? "!bg-accent-bg" : ""} ${!d.inMonth && view === "month" ? "hidden md:flex" : ""}`}
           >
             <div className="flex items-center justify-between">
               <span className={`grid size-6 place-items-center rounded-full text-xs font-semibold ${d.today ? "bg-accent text-accent-foreground" : ""}`}>{d.day}</span>
@@ -80,8 +83,12 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
               )}
             </div>
             {d.term && <span className="truncate rounded bg-info-bg px-1 text-[10px] font-semibold text-info">{d.term}</span>}
+            {d.holiday && <span className="truncate rounded bg-grey-bg px-1 text-[10px] font-semibold text-muted">🏖 {d.holiday}</span>}
+            {d.noPost && !d.holiday && d.inMonth && <span className="truncate text-[10px] text-faint">{t("noPostDay")}</span>}
             {d.events.map((e) => (
               <Link key={e.id} href={{ pathname: "/posts/new", query: { event: e.id } }} className={`truncate rounded px-1 text-[10px] font-semibold ${e.kind === "holiday" ? "bg-grey-bg text-muted" : e.kind === "occasion" ? "bg-violet-bg text-violet" : "bg-warn-bg text-warn"}`} title={t("eventHint")}>
+                {e.photos && "📷 "}
+                {e.repeat && "↻ "}
                 {e.title}
               </Link>
             ))}
@@ -102,9 +109,15 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
                 <span className={`size-1.5 shrink-0 rounded-full ${DOT[STATUS_TONE[p.status as PostStatus] ?? "grey"]}`} />
                 <span className="min-w-0 truncate">
                   {p.time && <b className="me-1">{p.time}</b>}
+                  {p.countdown != null && p.countdown > 0 && <span className="me-1 text-violet">⏳{p.countdown}</span>}
                   {p.text || ts(p.status)}
                 </span>
               </Link>
+            ))}
+            {d.lastYear.map((x) => (
+              <span key={x.id} className="truncate text-[10px] italic text-faint" title={x.text}>
+                {t("lastYear")}: {x.text}
+              </span>
             ))}
             {canWrite &&
               !d.past &&
