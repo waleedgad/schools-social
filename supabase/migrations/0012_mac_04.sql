@@ -189,6 +189,53 @@ create table public.book_comments (
   created_at timestamptz not null default now()
 );
 
+-- "Is this …?" checks for a class teacher's phone: the web copy of the
+-- photo, where the face is, and the suggested student. The answer goes back
+-- to the Mac, which names (or un-suggests) the face there.
+create table public.face_checks (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references public.schools (id) on delete cascade,
+  mac_id bigint not null,
+  photo_id uuid not null references public.photos (id) on delete cascade,
+  box jsonb not null,
+  student_code text not null,
+  class_name text,
+  score real,
+  answer boolean,
+  answered_by uuid references auth.users (id) on delete set null,
+  answered_at timestamptz,
+  created_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique (school_id, mac_id)
+);
+alter table public.face_checks enable row level security;
+create policy "members read face checks" on public.face_checks for select using (public.is_member(school_id));
+create policy "comms send face checks" on public.face_checks for insert
+  with check (public.has_role(school_id, array['admin', 'comms_lead', 'comms']::public.app_role[]));
+create policy "comms clear face checks" on public.face_checks for delete
+  using (public.has_role(school_id, array['admin', 'comms_lead', 'comms']::public.app_role[]));
+-- Teachers answer only for the classes they teach (or any class for comms).
+create function public.answer_face_check(p_check uuid, p_answer boolean)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  c public.face_checks;
+begin
+  select * into c from public.face_checks where id = p_check;
+  if c.id is null or not public.is_member(c.school_id) then
+    raise exception 'not allowed';
+  end if;
+  if not public.has_role(c.school_id, array['admin', 'comms_lead', 'comms']::public.app_role[])
+     and not exists (select 1 from public.memberships m where m.school_id = c.school_id and m.user_id = auth.uid() and c.class_name = any (m.classes)) then
+    raise exception 'not your class';
+  end if;
+  update public.face_checks set answer = p_answer, answered_by = auth.uid(), answered_at = now() where id = p_check;
+end;
+$$;
+revoke execute on function public.answer_face_check(uuid, boolean) from public, anon;
+grant execute on function public.answer_face_check(uuid, boolean) to authenticated;
+
 alter table public.computers enable row level security;
 alter table public.problem_reports enable row level security;
 alter table public.shared_albums enable row level security;

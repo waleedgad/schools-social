@@ -457,3 +457,33 @@ details.adv[open] summary::before { content: "▾ "; }
 .wizard .dot.on { background: var(--accent); }
 .sic { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-bg); color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
 .tcard .thead .sic { width: 26px; height: 26px; border-radius: 8px; }
+
+/* Faces: the whole photo with face boxes, zoom confirm, class photo mode */
+.boxphoto { position: relative; display: inline-block; max-width: 100%; border-radius: 12px; overflow: hidden; background: var(--grey-bg); line-height: 0; }
+.boxphoto img { max-width: 100%; max-height: 62vh; display: block; }
+.boxphoto.zoomable { cursor: zoom-in; }
+.fbox { position: absolute; border: 2px solid rgba(255,255,255,.8); border-radius: 6px; box-shadow: 0 0 0 1px rgba(0,0,0,.35); cursor: pointer; transition: border-color .12s; }
+.fbox.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
+.fbox.done { border-color: var(--good); }
+.fbox i { position: absolute; top: -18px; inset-inline-start: -2px; font-style: normal; font-size: 10.5px; line-height: 16px; padding: 0 5px; border-radius: 4px; background: rgba(0,0,0,.7); color: #fff; white-space: nowrap; }
+.zoomconfirm { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 1.4fr); gap: 24px; align-items: center; padding: 16px 0; }
+.zoomconfirm .q { width: 240px; height: 240px; border-radius: 18px; object-fit: cover; box-shadow: var(--shadow); }
+.zoomconfirm .ref { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; }
+.zoomconfirm .pair { display: flex; gap: 20px; align-items: center; }
+.zoomconfirm > .boxphoto { justify-self: center; }
+@media (max-width: 980px) { .zoomconfirm { grid-template-columns: 1fr; } }
+.fcsplit { display: flex; gap: 16px; align-items: flex-start; }
+.fcevents { width: 230px; flex-shrink: 0; position: sticky; top: 0; max-height: calc(100vh - 160px); overflow-y: auto; }
+.trow.on { background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; }
+.trow.guess { border: 1px solid var(--line); background: var(--surface); }
+.trow.guess img, .trow.guess .pface { width: 36px; height: 36px; }
+.classmode { display: flex; flex-direction: column; gap: 12px; }
+.modal:has(.classmode) { width: min(1180px, 94vw); max-width: none; overflow-x: hidden; }
+.classmode .cmbody { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 16px; align-items: start; }
+.cmlist { max-height: 64vh; overflow-y: auto; padding-inline-end: 4px; }
+.cmlist label { padding: 4px 6px; border-radius: 8px; gap: 8px; }
+.cmlist label.on { background: var(--accent-bg); }
+.cmlist select { min-width: 0; }
+.face.sel { outline-color: var(--accent); }
+.face.sel::after { content: "✓"; position: absolute; top: 5px; inset-inline-start: 5px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.classmode .boxphoto { flex: 1.6; } .classmode .cmlist { flex: 1; min-width: 260px; }

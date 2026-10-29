@@ -276,6 +276,29 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
       return { ok: true };
     }
 
+    // "Is this …?" checks for the class teacher's phone.
+    case "faceChecks": {
+      if (!comms) return { error: "role" };
+      const items = Array.isArray(body.items) ? (body.items as { macId: number; photo: string; box: number[]; student: string; score: number }[]).slice(0, 300) : [];
+      const className = String(body.className ?? "").slice(0, 60) || null;
+      if (items.length)
+        await supabase.from("face_checks").upsert(
+          items.map((i) => ({ school_id: schoolId, mac_id: i.macId, photo_id: i.photo, box: i.box.slice(0, 4), student_code: String(i.student).slice(0, 40), class_name: className, score: i.score, created_by: userId })),
+          { onConflict: "school_id,mac_id", ignoreDuplicates: true },
+        );
+      return { ok: true, sent: items.length };
+    }
+    case "faceAnswers": {
+      const { data } = await supabase.from("face_checks").select("mac_id, student_code, answer").eq("school_id", schoolId).not("answer", "is", null).limit(1000);
+      return { answers: (data ?? []).map((r) => ({ macId: r.mac_id, student: r.student_code, ok: r.answer })) };
+    }
+    case "faceAnswersDone": {
+      if (!comms) return { error: "role" };
+      const ids = Array.isArray(body.ids) ? (body.ids as number[]).slice(0, 1000) : [];
+      if (ids.length) await supabase.from("face_checks").delete().eq("school_id", schoolId).in("mac_id", ids).not("answer", "is", null);
+      return { ok: true };
+    }
+
     // A yearbook sent for review on the website.
     case "book": {
       if (!comms) return { error: "role" };

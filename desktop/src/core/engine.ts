@@ -6,7 +6,7 @@ import { watch, type FSWatcher } from "chokidar";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { assignPhoto, cosine, findFaces, guessTraits, isSure, ranked, SAME_PERSON, SHOW_FROM, traitCentres, type Recogniser, type VisionFace } from "./faces";
+import { assignPhoto, cosine, findFaces, guessTraits, isSure, ranked, SAME_PERSON, scaled, SHOW_FROM, traitCentres, type Recogniser, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -510,7 +510,7 @@ export class Engine {
 
   // Twins and look-alike siblings in the same grade need a clearer lead.
   private isTwin(studentId: string) {
-    return !!this.db.prepare("select 1 from links where (a = ? or b = ?) and kind = 'twin' limit 1").get(studentId, studentId);
+    return !!this.db.prepare("select 1 from links where (a = ? or b = ?) and kind in ('twin', 'lookalike') limit 1").get(studentId, studentId);
   }
 
   // Every face a person has confirmed, plus portraits: what suggestions are
@@ -546,6 +546,32 @@ export class Engine {
     if (!className) return inTime;
     const mine = inTime.filter((k) => k.className === className || k.kind !== "student");
     return mine.some((k) => k.kind === "student") ? mine : inTime;
+  }
+
+  // People whose faces look alike (twins, siblings, or just similar): the
+  // average of each person's named faces, compared pair by pair. Twins and
+  // look-alikes are never named automatically; the app always asks.
+  lookAlikes(min = 0.42, limit = 40) {
+    const byStudent = new Map<string, Float32Array[]>();
+    for (const k of this.knownFaces()) byStudent.set(k.studentId, [...(byStudent.get(k.studentId) ?? []), k.embedding]);
+    const centres: { id: string; c: Float32Array }[] = [];
+    for (const [id, list] of byStudent) {
+      if (list.length < 2) continue;
+      const c = new Float32Array(list[0].length);
+      for (const e of list) for (let i = 0; i < c.length; i++) c[i] += e[i];
+      let n = 0;
+      for (let i = 0; i < c.length; i++) n += c[i] * c[i];
+      n = Math.sqrt(n) || 1;
+      for (let i = 0; i < c.length; i++) c[i] /= n;
+      centres.push({ id, c });
+    }
+    const pairs: { a: string; b: string; score: number }[] = [];
+    for (let i = 0; i < centres.length; i++)
+      for (let j = i + 1; j < centres.length; j++) {
+        const s = scaled(cosine(centres[i].c, centres[j].c), this.faceModel as Recogniser);
+        if (s >= min) pairs.push({ a: centres[i].id, b: centres[j].id, score: s });
+      }
+    return pairs.sort((x, y) => y.score - x.score).slice(0, limit);
   }
 
   // The three most likely people for one face (the "1 2 3" guesses), with

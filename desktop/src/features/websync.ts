@@ -98,6 +98,7 @@ export function webSync(ctx: Ctx) {
       await coverage();
       await people();
       await details();
+      await ctx.call("pullFaceChecks").catch(() => null);
     } catch (e) {
       ctx.log(`web sync: ${e instanceof Error ? e.message : e}`);
     }

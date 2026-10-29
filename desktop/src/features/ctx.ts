@@ -21,6 +21,8 @@ export type Ctx = {
   sendWin: (channel: string, ...args: unknown[]) => void;
   appApi: (action: string, payload?: Record<string, unknown>) => Promise<any>;
   message: (m: string) => void;
+  // Any of the window's API calls (for features that build on main's).
+  call: (name: string, ...args: unknown[]) => Promise<any>;
 };
 
 export type Api = Record<string, (...args: never[]) => unknown>;

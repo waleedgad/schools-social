@@ -21,6 +21,7 @@ import { libraryApi, PHOTO_COLUMNS } from "./features/library";
 import { importsApi } from "./features/imports";
 import { webSync } from "./features/websync";
 import { todayApi } from "./features/today";
+import { facesApi } from "./features/faces";
 import { UploadQueue } from "./core/queue";
 import { JsonStore } from "./core/store";
 import { parseRows, readSheet, type StudentRow } from "./core/students";
@@ -841,15 +842,20 @@ function coverage(f: { year?: string; term?: string; event?: string }) {
 // someone confirmed (never an auto-named one).
 const MAIN_FACE = `coalesce(s.main_face, (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
 
-function people(f: { className?: string }) {
+function people(f: { className?: string; kind?: string; left?: boolean }) {
+  const where: string[] = [];
+  const args: unknown[] = [];
+  if (f.className) (where.push("s.class_name = ?"), args.push(f.className));
+  if (f.kind) (where.push("coalesce(s.kind, 'student') = ?"), args.push(f.kind));
+  if (!f.left) where.push("s.left_on is null");
   return all(
-    `select s.id, s.name_en, s.name_ar, s.class_name, s.stage, s.grade, s.can_post, s.portrait, ${MAIN_FACE} as face,
+    `select s.id, s.name_en, s.name_ar, s.class_name, s.stage, s.grade, s.can_post, s.portrait, s.kind, s.left_on, ${MAIN_FACE} as face,
        (select count(distinct f.photo_id) from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual') and p.missing = 0) as photos,
        (select count(*) from faces f join photos p on p.id = f.photo_id where f.suggest_id = s.id and f.status = 'suggested' and f.suggest_score >= ? and p.missing = 0) as review,
        (select count(*) from faces f where f.student_id = s.id and f.auto = 1 and f.status = 'confirmed') as auto
-     from students s ${f.className ? "where s.class_name = ?" : ""} order by photos desc, coalesce(s.name_en, s.name_ar) limit 3000`,
+     from students s ${where.length ? `where ${where.join(" and ")}` : ""} order by photos desc, coalesce(s.name_en, s.name_ar) limit 3000`,
     SHOW_FROM,
-    ...(f.className ? [f.className] : []),
+    ...args,
   );
 }
 
@@ -1396,10 +1402,11 @@ app.whenReady().then(async () => {
       lastMessage = m;
       push();
     },
+    call: async (name, ...args) => api[name](...(args as never[])),
   };
   const imports = importsApi(ctx);
   importJobs = imports.jobs;
-  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx) };
+  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx) };
   imports.startWatching();
   const web = webSync(ctx);
   web.start();
@@ -1633,7 +1640,7 @@ app.whenReady().then(async () => {
         n: g.n,
       }));
     },
-    people: (f: { className?: string } = {}) => people(f),
+    people: (f: { className?: string; kind?: string; left?: boolean } = {}) => people(f),
     person: (id: string) => person(id),
     setMainFace: (studentId: string, faceId: number | null) => db.prepare("update students set main_face = ? where id = ?").run(faceId, studentId),
     isThis: (studentIds?: string[]) => isThisQueue(studentIds),
