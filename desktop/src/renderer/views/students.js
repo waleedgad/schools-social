@@ -146,11 +146,11 @@ App.views.students = {
     if (sub) sub.textContent = `${this.title()} · ${plural(rows.length, "person", "people", "شخص")}`;
     const teacher = ST.className ? ST.tree?.teachers?.[ST.className] : null;
     box.innerHTML = `<div class="col gap12">
-      ${ST.className ? `<div class="card row"><div class="grow col gap4"><h2 style="margin: 0">${L("Class", "فصل")} ${esc(ST.className)}</h2>
+      ${ST.className ? `<div class="card"><div class="row"><div class="grow col gap4"><h2 style="margin: 0">${L("Class", "فصل")} ${esc(ST.className)}</h2>
           <span class="muted small">${teacher ? `${L("Class teacher", "معلم الفصل")}: <b>${esc(teacher.name)}</b>` : L("No class teacher set", "لم يُعيَّن معلم للفصل")} · <button class="link small" id="st-ct">${teacher ? L("Change", "تغيير") : L("Set", "تعيين")}</button></span></div>
           <button class="btn small" id="st-check">${icon("smartphone", 14)} ${L("Ask the class teacher", "اسأل معلم الفصل")}</button>
           <button class="btn small" id="st-cov">${icon("chart-pie", 14)} ${L("Coverage", "التغطية")}</button>
-          <button class="btn small" id="st-cls">${icon("images", 14)} ${L("Class photos", "صور الفصل")}</button></div>` : ""}
+          <button class="btn small" id="st-cls">${icon("images", 14)} ${L("Class photos", "صور الفصل")}</button></div></div>` : ""}
       <div class="row" id="st-chips"></div>
       <div id="st-body"></div></div>`;
     this.chips();
@@ -355,7 +355,7 @@ async function newYear() {
 
 // ---------- Entered twice ----------
 async function duplicatesBox() {
-  const pairs = (await call("duplicates")) ?? [];
+  const pairs = (await call("studentDuplicates")) ?? [];
   const card = (s) => `<div class="col gap4" style="align-items: center; flex: 1">${faceImg(s, true)}<b>${esc(name(s))}</b><span class="tiny muted">${esc(otherName(s))}</span><span class="small muted ltr">${esc(s.id)}</span><span class="small">${esc(s.class_name ?? KINDS()[s.kind] ?? "")} · ${plural(s.faces ?? 0, "face", "faces", "وجه")}</span></div>`;
   const m = modal(`<div class="row"><h2 class="grow">${L("Students entered twice?", "طلاب مسجّلون مرتين؟")}</h2><button class="btn ghost" data-x>${icon("x")}</button></div>
     ${pairs.length ? `<p class="muted small">${L("Same name by spelling, different IDs. Merging moves every face, photo, parent, club and award to the one you keep.", "نفس الاسم بتهجئة مختلفة وأرقام مختلفة. الدمج ينقل كل الوجوه والصور وأولياء الأمور والأندية والجوائز إلى من تُبقيه.")}</p>
@@ -454,12 +454,12 @@ App.views.student = {
        <button class="btn primary" id="sp-post">${icon("pen-line", 14)} ${L("Make a post", "إنشاء منشور")}</button>`) +
       `<div class="content"><div class="profile">
         <div class="col gap16" style="min-width: 0">
-          <div class="card row nowrap gap16 phead">${faceImg(s, true)}<div class="grow col gap4">
-              <b style="font-size: 19px" dir="auto">${esc(name(s))}</b>${otherName(s) ? `<span class="muted" dir="auto" style="font-size: 15px">${esc(otherName(s))}</span>` : ""}
+          <div class="card"><div class="row nowrap phead" style="gap: 16px">${faceImg(s, true)}<div class="grow col gap4">
+              <b style="font-size: 19px" dir="auto">${esc(name(s))}</b>${otherName(s) ? `<span class="muted" dir="auto" style="font-size: 15px; align-self: flex-start">${esc(otherName(s))}</span>` : ""}
               <span class="muted small"><span class="ltr">${esc(s.id)}</span>${s.left_on ? ` · <span class="tag">${s.left_why === "graduated" ? L("Graduated", "تخرّج") : L("Left", "غادر")} ${esc(dayLabel(s.left_on))}</span>` : ""}</span>
               ${s.missing.length ? `<div class="row" style="gap: 4px">${s.missing.map((k) => `<span class="tag warn tiny">${icon("triangle-alert", 11)} ${esc(MISSING()[k])}</span>`).join("")}</div>` : ""}</div>
             <div class="col gap4" style="align-items: flex-end"><label class="row nowrap small" style="gap: 8px"><b>${L("Can appear in posts", "يمكن أن يظهر في المنشورات")}</b>${sw('id="sp-can"', s.can_post)}</label>
-              <span class="tiny muted" style="max-width: 260px; text-align: end">${L("If off, the website blocks (or blurs) them in any post.", "إذا أُوقف، يمنعه الموقع (أو يموّهه) في أي منشور.")}</span></div></div>
+              <span class="tiny muted" style="max-width: 260px; text-align: end">${L("If off, the website blocks (or blurs) them in any post.", "إذا أُوقف، يمنعه الموقع (أو يموّهه) في أي منشور.")}</span></div></div></div>
           <div class="grid4">
             <div class="card stat"><b>${num(d.counts?.photos ?? 0)}</b><span>${L("photos", "صورة")}</span></div>
             <div class="card stat"><b>${num(d.counts?.posted ?? 0)}</b><span>${L("in posts", "في منشورات")}</span></div>

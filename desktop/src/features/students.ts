@@ -240,7 +240,8 @@ export function studentsApi(ctx: Ctx): Api {
   // ---------- New school year ----------
   function promotePlan() {
     const classes = all<{ class_name: string | null; grade: string | null; n: number }>(
-      "select class_name, grade, count(*) n from students where kind = 'student' and left_on is null group by class_name, grade order by grade, class_name",
+      `select class_name, grade, count(*) n from students where kind = 'student' and left_on is null group by class_name, grade
+       order by case when grade like 'KG%' then 0 else 1 end, cast(replace(replace(grade, 'Grade ', ''), 'KG', '') as integer), class_name`,
     );
     const done = one<{ n: number }>("select count(*) n from school_history where year = ?", schoolYear())?.n ?? 0;
     return { year: schoolYear(), next: nextYear(schoolYear()), alreadyDone: done > 0, classes: classes.map((c) => ({ from: c.class_name, n: c.n, ...nextClass(c.class_name, c.grade) })) };
@@ -351,7 +352,7 @@ export function studentsApi(ctx: Ctx): Api {
     setClassTeacher: (className: string, teacherId: string | null) => setClassTeacher(className, teacherId),
     promotePlan: () => promotePlan(),
     promote: (plan: { from: string | null; to: string | null; graduates: boolean }[]) => promote(plan),
-    duplicates: () => duplicates(),
+    studentDuplicates: () => duplicates(),
     notSame: (a: string, b: string) => notSame(a, b),
     mergeStudents: (keep: string, drop: string) => merge(keep, drop),
     birthdays: (days?: number) => birthdays(days),

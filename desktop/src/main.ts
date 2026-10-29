@@ -1430,7 +1430,7 @@ app.whenReady().then(async () => {
   };
   const imports = importsApi(ctx);
   importJobs = imports.jobs;
-  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx) };
+  features = { ...manageApi(ctx), ...libraryApi(ctx), ...imports.api, ...todayApi(ctx), ...facesApi(ctx), ...studentsApi(ctx) };
   imports.startWatching();
   const web = webSync(ctx);
   web.start();
