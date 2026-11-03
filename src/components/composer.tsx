@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { aiCheck, aiRewrite, aiTranslate, addComment, createReviewLink, generateCaptions, postAction, restoreVersion, pickVariation, reuse, splitEnglish } from "@/lib/actions/posts";
 import { saveEdit } from "@/lib/actions/library";
@@ -87,6 +87,7 @@ function ratioOf(p: Photo) {
 // character count that warns where the platform cuts the text off.
 function CaptionField({ label, value, onChange, dir, lang, other, disabled, locale, limit }: { label: string; value: string; onChange: (v: string) => void; dir: "rtl" | "ltr"; lang: "ar" | "en"; other: string; disabled: boolean; locale: string; limit: number }) {
   const t = useTranslations("composer");
+  const id = useId();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const run = async (f: () => Promise<{ text?: string; error?: string }>) => {
@@ -100,7 +101,7 @@ function CaptionField({ label, value, onChange, dir, lang, other, disabled, loca
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-semibold">{label}</span>
+        <label htmlFor={id} className="text-sm font-semibold">{label}</label>
         {!disabled && (
           <div className="flex flex-wrap gap-1">
             {other.trim() && (
@@ -127,7 +128,7 @@ function CaptionField({ label, value, onChange, dir, lang, other, disabled, loca
           </div>
         )}
       </div>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} dir={dir} rows={6} maxLength={limit} disabled={disabled || busy} className={`${area} ${busy ? "skeleton" : ""}`} />
+      <textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} dir={dir} lang={lang} rows={6} maxLength={limit} disabled={disabled || busy} className={`${area} ${busy ? "skeleton" : ""}`} />
       <div className="flex justify-between text-[11px] text-muted">
         <span>{err}</span>
         <span className={value.length > limit * 0.95 ? "text-danger" : ""}>

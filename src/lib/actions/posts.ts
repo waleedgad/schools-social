@@ -63,6 +63,9 @@ export async function createPost(formData: FormData) {
       idea,
       due_on: asIdea && day ? day : null,
       scheduled_at: asIdea ? null : scheduledAt,
+      // Instagram needs a photo, so a post started without photos goes to
+      // Facebook only until photos are added.
+      ...(photoIds.length ? {} : { platforms: ["facebook"] }),
     })
     .select("id")
     .single();
