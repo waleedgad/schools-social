@@ -1,5 +1,5 @@
 # Runs the automatic checks on every change, before anything reaches Waleed.
-# Website: type check, lint and a full build. Mac app: its tests on a real
+# Website: type check, lint, a full build and the robot tests. Mac app: its tests on a real
 # Mac (and on Linux, which is quicker). Windows joins once the app ships there.
 name: Checks
 
@@ -21,6 +21,13 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-test-report
+          path: e2e-report
 
   desktop:
     strategy:
