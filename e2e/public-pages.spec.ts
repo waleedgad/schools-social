@@ -17,7 +17,7 @@ function watchErrors(page: Page) {
 
 for (const { locale, dir } of locales) {
   test.describe(locale, () => {
-    for (const path of ["login", "signup"]) {
+    for (const path of ["login", "signup", "forgot"]) {
       test(`${path} opens cleanly`, async ({ page }) => {
         const errors = watchErrors(page);
         const res = await page.goto(`/${locale}/${path}`);

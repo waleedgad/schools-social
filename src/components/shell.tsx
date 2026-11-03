@@ -155,7 +155,10 @@ export async function AppShell({
           <div className="flex items-center gap-1 px-1 pt-2">
             <ThemeToggle labels={{ light: t("shell.light"), dark: t("shell.dark"), auto: t("shell.auto") }} />
             <LanguageSwitcher />
-            <form action={signOut} className="ms-auto">
+            <Link href="/new-password" className="ms-auto rounded-md px-2 py-1 text-xs text-muted hover:bg-background">
+              {t("password.change")}
+            </Link>
+            <form action={signOut}>
               <input type="hidden" name="locale" value={locale} />
               <button className="rounded-md px-2 py-1 text-xs text-muted hover:bg-background">{t("common.signOut")}</button>
             </form>

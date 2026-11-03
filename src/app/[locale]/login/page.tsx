@@ -34,6 +34,9 @@ export default async function LoginPage({
             <input type="hidden" name="next" value={nextPath} />
             <Field label={t("common.email")} name="email" type="email" autoComplete="email" dir="ltr" required />
             <Field label={t("common.password")} name="password" type="password" autoComplete="current-password" dir="ltr" required />
+            <Link href="/forgot" className="block text-end text-sm font-semibold text-accent">
+              {t("password.forgot")}
+            </Link>
             <Button className="w-full">{t("common.signIn")}</Button>
           </form>
         </Card>

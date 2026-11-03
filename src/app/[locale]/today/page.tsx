@@ -53,11 +53,11 @@ const DEFAULTS: Record<string, string[]> = {
 
 type PostRow = { id: string; status: string; caption_ar: string | null; caption_en: string | null; idea: string | null; scheduled_at: string | null; due_on: string | null; publish_error: string | null; category_id: string | null; post_photos: { position: number; photo: { storage_path: string; edited_path: string | null } | null }[] };
 
-export default async function TodayPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ edit?: string }> }) {
+export default async function TodayPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ edit?: string; password?: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const { user, membership, workspaces } = await requireMembership(locale);
-  const { edit } = await searchParams;
+  const { edit, password } = await searchParams;
   const perms = membership.school.permissions;
   const t = await getTranslations();
   const supabase = await createClient();
@@ -389,6 +389,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
       subtitle={new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "full", timeZone: membership.school.timezone }).format(now)}
       actions={<ButtonLink href={{ pathname: "/today", query: edit ? {} : { edit: "1" } }} variant="ghost" icon="settings" className="!px-2"><span className="hidden sm:inline">{t("today.customise")}</span></ButtonLink>}
     >
+      {password === "saved" && <Notice tone="good">{t("password.saved")}</Notice>}
       {school.data && isPaused(school.data) && (
         <Notice tone="warn">
           {t("today.paused", { until: fmt(school.data.posting_paused_until as string) })} {school.data.pause_reason ?? ""} <Link href="/accounts" className="font-semibold underline">{t("today.resume")}</Link>

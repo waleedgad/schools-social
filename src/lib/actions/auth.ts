@@ -98,3 +98,33 @@ export async function verifyCode(formData: FormData) {
   if (error) redirect({ href: { pathname: "/login", query: { sent: to.includes("@") ? "email" : "phone", to, next, error: "badcode" } }, locale });
   redirect({ href: next, locale });
 }
+
+// Forgot password: email a link that signs the person in and opens the
+// page for choosing a new one. Always says "sent", so it can't be used to
+// find out which emails have accounts.
+export async function requestPasswordReset(formData: FormData) {
+  const { locale, email } = read(formData);
+  if (!email) redirect({ href: { pathname: "/forgot", query: { error: "1" } }, locale });
+  const origin = (await headers()).get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/confirm?next=/${locale}/new-password`,
+  });
+  if (error && error.status !== 429 && !/not found/i.test(error.message)) {
+    redirect({ href: { pathname: "/forgot", query: { error: "1", email } }, locale });
+  }
+  redirect({ href: { pathname: "/forgot", query: { sent: "1", email } }, locale });
+}
+
+// Saves a new password for whoever is signed in (from the email link, or
+// "Change password" in the menu).
+export async function setNewPassword(formData: FormData) {
+  const { locale, password } = read(formData);
+  const repeat = String(formData.get("repeat") ?? "");
+  if (password.length < 8) redirect({ href: { pathname: "/new-password", query: { error: "short" } }, locale });
+  if (password !== repeat) redirect({ href: { pathname: "/new-password", query: { error: "match" } }, locale });
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) redirect({ href: { pathname: "/new-password", query: { error: "save" } }, locale });
+  redirect({ href: { pathname: "/today", query: { password: "saved" } }, locale });
+}

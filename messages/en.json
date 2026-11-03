@@ -1691,5 +1691,22 @@
       "banner": "You're seeing the app as {role}.",
       "back": "Back to my view"
     }
+  },
+  "password": {
+    "forgot": "Forgot password?",
+    "title": "Set a new password",
+    "intro": "Type your email and we'll send you a link to set a new password.",
+    "send": "Send the link",
+    "sent": "If {email} has an account, a link is on its way. Check your inbox and spam folder.",
+    "error": "Couldn't send the link. Check the address and try again.",
+    "newTitle": "Choose a new password",
+    "newPassword": "New password",
+    "repeat": "Type it again",
+    "save": "Save password",
+    "mismatch": "The two passwords don't match.",
+    "tooShort": "Use at least 8 characters.",
+    "saveError": "Couldn't save the password. Open the link from the email again.",
+    "saved": "Your new password is saved.",
+    "change": "Change password"
   }
 }

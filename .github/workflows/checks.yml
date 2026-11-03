@@ -23,7 +23,7 @@ jobs:
       - run: npm run lint
       # A private, empty copy of the database with every migration applied,
       # so the robot tests can sign up, create a school and use it.
-      - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,mailpit
+      - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta
       - run: grep -v '^#' e2e/test-db.env >> "$GITHUB_ENV"
       - run: npm run build
       - run: npx playwright install --with-deps chromium
