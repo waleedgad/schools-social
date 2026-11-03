@@ -424,72 +424,114 @@
     "former": "موظف سابق",
     "system": "النظام",
     "actions": {
-      "school.created": "أنشأ المدرسة",
-      "invite.created": "دعا أحد الموظفين",
-      "invite.revoked": "ألغى دعوة",
-      "invite.accepted": "انضم إلى المدرسة",
-      "member.removed": "أزال أحد الموظفين",
-      "member.role_changed": "غيّر دور أحد الموظفين",
-      "event.created": "أنشأ فعالية",
-      "photo.flagged": "حدّد صورة بأنها لا تُنشر",
-      "photo.unflagged": "سمح بنشر صورة",
-      "photo.deleted": "حذف صورة",
-      "photo.edited": "عدّل صورة",
-      "photo.edit_cleared": "تراجع عن تعديل صورة",
-      "students.imported": "استورد قائمة فصل",
-      "student.added": "أضاف طالبًا",
-      "student.consent_changed": "غيّر موافقة طالب",
-      "student.removed": "أزال طالبًا",
-      "ai.photos_checked": "طلب من الذكاء الاصطناعي فحص الصور",
-      "ai.captions_written": "طلب من الذكاء الاصطناعي كتابة نص المنشور",
-      "ai.failed": "فشل طلب الذكاء الاصطناعي",
-      "post.created": "أنشأ منشورًا",
-      "post.deleted": "حذف منشورًا",
-      "post.save": "حفظ منشورًا",
-      "post.submit": "أرسل منشورًا للمراجعة",
-      "post.approve": "وافق على منشور",
-      "post.reject": "طلب تعديلات على منشور",
-      "post.draft": "أعاد منشورًا إلى المسودات",
-      "post.schedule": "جدول منشورًا",
-      "post.unschedule": "ألغى جدولة منشور",
-      "post.publish": "نشر منشورًا الآن",
-      "post.published": "نُشر المنشور على مواقع التواصل",
-      "settings.saved": "غيّر إعدادات المدرسة",
-      "meta.connected": "ربط فيسبوك وإنستجرام",
-      "meta.page_chosen": "اختار صفحة فيسبوك",
-      "meta.disconnected": "فصل فيسبوك وإنستجرام",
-      "portal.link_created": "أنشأ رابطًا لمصوّر",
-      "portal.link_revoked": "ألغى رابط مصوّر",
-      "post.idea": "حفظ فكرة",
-      "post.start": "بدأ مسودة",
-      "post.queue": "أضاف منشوراً إلى أقرب موعد",
-      "post.duplicate": "نسخ منشوراً",
-      "post.duplicated": "نسخ منشوراً",
-      "post.moved": "نقل منشوراً",
-      "post.spread": "وزّع منشورات على التقويم",
-      "post.review_link": "أنشأ رابط اعتماد",
-      "post.version_restored": "استرجع نصاً سابقاً",
-      "post.extra_timeout": "نُشر المنشور بعد عدم رد المعتمد الإضافي",
-      "ai.week_planned": "طلب من الذكاء الاصطناعي تخطيط أسبوع",
-      "category.created": "أضاف تصنيفاً",
-      "category.updated": "عدّل تصنيفاً",
-      "category.deleted": "حذف تصنيفاً",
-      "slots.added": "أضاف مواعيد نشر",
-      "frame.added": "أضاف إطاراً",
-      "brand.saved": "عدّل أسلوب المدرسة",
-      "settings.approvals": "عدّل قواعد الاعتماد",
-      "settings.permissions": "عدّل صلاحيات الأدوار",
-      "posting.paused": "أوقف النشر مؤقتاً",
-      "posting.resumed": "استأنف النشر",
-      "account.paused": "أوقف حساباً مؤقتاً",
-      "account.resumed": "استأنف حساباً",
-      "library.self_filing_on": "شغّل الترتيب في المكان",
-      "library.self_filing_off": "أوقف الترتيب في المكان",
-      "member.activated": "فعّل شخصاً",
-      "member.deactivated": "أوقف شخصاً",
-      "inbox.replied": "رد على تعليق",
-      "inbox.reply_failed": "فشل الرد",
-      "support.reported": "أبلغ عن مشكلة"
+      "school": {
+        "created": "أنشأ المدرسة"
+      },
+      "invite": {
+        "created": "دعا أحد الموظفين",
+        "revoked": "ألغى دعوة",
+        "accepted": "انضم إلى المدرسة"
+      },
+      "member": {
+        "removed": "أزال أحد الموظفين",
+        "role_changed": "غيّر دور أحد الموظفين",
+        "activated": "فعّل شخصاً",
+        "deactivated": "أوقف شخصاً"
+      },
+      "event": {
+        "created": "أنشأ فعالية"
+      },
+      "photo": {
+        "flagged": "حدّد صورة بأنها لا تُنشر",
+        "unflagged": "سمح بنشر صورة",
+        "deleted": "حذف صورة",
+        "edited": "عدّل صورة",
+        "edit_cleared": "تراجع عن تعديل صورة"
+      },
+      "students": {
+        "imported": "استورد قائمة فصل"
+      },
+      "student": {
+        "added": "أضاف طالبًا",
+        "consent_changed": "غيّر موافقة طالب",
+        "removed": "أزال طالبًا"
+      },
+      "ai": {
+        "photos_checked": "طلب من الذكاء الاصطناعي فحص الصور",
+        "captions_written": "طلب من الذكاء الاصطناعي كتابة نص المنشور",
+        "failed": "فشل طلب الذكاء الاصطناعي",
+        "week_planned": "طلب من الذكاء الاصطناعي تخطيط أسبوع"
+      },
+      "post": {
+        "created": "أنشأ منشورًا",
+        "deleted": "حذف منشورًا",
+        "save": "حفظ منشورًا",
+        "submit": "أرسل منشورًا للمراجعة",
+        "approve": "وافق على منشور",
+        "reject": "طلب تعديلات على منشور",
+        "draft": "أعاد منشورًا إلى المسودات",
+        "schedule": "جدول منشورًا",
+        "unschedule": "ألغى جدولة منشور",
+        "publish": "نشر منشورًا الآن",
+        "published": "نُشر المنشور على مواقع التواصل",
+        "idea": "حفظ فكرة",
+        "start": "بدأ مسودة",
+        "queue": "أضاف منشوراً إلى أقرب موعد",
+        "duplicate": "نسخ منشوراً",
+        "duplicated": "نسخ منشوراً",
+        "moved": "نقل منشوراً",
+        "spread": "وزّع منشورات على التقويم",
+        "review_link": "أنشأ رابط اعتماد",
+        "version_restored": "استرجع نصاً سابقاً",
+        "extra_timeout": "نُشر المنشور بعد عدم رد المعتمد الإضافي"
+      },
+      "settings": {
+        "saved": "غيّر إعدادات المدرسة",
+        "approvals": "عدّل قواعد الاعتماد",
+        "permissions": "عدّل صلاحيات الأدوار"
+      },
+      "meta": {
+        "connected": "ربط فيسبوك وإنستجرام",
+        "page_chosen": "اختار صفحة فيسبوك",
+        "disconnected": "فصل فيسبوك وإنستجرام"
+      },
+      "portal": {
+        "link_created": "أنشأ رابطًا لمصوّر",
+        "link_revoked": "ألغى رابط مصوّر"
+      },
+      "category": {
+        "created": "أضاف تصنيفاً",
+        "updated": "عدّل تصنيفاً",
+        "deleted": "حذف تصنيفاً"
+      },
+      "slots": {
+        "added": "أضاف مواعيد نشر"
+      },
+      "frame": {
+        "added": "أضاف إطاراً"
+      },
+      "brand": {
+        "saved": "عدّل أسلوب المدرسة"
+      },
+      "posting": {
+        "paused": "أوقف النشر مؤقتاً",
+        "resumed": "استأنف النشر"
+      },
+      "account": {
+        "paused": "أوقف حساباً مؤقتاً",
+        "resumed": "استأنف حساباً"
+      },
+      "library": {
+        "self_filing_on": "شغّل الترتيب في المكان",
+        "self_filing_off": "أوقف الترتيب في المكان"
+      },
+      "inbox": {
+        "replied": "رد على تعليق",
+        "reply_failed": "فشل الرد"
+      },
+      "support": {
+        "reported": "أبلغ عن مشكلة"
+      }
     }
   },
   "nav": {

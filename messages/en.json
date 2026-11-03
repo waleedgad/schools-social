@@ -424,72 +424,114 @@
     "former": "Former staff member",
     "system": "The system",
     "actions": {
-      "school.created": "created the school",
-      "invite.created": "invited a staff member",
-      "invite.revoked": "revoked an invite",
-      "invite.accepted": "joined the school",
-      "member.removed": "removed a staff member",
-      "member.role_changed": "changed a staff role",
-      "event.created": "created an event",
-      "photo.flagged": "marked a photo not for posting",
-      "photo.unflagged": "allowed a photo for posting",
-      "photo.deleted": "deleted a photo",
-      "photo.edited": "edited a photo",
-      "photo.edit_cleared": "undid a photo edit",
-      "students.imported": "imported a class list",
-      "student.added": "added a student",
-      "student.consent_changed": "changed a student's consent",
-      "student.removed": "removed a student",
-      "ai.photos_checked": "asked AI to check photos",
-      "ai.captions_written": "asked AI to write captions",
-      "ai.failed": "AI request failed",
-      "post.created": "created a post",
-      "post.deleted": "deleted a post",
-      "post.save": "saved a post",
-      "post.submit": "sent a post for review",
-      "post.approve": "approved a post",
-      "post.reject": "asked for changes to a post",
-      "post.draft": "moved a post back to draft",
-      "post.schedule": "scheduled a post",
-      "post.unschedule": "unscheduled a post",
-      "post.publish": "published a post now",
-      "post.published": "post went live on social media",
-      "settings.saved": "changed school settings",
-      "meta.connected": "connected Facebook and Instagram",
-      "meta.page_chosen": "chose the Facebook Page",
-      "meta.disconnected": "disconnected Facebook and Instagram",
-      "portal.link_created": "created a photographer link",
-      "portal.link_revoked": "revoked a photographer link",
-      "post.idea": "saved an idea",
-      "post.start": "started a draft",
-      "post.queue": "added a post to the next slot",
-      "post.duplicate": "duplicated a post",
-      "post.duplicated": "duplicated a post",
-      "post.moved": "moved a post",
-      "post.spread": "spread posts over the calendar",
-      "post.review_link": "made an approval link",
-      "post.version_restored": "brought back an earlier caption",
-      "post.extra_timeout": "post went ahead after the extra approver didn't answer",
-      "ai.week_planned": "asked AI to plan a week",
-      "category.created": "added a category",
-      "category.updated": "changed a category",
-      "category.deleted": "deleted a category",
-      "slots.added": "added posting times",
-      "frame.added": "added a frame",
-      "brand.saved": "changed the brand voice",
-      "settings.approvals": "changed the approval rules",
-      "settings.permissions": "changed what roles can do",
-      "posting.paused": "paused posting",
-      "posting.resumed": "resumed posting",
-      "account.paused": "paused an account",
-      "account.resumed": "resumed an account",
-      "library.self_filing_on": "turned on filing in place",
-      "library.self_filing_off": "turned off filing in place",
-      "member.activated": "activated a person",
-      "member.deactivated": "deactivated a person",
-      "inbox.replied": "replied to a comment",
-      "inbox.reply_failed": "reply failed",
-      "support.reported": "reported a problem"
+      "school": {
+        "created": "created the school"
+      },
+      "invite": {
+        "created": "invited a staff member",
+        "revoked": "revoked an invite",
+        "accepted": "joined the school"
+      },
+      "member": {
+        "removed": "removed a staff member",
+        "role_changed": "changed a staff role",
+        "activated": "activated a person",
+        "deactivated": "deactivated a person"
+      },
+      "event": {
+        "created": "created an event"
+      },
+      "photo": {
+        "flagged": "marked a photo not for posting",
+        "unflagged": "allowed a photo for posting",
+        "deleted": "deleted a photo",
+        "edited": "edited a photo",
+        "edit_cleared": "undid a photo edit"
+      },
+      "students": {
+        "imported": "imported a class list"
+      },
+      "student": {
+        "added": "added a student",
+        "consent_changed": "changed a student's consent",
+        "removed": "removed a student"
+      },
+      "ai": {
+        "photos_checked": "asked AI to check photos",
+        "captions_written": "asked AI to write captions",
+        "failed": "AI request failed",
+        "week_planned": "asked AI to plan a week"
+      },
+      "post": {
+        "created": "created a post",
+        "deleted": "deleted a post",
+        "save": "saved a post",
+        "submit": "sent a post for review",
+        "approve": "approved a post",
+        "reject": "asked for changes to a post",
+        "draft": "moved a post back to draft",
+        "schedule": "scheduled a post",
+        "unschedule": "unscheduled a post",
+        "publish": "published a post now",
+        "published": "post went live on social media",
+        "idea": "saved an idea",
+        "start": "started a draft",
+        "queue": "added a post to the next slot",
+        "duplicate": "duplicated a post",
+        "duplicated": "duplicated a post",
+        "moved": "moved a post",
+        "spread": "spread posts over the calendar",
+        "review_link": "made an approval link",
+        "version_restored": "brought back an earlier caption",
+        "extra_timeout": "post went ahead after the extra approver didn't answer"
+      },
+      "settings": {
+        "saved": "changed school settings",
+        "approvals": "changed the approval rules",
+        "permissions": "changed what roles can do"
+      },
+      "meta": {
+        "connected": "connected Facebook and Instagram",
+        "page_chosen": "chose the Facebook Page",
+        "disconnected": "disconnected Facebook and Instagram"
+      },
+      "portal": {
+        "link_created": "created a photographer link",
+        "link_revoked": "revoked a photographer link"
+      },
+      "category": {
+        "created": "added a category",
+        "updated": "changed a category",
+        "deleted": "deleted a category"
+      },
+      "slots": {
+        "added": "added posting times"
+      },
+      "frame": {
+        "added": "added a frame"
+      },
+      "brand": {
+        "saved": "changed the brand voice"
+      },
+      "posting": {
+        "paused": "paused posting",
+        "resumed": "resumed posting"
+      },
+      "account": {
+        "paused": "paused an account",
+        "resumed": "resumed an account"
+      },
+      "library": {
+        "self_filing_on": "turned on filing in place",
+        "self_filing_off": "turned off filing in place"
+      },
+      "inbox": {
+        "replied": "replied to a comment",
+        "reply_failed": "reply failed"
+      },
+      "support": {
+        "reported": "reported a problem"
+      }
     }
   },
   "nav": {
