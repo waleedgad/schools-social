@@ -17,6 +17,6 @@ export default defineConfig({
   webServer: {
     command: "npx next start -p 3123",
     url: "http://localhost:3123/en/login",
-    reuseExistingServer: true,
+    reuseExistingServer: false,
   },
 });
