@@ -1,3 +1,5 @@
 node_modules
 dist
 release
+e2e-report
+test-results

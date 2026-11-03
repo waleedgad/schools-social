@@ -1,7 +1,7 @@
 # Runs the automatic checks on every change, before anything reaches Waleed.
 # Website: type check, lint, a full build and the robot tests against a
-# private test database. Mac app: its tests on a real
-# Mac (and on Linux, which is quicker). Windows joins once the app ships there.
+# private test database. Mac app: its tests and robot
+# tests on a real Mac (and on Linux, which is quicker). Windows joins once the app ships there.
 name: Checks
 
 on:
@@ -52,3 +52,14 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci
       - run: npm test
+      # Robot tests: start the real app and click through every tab.
+      - if: runner.os == 'Linux'
+        run: npm run build && xvfb-run -a npx playwright test
+      - if: runner.os != 'Linux'
+        run: npm run test:e2e
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-test-report-${{ matrix.os }}
+          path: desktop/e2e-report
+          if-no-files-found: ignore
