@@ -187,7 +187,7 @@ App.views.help = {
     if (page === "new") {
       box.innerHTML = `<div class="card" style="max-width: 760px"><h1>${icon("gift", 20)} ${L("What's new", "ما الجديد")}</h1><ul>${WHATS_NEW().map(([v, t]) => `<li><span class="tag">${esc(v)}</span> ${esc(t)}</li>`).join("")}</ul><p class="muted small">${L(`This Mac: version ${S.version ?? ""}`, `هذا الماك: الإصدار ${S.version ?? ""}`)}</p></div>`;
     } else if (page === "videos") {
-      const base = `${S.server ?? "https://schools-social.vercel.app"}/help/videos`;
+      const base = `${S.server ?? "https://schoolsocialhub.seen-marketing.net"}/help/videos`;
       box.innerHTML = `<div class="card" style="max-width: 900px"><h1>${icon("circle-play", 20)} ${L("Short videos", "فيديوهات قصيرة")}</h1><p class="muted">${L("Each is under two minutes, with no sound needed.", "كل فيديو أقل من دقيقتين ولا يحتاج صوتاً.")}</p>
         <div class="vids">${HELP_VIDEOS().map(([id, t]) => `<figure class="vid"><video src="${esc(base)}/${id}.webm" controls preload="metadata"></video><figcaption>${esc(t)}</figcaption></figure>`).join("")}</div></div>`;
       $$("video", box).forEach((v) => (v.onerror = () => v.closest("figure").classList.add("off")));

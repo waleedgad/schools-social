@@ -989,7 +989,7 @@ async function openPost(id, startStep) {
       const label = $("#e-link-for", box).value.trim();
       const r = await quiet("app", "reviewLink", { id, label });
       if (!r?.token) return toast(L("Write who the link is for.", "اكتب لمن الرابط."));
-      const url = `${S.server ?? "https://schools-social.vercel.app"}/review/${r.token}`;
+      const url = `${S.server ?? "https://schoolsocialhub.seen-marketing.net"}/review/${r.token}`;
       navigator.clipboard?.writeText(url);
       toast(L("Link copied. Send it by WhatsApp or email.", "نُسخ الرابط. أرسله بالواتساب أو البريد."));
       await reload();

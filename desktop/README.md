@@ -39,5 +39,5 @@ npm start    # opens the app
 ```
 
 On first run the app asks for the web app's address (for example
-`schools-social.vercel.app`) and gets the database settings from it, so the
+`schoolsocialhub.seen-marketing.net`) and gets the database settings from it, so the
 installer carries no keys.

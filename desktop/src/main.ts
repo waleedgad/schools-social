@@ -102,7 +102,10 @@ const SETTABLE: (keyof Settings)[] = [
 
 // The app connects to this address by itself. A school using its own copy
 // of the web app can still type another address if this one fails.
-const DEFAULT_SERVER = "https://schools-social.vercel.app";
+const DEFAULT_SERVER = "https://schoolsocialhub.seen-marketing.net";
+// Earlier versions saved this address; it still works, but links and the
+// connection now use the school-facing one above.
+const OLD_DEFAULT_SERVER = "https://schools-social.vercel.app";
 
 protocol.registerSchemesAsPrivileged([{ scheme: "hub", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 
@@ -1327,6 +1330,7 @@ app.whenReady().then(async () => {
     lastCleanReminder: 0,
     calendar: [],
   });
+  if (settings.get().server === OLD_DEFAULT_SERVER) settings.set({ server: DEFAULT_SERVER });
   setTermDates(settings.get().terms);
   try {
     backupBeforeUpdate();
