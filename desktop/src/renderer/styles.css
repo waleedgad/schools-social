@@ -9,7 +9,7 @@
 
 :root {
   --accent: #2f6fdf; --accent-bg: color-mix(in srgb, var(--accent) 12%, transparent); --accent-ink: color-mix(in srgb, var(--accent) 80%, #000);
-  --bg: #f6f7f9; --surface: #fff; --surface2: #f9fafb; --line: #e8eaee; --line2: #f0f1f4; --text: #17191e; --muted: #687080; --faint: #9aa0ad;
+  --bg: #f6f7f9; --surface: #fff; --surface2: #f9fafb; --line: #e8eaee; --line2: #f0f1f4; --text: #17191e; --muted: #5d6474; --faint: #646b7a;
   --side: rgba(246, 247, 249, .72); --sidesolid: #eef0f3; --glass: rgba(255, 255, 255, .72);
   --good: #1f7a4a; --good-bg: #e2f6ea; --warn: #8a5a00; --warn-bg: #fff2d6; --bad: #c0362c; --bad-bg: #fde9e7;
   --info: #1f55b5; --info-bg: #e8f0ff; --violet: #5b3cc4; --violet-bg: #f0eaff; --grey-bg: #eef0f3; --grey: #4a4f5a;
@@ -19,7 +19,7 @@
 }
 :root[data-theme="dark"] {
   --accent-ink: color-mix(in srgb, var(--accent) 55%, #fff);
-  --bg: #16181c; --surface: #1e2126; --surface2: #23262c; --line: #2e3239; --line2: #272a30; --text: #ebedf1; --muted: #a3a9b6; --faint: #747b89;
+  --bg: #16181c; --surface: #1e2126; --surface2: #23262c; --line: #2e3239; --line2: #272a30; --text: #ebedf1; --muted: #a3a9b6; --faint: #9198a6;
   --side: rgba(30, 32, 37, .6); --sidesolid: #1b1d22; --glass: rgba(30, 33, 38, .72);
   --good: #7fd3a2; --good-bg: #17342a; --warn: #f0c46a; --warn-bg: #3a2f14; --bad: #ff8b80; --bad-bg: #3d1f1c;
   --info: #8db4ff; --info-bg: #1a2a48; --violet: #b9a6ff; --violet-bg: #2a2348; --grey-bg: #2a2e35; --grey: #c3c8d2;
@@ -116,7 +116,7 @@ h3 { font-size: 13.5px; font-weight: 600; }
 .btn.small { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
 .btn.icon { padding: 7px; }
 .btn:disabled { opacity: .45; cursor: default; }
-.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font-weight: 600; }
+.link { background: none; border: 0; padding: 0; color: var(--accent-ink); cursor: pointer; font-weight: 600; }
 .pills { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); flex-wrap: wrap; }
 .pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 8px; font-size: 12.5px; white-space: nowrap; background: transparent; border: 0; cursor: pointer; color: var(--text); transition: background .12s; }
 .pill:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }

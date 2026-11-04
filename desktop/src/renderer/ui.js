@@ -4,8 +4,29 @@
 
 function icon(nameOf, size = 16, cls = "") {
   const inner = ICONS[nameOf] ?? ICONS.circle;
-  return `<svg class="i ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  return `<svg class="i ${cls}" data-icon="${nameOf}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 }
+
+// Buttons that show only an icon get a spoken name (and a tooltip) from
+// what the icon means, so screen readers never say just "button".
+const ICON_NAMES = () => ({
+  x: L("Close", "إغلاق"), ellipsis: L("More", "المزيد"), plus: L("Add", "إضافة"), check: L("Done", "تم"),
+  "chevron-left": L("Previous", "السابق"), "chevron-right": L("Next", "التالي"), "undo-2": L("Undo", "تراجع"),
+  merge: L("Join", "دمج"), "trash-2": L("Delete", "حذف"), pencil: L("Edit", "تعديل"), search: L("Search", "بحث"),
+  "refresh-cw": L("Refresh", "تحديث"), settings: L("Settings", "الإعدادات"), info: L("Details", "التفاصيل"),
+  "layout-grid": L("Grid", "شبكة"), list: L("List", "قائمة"), pin: L("Pin", "تثبيت"), "pin-off": L("Unpin", "إلغاء التثبيت"),
+  "circle-check": L("Ticked", "محدد"), circle: L("Not ticked", "غير محدد"),
+});
+function nameIconButtons(root = document.body) {
+  $$("button:not([aria-label])", root).forEach((b) => {
+    if (b.textContent.trim()) return;
+    const name = ICON_NAMES()[b.querySelector("svg[data-icon]")?.dataset.icon] ?? b.title;
+    if (!name) return;
+    b.setAttribute("aria-label", name);
+    if (!b.title) b.title = name;
+  });
+}
+new MutationObserver(() => nameIconButtons()).observe(document.documentElement, { childList: true, subtree: true });
 
 // ---------- Right-click menus ----------
 // items: [{ label, icon?, key?, run, enabled?, checked?, danger?, sub? } | "-"]
@@ -43,8 +64,20 @@ function onContext(root, sel, build) {
 
 // ---------- Pills ----------
 // A row of choices: pills([["all", "All"], ["picks", "Picks"]], value, "data-x")
+// [value, label, icon, name]: the name is read out by screen readers when a pill shows only an icon.
 function pills(choices, value, attr = "data-pill") {
-  return `<div class="pills">${choices.map(([v, label, ic]) => `<button class="pill ${String(v) === String(value) ? "on" : ""}" ${attr}="${esc(v)}">${ic ? icon(ic, 13) : ""}${esc(label)}</button>`).join("")}</div>`;
+  return `<div class="pills">${choices.map(([v, label, ic, name]) => `<button class="pill ${String(v) === String(value) ? "on" : ""}" ${attr}="${esc(v)}" ${name ? `aria-label="${esc(name)}" title="${esc(name)}"` : ""}>${ic ? icon(ic, 13) : ""}${esc(label)}</button>`).join("")}</div>`;
+}
+// Settings-style rows: each switch, box and list is named after its row's
+// title, so screen readers say what it is.
+function nameControls(root) {
+  $$(".srow", root).forEach((row) => {
+    const title = $(".st", row)?.textContent.trim();
+    if (!title) return;
+    $$(".sc input, .sc select, .sc textarea", row).forEach((el) => {
+      if (!el.getAttribute("aria-label") && el.type !== "hidden") el.setAttribute("aria-label", title);
+    });
+  });
 }
 function bindPills(root, attr, fn) {
   $$(`[${attr}]`, root).forEach((b) => (b.onclick = () => fn(b.getAttribute(attr), b)));

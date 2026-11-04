@@ -27,6 +27,7 @@
     "sharp": "^0.34.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "^1.63.0",
     "@types/node": "^22.20.5",
     "electron": "^38.4.0",

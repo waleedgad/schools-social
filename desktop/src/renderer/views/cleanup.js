@@ -46,7 +46,7 @@ App.views.cleanup = {
           <div class="card clc"><div class="row nowrap"><span class="sic">${icon("sliders-horizontal", 16)}</span><h3 class="grow">${L("How strict", "درجة الصرامة")}</h3></div>
             <div class="row"><span class="small grow">${L("Bad photos", "الصور الضعيفة")}</span>${pillMenu("cl-strict", "", [["gentle", L("Gentle", "لطيف")], ["normal", L("Normal", "عادي")], ["strict", L("Strict", "صارم")]], r.strict)}</div>
             <div class="row"><span class="small grow">${L("Rejected photos older than", "صور مرفوضة أقدم من")}</span>${pillMenu("cl-months", "", [3, 6, 12, 24].map((m) => [m, L(`${m} months`, `${num(m)} أشهر`)]), r.rejected.months)}</div>
-            <label class="row small"><span class="grow">${L("Remind me once a month", "ذكّرني مرة كل شهر")}</span>${sw('id="cl-remind"', S.cleanReminder)}</label></div>
+            <label class="row small"><span class="grow">${L("Remind me once a month", "ذكّرني مرة كل شهر")}</span>${sw(`id="cl-remind" aria-label="${L("Remind me once a month", "ذكّرني مرة كل شهر")}"`, S.cleanReminder)}</label></div>
         </div></div>`;
     $("#cl-bin", main).onclick = () => go("cleanup", { bin: true });
     $("#cl-safe", main).onclick = async () => {

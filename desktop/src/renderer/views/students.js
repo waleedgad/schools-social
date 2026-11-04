@@ -19,8 +19,8 @@ App.views.students = {
     ST.sel.clear();
     main.innerHTML = topbar(L("Students", "الطلاب"), `<span id="st-sub"></span>`,
       `<input type="search" id="st-q" placeholder="${L("Find someone (any spelling)…", "ابحث عن أي شخص (بأي تهجئة)…")}" value="${esc(ST.search)}" style="width: 220px" />
-       ${pills([["grid", "", "layout-grid"], ["list", "", "list"]], ST.view, "data-view")}
-       <button class="btn" id="st-more">${icon("ellipsis", 15)}</button>
+       ${pills([["grid", "", "layout-grid", L("Grid", "شبكة")], ["list", "", "list", L("List", "قائمة")]], ST.view, "data-view")}
+       <button class="btn" id="st-more" aria-label="${L("More", "المزيد")}" title="${L("More", "المزيد")}">${icon("ellipsis", 15)}</button>
        <button class="btn" id="st-add">${icon("plus", 14)} ${L("Add", "إضافة")}</button>
        <button class="btn primary" id="st-imp">${icon("file-spreadsheet", 14)} ${L("Import class list", "استيراد قائمة الفصول")}</button>`) +
       `<div class="content flush"><div class="lib"><nav class="tree" id="st-tree"></nav><div class="gridwrap"><div class="content" id="st-list"></div><div id="st-bar"></div></div></div></div>`;

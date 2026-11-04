@@ -555,7 +555,7 @@ function tileHtml(p, i) {
   if (p.edits) b.push(`<span class="b">${icon("pen-line", 10)}</span>`);
   if (p.problems) b.push(`<span class="b" title="${esc(p.problems.split(",").map((x) => PROBLEMS()[x] ?? x).join(", "))}">${icon("triangle-alert", 10)}</span>`);
   return `<div class="tile ${lib.sel.has(p.id) ? "sel" : ""} ${p.flag === -1 ? "rejected" : ""} ${p.hidden ? "hiddenp" : ""} ${stack ? "stack" : ""}" data-i="${i}" draggable="true">
-    ${p.thumb === 1 ? `<img loading="lazy" src="hub://thumb/${p.id}" />` : p.thumb === -1 ? `<div class="empty small" style="position:absolute;inset:0;padding:10px">${icon("image-off", 20)}<span>${L("Can't read", "تعذّرت القراءة")}</span></div>` : `<div class="skel" style="position:absolute;inset:0"></div>`}
+    ${p.thumb === 1 ? `<img loading="lazy" src="hub://thumb/${p.id}" alt="${esc(p.name ?? "")}" />` : p.thumb === -1 ? `<div class="empty small" style="position:absolute;inset:0;padding:10px">${icon("image-off", 20)}<span>${L("Can't read", "تعذّرت القراءة")}</span></div>` : `<div class="skel" style="position:absolute;inset:0"></div>`}
     ${p.rating ? `<span class="stars">${"★".repeat(p.rating)}</span>` : ""}${p.label ? `<span class="lab ${esc(p.label)}"></span>` : ""}${stack ? `<span class="stackn" data-stack="${p.id}" title="${L("Burst: click to open the stack", "لقطات متتابعة: انقر لفتح المجموعة")}">${icon("layers", 10)} ${stack.length}</span>` : ""}<div class="badges">${b.join("")}</div></div>`;
 }
 

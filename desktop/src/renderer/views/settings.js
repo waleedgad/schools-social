@@ -309,6 +309,7 @@ App.views.settings = {
       const p = pages.find((x) => x.id === this.page) ?? pages[0];
       page.innerHTML = `<h1>${esc(p.title)}</h1>${settingGroups(p.id, this.extra).map(group).join("")}`;
     }
+    nameControls(page);
     this.bind(page);
   },
   bind(page) {
