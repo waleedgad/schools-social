@@ -37,7 +37,10 @@ for (const [language, theme] of [["en", "light"], ["ar", "light"], ["en", "dark"
       await win.waitForTimeout(900);
       // On Mac and Windows the window background is the system's see-through
       // material, which axe can't see; give it the matching solid colour.
-      await win.addStyleTag({ content: ':root[data-platform] body { background: var(--bg) !important } :root[data-platform] #side { background: var(--sidesolid) !important }' });
+      // Fades are skipped: axe must see the colours a person sees once the
+      // page has settled, not half-way through a fade (failed on the slower Mac runner).
+      await win.addStyleTag({ content: ':root[data-platform] body { background: var(--bg) !important } :root[data-platform] #side { background: var(--sidesolid) !important } *, *::before, *::after { animation: none !important; transition: none !important }' });
+      await win.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 5_000 }).catch(() => {});
       // axe runs inside the app window (the usual helper opens extra windows, which Electron doesn't allow).
       await win.evaluate(axeSource);
       const r = (await win.evaluate("axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] } })")) as { violations: { id: string; impact: string; nodes: { html: string }[] }[] };
