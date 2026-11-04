@@ -74,8 +74,10 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
     return { c, count: mine.length, avg: mine.length ? mine.reduce((a, p) => a + engagement(p), 0) / mine.length : 0 };
   }).filter((x) => x.count);
   const maxCat = Math.max(1, ...byCat.map((x) => x.avg));
+  const hourFmt = new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: membership.school.timezone });
+  const hourOf = new Map(list.map((p) => [p.id, Number(hourFmt.format(new Date(p.published_at))) % 24]));
   const hours = Array.from({ length: 24 }, (_, h) => {
-    const mine = list.filter((p) => Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: membership.school.timezone }).format(new Date(p.published_at))) % 24 === h);
+    const mine = list.filter((p) => hourOf.get(p.id) === h);
     return { h, count: mine.length, avg: mine.length ? mine.reduce((a, p) => a + engagement(p), 0) / mine.length : 0 };
   });
   const maxHour = Math.max(1, ...hours.map((x) => x.avg));

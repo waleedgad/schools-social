@@ -53,11 +53,14 @@ export default async function PostsPage({
     .from("posts")
     .select("id, status, idea, caption_ar, caption_en, scheduled_at, published_at, due_on, urgent, sensitive, category_id, assigned_to, created_by, updated_at, event:events(class_name), post_photos(position, photo:photos(storage_path, edited_path))")
     .eq("school_id", schoolId)
-    .order("updated_at", { ascending: false })
-    .limit(300);
+    .order("updated_at", { ascending: false });
+  // Published posts older than 30 days drop off the board (they stay in the grid and analytics).
+  // Leave them out in the database, so a school with thousands of old posts still sees every
+  // post in progress (B-33: a plain "latest 300" hid ideas and drafts in a big school).
+  const monthAgoIso = new Date(Date.now() - 30 * 86400_000).toISOString();
+  query = view === "grid" ? query.limit(300) : query.or(`status.neq.published,published_at.gt.${monthAgoIso}`).limit(2000);
   if (sp.category) query = query.eq("category_id", sp.category);
   if (sp.mine === "1") query = query.or(`created_by.eq.${user.id},assigned_to.eq.${user.id}`);
-  // Published posts older than 30 days drop off the board (they stay in the grid and analytics).
   const [{ data: posts }, { data: categories }, inScope] = await Promise.all([
     query.returns<Row[]>(),
     supabase.from("categories").select("id, name_ar, name_en, color").eq("school_id", schoolId).order("position"),

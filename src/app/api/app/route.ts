@@ -68,7 +68,7 @@ async function handle(ctx: PostCtx, body: Body) {
 
     case "board": {
       const [{ data: posts }, { data: categories }] = await Promise.all([
-        supabase.from("posts").select(POST_COLUMNS).eq("school_id", schoolId).gte("updated_at", new Date(Date.now() - 60 * 86400_000).toISOString()).order("updated_at", { ascending: false }).limit(300).returns<Row[]>(),
+        supabase.from("posts").select(POST_COLUMNS).eq("school_id", schoolId).or(`status.neq.published,updated_at.gte.${new Date(Date.now() - 60 * 86400_000).toISOString()}`).order("updated_at", { ascending: false }).limit(2000).returns<Row[]>(),
         supabase.from("categories").select("id, name_ar, name_en, color").eq("school_id", schoolId).order("position"),
       ]);
       return {
