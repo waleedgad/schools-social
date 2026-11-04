@@ -3,6 +3,7 @@ import { constants, createReadStream, existsSync } from "node:fs";
 import { copyFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { exclusive } from "./lock";
 import { rawPreview } from "./media";
 
 // The parts of importing that don't need the app: reading a card, splitting
@@ -80,7 +81,13 @@ export type Look = { brightness: number; sharpness: number; spread: number };
 // A small picture for the preview grid, and how it looks: pocket shots are
 // almost black, blank shots almost white or one flat colour, and very blurry
 // shots have no edges at all.
-export async function lookAt(file: string, thumb: string): Promise<Look | null> {
+// Runs with the library's other image work, one at a time (core/lock.ts):
+// an import preview running beside the library read crashed the app.
+export function lookAt(file: string, thumb: string): Promise<Look | null> {
+  return exclusive(() => look(file, thumb));
+}
+
+async function look(file: string, thumb: string): Promise<Look | null> {
   try {
     const input = RAW.test(file) ? (await rawPreview(file)) ?? file : file;
     const img = sharp(input, { failOn: "none" }).rotate();

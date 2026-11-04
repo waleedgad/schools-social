@@ -33,7 +33,7 @@ jobs:
       # The Mac app sending to and deleting from the same test database.
       - name: Mac app and website together
         working-directory: desktop
-        run: npm ci && npm run build && xvfb-run -a npx playwright test e2e/web-sync.spec.ts
+        run: npm ci && npm run build && xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/nothing-hangs.spec.ts
       - if: always()
         uses: actions/upload-artifact@v4
         with:
