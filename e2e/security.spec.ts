@@ -211,3 +211,13 @@ test("server functions refuse another school", async () => {
   const computers = await admin().from("computers").select("device_id").eq("school_id", B.id);
   expect(computers.data?.map((c) => c.device_id)).toEqual(["mac-test-0001"]);
 });
+
+test("pages send the safety headers", async ({ request }) => {
+  const res = await request.get("/en/login");
+  const h = res.headers();
+  expect(h["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(h["x-frame-options"]).toBe("DENY");
+  expect(h["x-content-type-options"]).toBe("nosniff");
+  expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  expect(h["x-powered-by"]).toBeUndefined();
+});
