@@ -209,6 +209,7 @@ App.views.library = {
   async load(keepSel) {
     if (lib.filter.album === "albums") {
       lib.list = lib.shown = [];
+      lib.total = 0;
       drawTitle();
       return drawAlbumCards();
     }
@@ -218,6 +219,8 @@ App.views.library = {
     const list = await quiet("photos", f);
     if (!list || !$("#grid")) return;
     lib.list = list;
+    // The grid holds at most 8,000 photos; a bigger library shows its real size.
+    lib.total = list.length >= 8000 ? ((await quiet("countPhotos", f)) ?? list.length) : list.length;
     lib.stackOf = new Map();
     if (lib.stacks && (!f.sort || f.sort === "time" || f.sort === "newest") && list.length > 1) {
       const groups = (await quiet("stacks", list.map((p) => p.id))) ?? [];
@@ -285,7 +288,7 @@ function drawTitle() {
   else if (f.stage && !f.event) title = f.stage;
   if ($("#libtitle")) $("#libtitle").textContent = title;
   const picks = lib.list.filter((p) => p.flag === 1).length;
-  if ($("#libsub")) $("#libsub").textContent = f.album === "albums" ? "" : [sub, plural(lib.list.length, "photo", "photos", "صورة"), picks ? L(`${num(picks)} picked`, `${num(picks)} مختارة`) : ""].filter(Boolean).join(" · ");
+  if ($("#libsub")) $("#libsub").textContent = f.album === "albums" ? "" : [sub, plural(lib.total ?? lib.list.length, "photo", "photos", "صورة"), picks ? L(`${num(picks)} picked`, `${num(picks)} مختارة`) : "", (lib.total ?? 0) > lib.list.length ? L(`showing the first ${num(lib.list.length)}: choose a year or event for the rest`, `يظهر أول ${num(lib.list.length)}: اختر سنة أو فعالية لرؤية الباقي`) : ""].filter(Boolean).join(" · ");
 }
 
 // ---------- Sidebar of albums and years ----------

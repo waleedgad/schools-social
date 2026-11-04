@@ -47,6 +47,11 @@ create table if not exists photos (
 create index if not exists photos_event on photos (event_key, taken_at);
 create index if not exists photos_hash on photos (hash);
 create index if not exists photos_year on photos (year, term);
+-- Without these, each photo in a big library looked through every other photo
+-- for its RAW pair and edits (20,000 photos: 39 s to open the Library).
+create index if not exists photos_pair on photos (pair_of);
+create index if not exists photos_edited on photos (edited_of);
+create index if not exists photos_dup on photos (dup_of);
 
 create table if not exists students (
   id text primary key,
