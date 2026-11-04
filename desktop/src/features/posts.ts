@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { net } from "electron";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 import { YEARBOOK_ALBUMS } from "../core/books";
 import { exclusive } from "../core/lock";
 import { source } from "../core/media";
@@ -81,7 +81,7 @@ export function postsApi(ctx: Ctx): Api {
         }
       }
       let img = sharp(base.data).extract(box);
-      const parts: sharp.OverlayOptions[] = [];
+      const parts: OverlayOptions[] = [];
       const [tw, th] = ratio ? LONG[o.shape] : [2048, 2048];
       const out = await img.resize(tw, th, { fit: ratio ? "cover" : "inside", withoutEnlargement: !ratio }).toBuffer({ resolveWithObject: true });
       const ow = out.info.width, oh = out.info.height;
@@ -260,7 +260,7 @@ export function postsApi(ctx: Ctx): Api {
         const rows = Math.ceil(n / cols);
         for (let i = 0; i < n; i++) cells.push({ x: (i % cols) * ((W + gap) / cols), y: Math.floor(i / cols) * ((H + gap) / rows), w: (W - gap * (cols - 1)) / cols, h: (H - gap * (rows - 1)) / rows });
       }
-      const parts: sharp.OverlayOptions[] = [];
+      const parts: OverlayOptions[] = [];
       for (let i = 0; i < n; i++) {
         const c = cells[i];
         const w = Math.round(c.w), h = Math.round(c.h);

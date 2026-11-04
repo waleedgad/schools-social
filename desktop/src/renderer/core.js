@@ -276,17 +276,34 @@ function sidebar() {
       parts.push(`<button class="nav ${on ? "on" : ""}" data-go="${it.id}"><span class="ic">${icon(it.icon, 16)}</span>${esc(it.label())}${c ? `<span class="count">${num(c)}</span>` : ""}</button>`);
     }
   }
-  parts.push(`<div class="grow"></div>${macStatus()}`);
-  side.innerHTML = parts.join("");
-  $$("[data-go]", side).forEach((b) => (b.onclick = () => go(b.dataset.go)));
-  $("#sbtn", side).onclick = palette;
-  $("#cbtn", side).onclick = () => go("posts", { new: true });
-  onContext(side, "[data-go]", (b) => [
-    { label: L("Open", "فتح"), run: () => go(b.dataset.go) },
-    { label: L("Keyboard shortcuts", "اختصارات لوحة المفاتيح"), run: shortcutSheet },
-  ]);
-  $("#pause", side)?.addEventListener("click", () => call("set", "paused", !S.paused));
-  $("#updatebar", side)?.addEventListener("click", updateSteps);
+  // The Mac sends its status several times a second while it works. Only
+  // the parts that changed are redrawn: redrawing the whole sidebar each time
+  // swapped a button out from under the mouse and lost the click.
+  const nav = parts.join("");
+  if (side._nav !== nav) {
+    side.innerHTML = `${nav}<div class="grow"></div><div id="sidestatus"></div>`;
+    side._nav = nav;
+    side._status = null;
+    $$("[data-go]", side).forEach((b) => (b.onclick = () => go(b.dataset.go)));
+    $("#sbtn", side).onclick = palette;
+    $("#cbtn", side).onclick = () => go("posts", { new: true });
+  }
+  if (!side._menu) {
+    side._menu = true;
+    onContext(side, "button.nav[data-go]", (b) => [
+      { label: L("Open", "فتح"), run: () => go(b.dataset.go) },
+      { label: L("Keyboard shortcuts", "اختصارات لوحة المفاتيح"), run: shortcutSheet },
+    ]);
+  }
+  const status = macStatus();
+  if (side._status !== status) {
+    const box = $("#sidestatus", side);
+    box.innerHTML = status;
+    side._status = status;
+    $$("[data-go]", box).forEach((b) => (b.onclick = () => go(b.dataset.go)));
+    $("#pause", box)?.addEventListener("click", () => call("set", "paused", !S.paused));
+    $("#updatebar", box)?.addEventListener("click", updateSteps);
+  }
 }
 
 // Sidebar status: what the Mac is doing, imports running, and Pause.

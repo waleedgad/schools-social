@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Stops on any serious known security hole in the libraries the website ships with.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npx tsc --noEmit
       - run: npm run lint
       # Website and Mac app share one set of colours (design/tokens.json).
@@ -59,6 +61,8 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci
+      # Stops on any serious known security hole in the libraries the app ships with.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm test
       # Robot tests: start the real app and click through every tab.
       - if: runner.os == 'Linux'
