@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statfsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
@@ -92,6 +92,9 @@ type Settings = {
   wizard: Record<string, boolean>;
   lastCleanReminder: number;
   calendar: { name: string; start: string; end: string }[];
+  // How many missing originals the person said are on a drive they'll plug
+  // back in; the Library notice stays hidden until more go missing.
+  missingAck: number;
 };
 
 const SETTABLE: (keyof Settings)[] = [
@@ -553,6 +556,45 @@ async function findMissing(dir: string) {
   }
   push("photos");
   return { found, looked: files.length };
+}
+
+// Originals gone from the disk (folders deleted or moved in Finder), not
+// already in the Bin and not in a skipped folder. The Library shows a
+// notice for them until they're found, forgotten or said to be on a drive.
+function missingOriginals() {
+  return all<{ id: number; path: string }>(
+    `select p.id, p.path from photos p where p.missing = 1 and p.path not like ':%'
+       and not exists (select 1 from bin b where b.photo_id = p.id)
+       and not exists (select 1 from folders fo where fo.skip = 1 and p.path like fo.path || '%')`,
+  );
+}
+
+function missingSummary() {
+  const rows = missingOriginals();
+  // Some came back (drive plugged in, or found): ask again if more go.
+  if (rows.length < settings.get().missingAck) settings.set({ missingAck: rows.length });
+  const byFolder = new Map<string, number>();
+  for (const r of rows) byFolder.set(path.dirname(r.path), (byFolder.get(path.dirname(r.path)) ?? 0) + 1);
+  const folders = [...byFolder].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([dir, n]) => ({ name: path.basename(dir), dir, n }));
+  return { n: rows.length, ack: settings.get().missingAck, folders, more: Math.max(0, byFolder.size - 5) };
+}
+
+// Archives the whole library (photos list, names, faces, settings) and
+// starts the app again with an empty one. Originals on disk are untouched.
+async function startNewLibrary() {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const dir = data(path.join("archived-libraries", new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")));
+  fs.mkdirSync(dir, { recursive: true });
+  db.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
+  for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
+  settings.set({ library: null, watched: [], missingAck: 0, setupDone: false });
+  writeFileSync(data("start-new-library"), dir);
+  log(`library archived to ${dir}; starting a new one`);
+  quitting = true;
+  // Robot tests start the app again themselves.
+  if (!process.env.HUB_TEST) app.relaunch();
+  app.exit(0);
+  return dir;
 }
 
 // ---------- Library queries ----------
@@ -1329,6 +1371,7 @@ app.whenReady().then(async () => {
     wizard: {},
     lastCleanReminder: 0,
     calendar: [],
+    missingAck: 0,
   });
   if (settings.get().server === OLD_DEFAULT_SERVER) settings.set({ server: DEFAULT_SERVER });
   setTermDates(settings.get().terms);
@@ -1339,6 +1382,11 @@ app.whenReady().then(async () => {
   }
   queue = new UploadQueue(data("queue.json"));
   webChecks = new JsonStore(data("web-checks.json"), { pending: {} as Record<string, string> });
+  // "Start a new library" archived the old one and asked for a fresh start.
+  if (existsSync(data("start-new-library"))) {
+    for (const f of ["library.db", "library.db-wal", "library.db-shm", "queue.json", "events.json"]) rmSync(data(f), { force: true });
+    rmSync(data("start-new-library"), { force: true });
+  }
   db = openDb(data("library.db"));
 
   // hub://thumb/12, hub://preview/12, hub://face/40, hub://portrait/S24001
@@ -1454,6 +1502,10 @@ app.whenReady().then(async () => {
       return dir ? findMissing(dir) : null;
     },
     missingCount: () => one<{ n: number }>("select count(*) n from photos where missing = 1 and path not like ':%'")?.n ?? 0,
+    missingSummary: () => missingSummary(),
+    missingOnDrive: () => settings.set({ missingAck: missingOriginals().length }),
+    forgetMissing: () => binPhotos(missingOriginals().map((r) => r.id)),
+    startNewLibrary: () => startNewLibrary(),
     originalThere: (id: number) => engine?.originalThere(id) ?? false,
     retryAura: () => startAura(),
     retryFailed: () => queue.retryFailed(),

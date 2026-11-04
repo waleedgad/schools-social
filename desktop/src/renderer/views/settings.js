@@ -77,6 +77,8 @@ function settingGroups(page, extra) {
           rows: [
             srow(L("Library folder", "مجلد المكتبة"), L("Where the school keeps its photos. Originals always stay here.", "حيث تحفظ المدرسة صورها. تبقى الأصول هنا دائمًا."),
               `${S.library ? pathText(S.library) : `<span class="tag bad">${L("Not chosen", "لم يُختر")}</span>`}${actBtn("chooseLibrary", S.library ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"), S.library ? "" : "primary")}${S.library ? actBtn("rescan", L("Look again", "إعادة الفحص"), "ghost") : ""}`, "library folder drive مكتبة"),
+            srow(L("Start a new library", "ابدأ مكتبة جديدة"), L("Keeps a copy of everything the app knows (photos list, names, faces, settings) and starts empty. Photos on the disk aren't touched.", "يحتفظ بنسخة من كل ما يعرفه التطبيق (قائمة الصور والأسماء والوجوه والإعدادات) ويبدأ فارغًا. لا تُمس الصور على القرص."),
+              actBtn("newLibrary", L("Start new…", "ابدأ من جديد…"), "ghost"), "new library start fresh reset archive مكتبة جديدة"),
             srow(L("File my folder in place", "رتّب مجلدي في مكانه"), L("Photos that land outside Year / Term / Event folders are moved into place. Photos you put in an event folder yourself are never moved; “_” folders are left alone.", "تُنقل الصور التي تصل خارج مجلدات السنة / الفصل الدراسي / الفعالية إلى مكانها. لا تُنقل الصور التي تضعها بنفسك في مجلد فعالية، وتُترك مجلدات «_»."),
               choose("fileMode", S.selfFiling ? (S.fileAsk ? "ask" : "auto") : "off", [["off", L("Off", "متوقف")], ["ask", L("Ask me first", "اسألني أولًا")], ["auto", L("Automatically", "تلقائيًا")]]) + actBtn("tidy", L("Tidy now…", "رتّب الآن…"), "", S.library ? "" : "disabled"), "self filing tidy organise ترتيب"),
           ],
@@ -401,6 +403,9 @@ App.views.settings = {
       case "openWebPlan": return call("openWeb", "/settings?tab=plan");
       case "openWebSettings": return call("openWeb", "/settings");
       case "tidy": return tidyPlan();
+      case "newLibrary":
+        if (!(await confirmBox(L("Start a new, empty library? A copy of the current one is kept in the app's archive, and photos on the disk aren't touched. The app restarts.", "بدء مكتبة جديدة فارغة؟ تُحفظ نسخة من المكتبة الحالية في أرشيف التطبيق، ولا تُمس الصور على القرص. سيُعاد تشغيل التطبيق."), L("Start new library", "ابدأ مكتبة جديدة")))) return;
+        return call("startNewLibrary");
       case "addFolder":
         return menu([
           { label: L("Watch a folder (copy new photos in)…", "مراقبة مجلد (نسخ الصور الجديدة)…"), run: () => call("addWatched") },

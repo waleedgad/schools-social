@@ -99,12 +99,17 @@ App.views.library = {
       topbar(`<span id="libtitle"></span>`, `<span id="libsub"></span>`,
         `<button class="btn" id="best">${icon("sparkles", 15)} ${L("Best photos", "أفضل الصور")}</button><button class="btn" id="cull">${icon("play", 15)} ${L("Cull", "فرز")}</button><button class="btn primary" id="imp">${icon("download", 15)} ${L("Import", "استيراد")}</button>`) +
       `<div class="content flush"><div class="lib"><nav class="tree" id="tree">${skeletonRows(10)}</nav><div class="gridwrap">
-        <div class="filters" id="filters"></div><div class="photos" id="grid">${skeletonTiles(30)}</div><div class="scrub" id="scrub"></div><div id="selbar"></div></div><aside class="infopanel ${lib.info ? "" : "hide"}" id="info"></aside></div></div>`;
+        <div class="floattop" id="floattop"><div class="filters" id="filters"></div><div id="missingbar"></div></div><div class="photos" id="grid">${skeletonTiles(30)}</div><div class="scrub" id="scrub"></div><div id="selbar"></div></div><aside class="infopanel ${lib.info ? "" : "hide"}" id="info"></aside></div></div>`;
     $("#imp", main).onclick = () => go("import", lib.filter.event ? { event: lib.filter.event } : {});
     $("#cull", main).onclick = () => lib.shown.length && openViewer(lib.shown.map((p) => p.id), Math.max(0, lib.shown.findIndex((p) => lib.sel.has(p.id))), { cull: true });
     $("#best", main).onclick = () => bestPicker();
+    // The photos start below the floating filters (and any notice), however
+    // tall they get when the window is narrow.
+    const top = $("#floattop", main);
+    new ResizeObserver(() => $("#grid", main)?.style.setProperty("padding-top", `${top.offsetHeight + 16}px`)).observe(top);
     this.loadTree();
     drawFilters();
+    drawMissing();
     this.load();
   },
   onState(changed) {
@@ -112,6 +117,7 @@ App.views.library = {
       clearTimeout(lib.reload);
       lib.reload = setTimeout(() => {
         this.loadTree();
+        drawMissing();
         this.load(true);
       }, 800);
     }
@@ -808,9 +814,36 @@ async function drawInfo() {
   $("#ip-find", box)?.addEventListener("click", findMissing);
 }
 
+// Folders deleted or moved in Finder leave their photos as "missing" (so
+// names and faces survive an unplugged drive). Say so once, with the three
+// things a person can do about it.
+async function drawMissing() {
+  const bar = $("#missingbar");
+  if (!bar) return;
+  const m = await call("missingSummary");
+  if (!m.n || m.n <= m.ack) return (bar.innerHTML = "");
+  const where = m.folders.map((f) => `<b class="ltr">${esc(f.name)}</b> (${num(f.n)})`).join(", ") + (m.more ? L(` and ${m.more} more`, ` و${num(m.more)} غيرها`) : "");
+  bar.innerHTML = `<div class="note warn missingbar" role="status">${icon("folder-x", 15)}
+    <div class="grow"><b>${L(`${num(m.n)} photos are missing from the disk.`, `${num(m.n)} صورة مفقودة من القرص.`)}</b>
+    ${L("Their folders were deleted or moved in Finder, or are on a drive that isn't plugged in:", "حُذفت مجلداتها أو نُقلت في Finder، أو هي على قرص غير موصول:")} ${where}.
+    <div class="muted small">${L("Names, faces and posts already sent are kept.", "تبقى الأسماء والوجوه والمنشورات المرسلة كما هي.")}</div></div>
+    <div class="row gap4"><button class="btn small" id="mb-find">${L("Find them…", "ابحث عنها…")}</button>
+    <button class="btn small" id="mb-drive">${L("They're on a drive I'll plug in", "إنها على قرص سأوصله")}</button>
+    <button class="btn small" id="mb-forget">${L("Forget them", "انسَها")}</button></div></div>`;
+  $("#mb-find", bar).onclick = findMissing;
+  $("#mb-drive", bar).onclick = async () => { await call("missingOnDrive"); drawMissing(); };
+  $("#mb-forget", bar).onclick = async () => {
+    if (!(await confirmBox(L(`Move the ${m.n} missing photos to the Bin? You can put them back from the Bin for 30 days.`, `نقل ${num(m.n)} صورة مفقودة إلى السلة؟ يمكنك إرجاعها من السلة خلال 30 يومًا.`), L("Move to Bin", "نقل إلى السلة")))) return;
+    const n = await call("forgetMissing");
+    toast(L(`${n} photos moved to the Bin`, `نُقلت ${num(n)} صورة إلى السلة`));
+    drawMissing();
+  };
+}
+
 async function findMissing() {
   const r = await call("findMissing");
   if (r) toast(L(`Found ${r.found} of the missing photos`, `عُثر على ${num(r.found)} من الصور المفقودة`));
+  drawMissing();
 }
 
 // ---------- Quick look (space bar) ----------

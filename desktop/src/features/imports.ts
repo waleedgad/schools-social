@@ -171,6 +171,12 @@ export function importsApi(ctx: Ctx) {
   function scanView(id: string) {
     const scan = scans.get(id);
     if (!scan) return null;
+    // The folder was deleted or the card taken out since the preview was
+    // made: drop it rather than show photos that aren't there any more.
+    if (scan.ready && scan.files.length && !scan.files.slice(0, 20).some((f) => existsSync(f.file))) {
+      scans.delete(id);
+      return null;
+    }
     return {
       ...scan,
       files: scan.files.map((f) => ({ n: f.n, name: path.basename(f.file), thumb: f.thumb, taken: f.taken, camera: f.camera, size: f.size, raw: f.raw, video: f.video, junk: f.junk, already: f.already, burst: f.burst, best: f.best })),

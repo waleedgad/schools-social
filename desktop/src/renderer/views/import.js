@@ -38,7 +38,14 @@ App.views.import = {
     if (params.device) IMP.device = params.device;
     if (params.scan) return this.openScan(params.scan);
     if (IMP.scanning) return this.drawScanning();
-    if (IMP.scan) return this.drawPreview();
+    // Check the previewed folder is still there before showing it again.
+    if (IMP.scan) {
+      return quiet("importScan", IMP.scan.id).then((still) => {
+        if (still) return this.drawPreview();
+        IMP.scan = null;
+        this.draw();
+      });
+    }
     this.draw();
   },
   keys: () => [["⌘O", L("Choose folders", "اختيار مجلدات")], ["⌘A", L("Tick every photo", "تحديد كل الصور")]],

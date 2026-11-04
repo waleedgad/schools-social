@@ -148,6 +148,8 @@ label.check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .note.warn { background: var(--warn-bg); color: var(--warn); }
 .note.bad { background: var(--bad-bg); color: var(--bad); }
 .note.good { background: var(--good-bg); color: var(--good); }
+.missingbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; box-shadow: var(--soft); }
+.missingbar .grow { flex: 1 1 260px; min-width: 0; }
 .bar { height: 6px; border-radius: 99px; background: var(--grey-bg); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .3s var(--ease); }
 .empty { padding: 56px 20px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fadeUp .3s var(--ease); }
@@ -185,7 +187,9 @@ table.list tr.click:hover td { background: var(--surface2); }
 .tree .head .pin { margin-inline-start: auto; opacity: 0; }
 .tree .head:hover .pin { opacity: 1; }
 .gridwrap { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
-.filters { position: absolute; top: 8px; inset-inline: 12px; z-index: 4; display: flex; gap: 6px; align-items: center; padding: 7px 10px; border-radius: 14px; background: var(--glass); backdrop-filter: blur(18px) saturate(1.6); box-shadow: var(--soft); flex-wrap: wrap; }
+.floattop { position: absolute; top: 8px; inset-inline: 12px; z-index: 4; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.floattop > * { pointer-events: auto; }
+.filters { display: flex; gap: 6px; align-items: center; padding: 7px 10px; border-radius: 14px; background: var(--glass); backdrop-filter: blur(18px) saturate(1.6); box-shadow: var(--soft); flex-wrap: wrap; }
 .filters select { max-width: 150px; }
 .filters input[type=search] { border-radius: 999px; padding: 5px 12px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .photos { flex: 1; overflow-y: auto; padding: 66px 4px 96px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile, 170px), 1fr)); gap: 3px; align-content: start; grid-auto-rows: max-content; }
