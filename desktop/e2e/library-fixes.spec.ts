@@ -158,3 +158,40 @@ test("B-11: photos from a deleted folder can be imported again", async () => {
   await expect(win.locator("#imp")).not.toContainText("imported before");
   await app.close();
 });
+
+test("B-09: near-identical shots: choose which ones go, not only keep-best", async () => {
+  test.setTimeout(120_000);
+  const base = mkdtempSync(path.join(tmpdir(), "hub-lib-"));
+  const lib = path.join(base, "Photos");
+  const ev = path.join(lib, "2025-2026", "Term 1", "2025-10-12 Sports day");
+  mkdirSync(ev, { recursive: true });
+  // Three shots of the same scene, each a little different.
+  for (let i = 0; i < 3; i++) {
+    const img = await sharp({ create: { width: 800, height: 600, channels: 3, background: { r: 30, g: 120, b: 200 } } })
+      .composite([{ input: Buffer.from(`<svg width="800" height="600"><circle cx="${400 + i * 4}" cy="300" r="160" fill="#f4c542"/><rect x="100" y="80" width="90" height="440" fill="white"/></svg>`), top: 0, left: 0 }])
+      .blur(i === 2 ? 3 : 0.3)
+      .jpeg({ quality: 90 - i })
+      .toBuffer();
+    writeFileSync(path.join(ev, `IMG_400${i}.jpg`), img);
+  }
+  const { app, win } = await launch(lib);
+  await expect
+    .poll(async () => ((await win.evaluate(() => (window as unknown as { hub: { call: (f: string, k: string) => Promise<{ value?: { groups?: unknown[] } }> } }).hub.call("cleanupList", "bursts"))).value?.groups?.length ?? 0), { timeout: 60_000 })
+    .toBe(1);
+  await win.locator('button.nav[data-go="cleanup"]').click();
+  await win.locator('[data-review="bursts"]').click({ timeout: 30_000 });
+  const group = win.locator(".cgroup").first();
+  await expect(group.locator("[data-t]")).toHaveCount(3);
+  // Two are ticked to go; untick one so only one goes.
+  await expect(group.locator(".ctile.on")).toHaveCount(2);
+  await group.locator(".ctile.on").first().click();
+  await expect(group.locator(".ctile.on")).toHaveCount(1);
+  // Can't tick all three: one always stays.
+  const off = await group.locator(".ctile:not(.on)").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.t));
+  for (const t of off) await win.locator(`.cgroup [data-t="${t}"]`).click();
+  await expect(group.locator(".ctile.on")).toHaveCount(2);
+  await group.locator(".ctile.on").first().click();
+  await group.getByRole("button", { name: "Bin the ticked" }).click();
+  await expect.poll(() => readdirSync(ev).length, { timeout: 10_000 }).toBe(2);
+  await app.close();
+});
