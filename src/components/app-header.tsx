@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { signOut } from "@/lib/actions/auth";
+import { SignOutButton } from "./sign-out-button";
 import { LanguageSwitcher } from "./language-switcher";
 
 export async function AppHeader({ locale, signedIn }: { locale: string; signedIn: boolean }) {
@@ -16,10 +16,7 @@ export async function AppHeader({ locale, signedIn }: { locale: string; signedIn
         <div className="flex items-center gap-4">
           <LanguageSwitcher />
           {signedIn && (
-            <form action={signOut}>
-              <input type="hidden" name="locale" value={locale} />
-              <button className="text-sm text-muted hover:underline">{t("signOut")}</button>
-            </form>
+            <SignOutButton locale={locale} label={t("signOut")} className="text-sm text-muted hover:underline" />
           )}
         </div>
       </div>

@@ -14,7 +14,7 @@ test("write, approve and find a text-only post", async ({ page }, info) => {
   await page.getByRole("button", { name: /start writing/i }).click();
   await expect(page).toHaveURL(/\/en\/posts\/[0-9a-f-]+/);
   await page.waitForLoadState("networkidle");
-  await page.screenshot({ path: info.outputPath("composer.png"), fullPage: true });
+  await page.screenshot({ path: info.outputPath("composer.png"), fullPage: true, caret: "initial" });
 
   // Write both captions by hand and approve (the lead may approve their own posts).
   await page.getByLabel("Caption in Arabic").fill("يوم مفتوح يوم السبت للعائلات الجديدة");

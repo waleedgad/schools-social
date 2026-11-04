@@ -29,7 +29,7 @@ for (const locale of ["en", "ar"] as const) {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (overflow > 1) problems.push(`${path}: ${overflow}px wider than the screen`);
       if (errors.length) problems.push(`${path}: ${errors[0].slice(0, 160)}`);
-      await page.screenshot({ path: info.outputPath(`${locale}-${path.replace(/\//g, "-")}.png`), fullPage: true });
+      await page.screenshot({ path: info.outputPath(`${locale}-${path.replace(/\//g, "-")}.png`), fullPage: true, caret: "initial" });
     }
     expect(problems).toEqual([]);
   });

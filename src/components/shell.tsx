@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { Link } from "@/i18n/navigation";
-import { signOut } from "@/lib/actions/auth";
+import { SignOutButton } from "./sign-out-button";
 import { viewAs } from "@/lib/actions/workspace";
 import { can, type Permission } from "@/lib/roles";
 import type { Membership, Workspace } from "@/lib/session";
@@ -158,10 +158,7 @@ export async function AppShell({
             <Link href="/new-password" className="ms-auto rounded-md px-2 py-1 text-xs text-muted hover:bg-background">
               {t("password.change")}
             </Link>
-            <form action={signOut}>
-              <input type="hidden" name="locale" value={locale} />
-              <button className="rounded-md px-2 py-1 text-xs text-muted hover:bg-background">{t("common.signOut")}</button>
-            </form>
+            <SignOutButton locale={locale} label={t("common.signOut")} className="rounded-md px-2 py-1 text-xs text-muted hover:bg-background" />
           </div>
         </div>
       </aside>
