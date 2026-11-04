@@ -461,6 +461,15 @@ function startWatched(w: Watched) {
   watchers.push(watcher);
 }
 
+// "https://school.net" must not also match "https://school.net.other.com".
+function sameOrigin(url: string, server: string) {
+  try {
+    return new URL(url).origin === new URL(server).origin;
+  } catch {
+    return false;
+  }
+}
+
 async function connect(server: string) {
   const base = server.trim().replace(/\/+$/, "");
   const url = /^https?:\/\//.test(base) ? base : `https://${base}`;
@@ -1192,7 +1201,14 @@ function createWindow() {
     delete (prefs as Record<string, unknown>).preload;
     prefs.nodeIntegration = false;
     prefs.contextIsolation = true;
-    if (!params.src.startsWith(settings.get().server)) _e.preventDefault();
+    if (!sameOrigin(params.src, settings.get().server)) _e.preventDefault();
+  });
+  // The app window never leaves the app's own pages (a dropped link or file
+  // can't take it over); web links open in the browser instead.
+  win.webContents.on("will-navigate", (e, url) => {
+    if (url.startsWith("file://")) return;
+    e.preventDefault();
+    if (url.startsWith("https://")) shell.openExternal(url);
   });
   // Closing the window keeps the library up to date from the menu bar.
   win.on("close", (e) => {
