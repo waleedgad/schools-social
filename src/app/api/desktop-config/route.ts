@@ -10,6 +10,8 @@ export function GET() {
   // "Version x is ready" with the steps (it is not signed by Apple yet).
   const version = process.env.DESKTOP_LATEST_VERSION;
   const url = process.env.DESKTOP_DOWNLOAD_URL;
-  const latest = version && url?.startsWith("https://") ? { version, url, notes: process.env.DESKTOP_NOTES ?? "" } : null;
+  // No download link (while testing the versions are kept in a shared
+  // "Versions" folder): the app then says where to get it instead.
+  const latest = version ? { version, url: url?.startsWith("https://") ? url : null, notes: process.env.DESKTOP_NOTES ?? "" } : null;
   return NextResponse.json({ app: "school-social-hub", supabaseUrl, supabaseAnonKey, latest });
 }

@@ -595,7 +595,7 @@ function missingSummary() {
 // The app isn't signed by Apple yet, so it can't replace itself. It asks the
 // website which version is newest and, when there is a newer one, shows
 // "Version x is ready" with a safety copy of the library and the steps.
-let update: { version: string; url: string; notes: string } | null = null;
+let update: { version: string; url: string | null; notes: string } | null = null;
 
 function newer(a: string, b: string) {
   const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
@@ -610,7 +610,9 @@ async function checkUpdate() {
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null);
   const l = body?.latest;
-  const next = l && typeof l.version === "string" && typeof l.url === "string" && l.url.startsWith("https://") && newer(l.version, app.getVersion()) ? { version: l.version, url: l.url, notes: String(l.notes ?? "") } : null;
+  // No link = the new version is in the school's Versions folder; the steps say so.
+  const url = typeof l?.url === "string" && l.url.startsWith("https://") ? l.url : null;
+  const next = l && typeof l.version === "string" && newer(l.version, app.getVersion()) ? { version: l.version, url, notes: String(l.notes ?? "") } : null;
   if (JSON.stringify(next) !== JSON.stringify(update)) {
     update = next;
     push();
@@ -1572,7 +1574,7 @@ app.whenReady().then(async () => {
     startNewLibrary: () => startNewLibrary(),
     checkUpdate: () => checkUpdate(),
     safetyCopy: () => safetyCopy(),
-    openUpdate: () => { if (update) return shell.openExternal(update.url); },
+    openUpdate: () => { if (update?.url) return shell.openExternal(update.url); },
     originalThere: (id: number) => engine?.originalThere(id) ?? false,
     retryAura: () => startAura(),
     retryFailed: () => queue.retryFailed(),
