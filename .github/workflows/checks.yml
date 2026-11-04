@@ -28,11 +28,17 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      # The Mac app sending to and deleting from the same test database.
+      - name: Mac app and website together
+        working-directory: desktop
+        run: npm ci && npm run build && xvfb-run -a npx playwright test e2e/web-sync.spec.ts
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: website-test-report
-          path: e2e-report
+          path: |
+            e2e-report
+            desktop/e2e-report
 
   desktop:
     strategy:
