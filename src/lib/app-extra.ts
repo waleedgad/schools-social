@@ -6,6 +6,7 @@ import { listComments, replyToComment } from "@/lib/meta";
 import type { PostCtx } from "@/lib/post-core";
 import { categoryName, isPaused } from "@/lib/posting";
 import { can } from "@/lib/roles";
+import { clearExpiredChecks, removeCheckPictures } from "@/lib/face-checks";
 import { setupState } from "@/lib/setup";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
 
@@ -306,23 +307,36 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
     // "Is this …?" checks for the class teacher's phone.
     case "faceChecks": {
       if (!comms) return { error: "role" };
-      const items = Array.isArray(body.items) ? (body.items as { macId: number; photo: string; box: number[]; student: string; score: number }[]).slice(0, 300) : [];
+      // A photo already on the website comes as its id; any other photo as two
+      // small pictures the Mac uploaded to <school>/checks/ (B-03).
+      const items = Array.isArray(body.items)
+        ? (body.items as { macId: number; photo?: string; crop?: string; context?: string; box: number[]; student: string; score: number }[]).slice(0, 300)
+        : [];
       const className = String(body.className ?? "").slice(0, 60) || null;
-      if (items.length)
-        await supabase.from("face_checks").upsert(
-          items.map((i) => ({ school_id: schoolId, mac_id: i.macId, photo_id: i.photo, box: i.box.slice(0, 4), student_code: String(i.student).slice(0, 40), class_name: className, score: i.score, created_by: userId })),
-          { onConflict: "school_id,mac_id", ignoreDuplicates: true },
-        );
-      return { ok: true, sent: items.length };
+      const own = (p: unknown) => (typeof p === "string" && p.startsWith(`${schoolId}/checks/`) && !p.includes("..") ? p.slice(0, 200) : null);
+      const rows = items
+        .map((i) => ({
+          school_id: schoolId, mac_id: i.macId, photo_id: typeof i.photo === "string" ? i.photo : null, crop_path: own(i.crop), context_path: own(i.context),
+          box: Array.isArray(i.box) ? i.box.slice(0, 4) : [0, 0, 0, 0], student_code: String(i.student).slice(0, 40), class_name: className, score: i.score, created_by: userId,
+        }))
+        .filter((r) => r.photo_id || r.crop_path);
+      if (rows.length) await supabase.from("face_checks").upsert(rows, { onConflict: "school_id,mac_id", ignoreDuplicates: true });
+      await clearExpiredChecks(supabase, schoolId);
+      return { ok: true, sent: rows.length };
     }
     case "faceAnswers": {
       const { data } = await supabase.from("face_checks").select("mac_id, student_code, answer").eq("school_id", schoolId).not("answer", "is", null).limit(1000);
+      if (comms) await clearExpiredChecks(supabase, schoolId);
       return { answers: (data ?? []).map((r) => ({ macId: r.mac_id, student: r.student_code, ok: r.answer })) };
     }
     case "faceAnswersDone": {
       if (!comms) return { error: "role" };
       const ids = Array.isArray(body.ids) ? (body.ids as number[]).slice(0, 1000) : [];
-      if (ids.length) await supabase.from("face_checks").delete().eq("school_id", schoolId).in("mac_id", ids).not("answer", "is", null);
+      if (ids.length) {
+        const { data: done } = await supabase.from("face_checks").select("id, crop_path, context_path").eq("school_id", schoolId).in("mac_id", ids).not("answer", "is", null);
+        await removeCheckPictures(supabase, schoolId, done ?? []);
+        await supabase.from("face_checks").delete().eq("school_id", schoolId).in("mac_id", ids).not("answer", "is", null);
+      }
       return { ok: true };
     }
 

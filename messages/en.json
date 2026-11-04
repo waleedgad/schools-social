@@ -1274,7 +1274,7 @@
       "none": "Nothing to check",
       "noneHint": "When the Mac isn't sure who someone is, it asks you here.",
       "thanks": "Thank you. You answered {count, plural, one {# check} other {# checks}}.",
-      "privacy": "Your answer goes to the Mac, which names the face there. Faces are never stored on the website."
+      "privacy": "Your answer goes to the Mac, which names the face there. Face data stays on the Mac; the small pictures are deleted as soon as you answer, or after 14 days."
     },
     "shots": {
       "title": "Shot lists",

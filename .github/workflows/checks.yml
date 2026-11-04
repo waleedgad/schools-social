@@ -25,6 +25,7 @@ jobs:
       - run: npm run lint
       # Website and Mac app share one set of colours (design/tokens.json).
       - run: node scripts/design-tokens.mjs
+      - run: node scripts/check-forms.mjs
       # A private, empty copy of the database with every migration applied,
       # so the robot tests can sign up, create a school and use it.
       - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta
@@ -35,7 +36,12 @@ jobs:
       # The Mac app sending to and deleting from the same test database.
       - name: Mac app and website together
         working-directory: desktop
-        run: npm ci && npm run build && xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/nothing-hangs.spec.ts
+        # The built website runs too, for the teacher's "Is this …?" check (B-03).
+        run: |
+          (cd .. && npx next start -p 3123 > next.log 2>&1 &)
+          npm ci && npm run build
+          for i in $(seq 60); do curl -sf -o /dev/null http://localhost:3123/en/login && break; sleep 1; done
+          WEB_URL=http://localhost:3123 xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/nothing-hangs.spec.ts e2e/teacher-check.spec.ts
       - if: always()
         uses: actions/upload-artifact@v4
         with:

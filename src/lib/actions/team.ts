@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { notify } from "@/lib/alerts";
+import { removeCheckPictures } from "@/lib/face-checks";
 import { redirect } from "@/i18n/navigation";
 import { isComms } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
@@ -18,7 +19,13 @@ export async function answerFaceCheck(formData: FormData) {
   await requireMembership(locale);
   const supabase = await createClient();
   const answer = str(formData, "answer", 5);
-  await supabase.rpc("answer_face_check", { p_check: str(formData, "id", 60), p_answer: answer === "yes" });
+  const id = str(formData, "check", 60) || str(formData, "id", 60);
+  const { error } = await supabase.rpc("answer_face_check", { p_check: id, p_answer: answer === "yes" });
+  // Answered: the small face pictures (B-03) are not needed any more.
+  if (!error) {
+    const { data: c } = await staffClient(supabase).from("face_checks").select("id, school_id, crop_path, context_path").eq("id", id).maybeSingle();
+    if (c) await removeCheckPictures(supabase, c.school_id as string, [c as { id: string; crop_path: string | null; context_path: string | null }]);
+  }
   revalidatePath(`/${locale}/check`);
 }
 
@@ -90,7 +97,7 @@ export async function resolveBookComment(formData: FormData) {
   await requireMembership(locale);
   const supabase = await createClient();
   const book = str(formData, "book", 60);
-  await supabase.from("book_comments").update({ done: true }).eq("id", str(formData, "id", 60));
+  await supabase.from("book_comments").update({ done: true }).eq("id", str(formData, "item", 60) || str(formData, "id", 60));
   revalidatePath(`/${locale}/books/${book}`);
 }
 
@@ -114,7 +121,7 @@ export async function removeBookText(formData: FormData) {
   const locale = str(formData, "locale", 5) || "ar";
   await requireMembership(locale);
   const supabase = await createClient();
-  await supabase.from("book_texts").delete().eq("id", str(formData, "id", 60));
+  await supabase.from("book_texts").delete().eq("id", str(formData, "item", 60) || str(formData, "id", 60));
   revalidatePath(`/${locale}/books/${str(formData, "book", 60)}`);
 }
 
@@ -133,7 +140,7 @@ export async function setReportStatus(formData: FormData) {
   await requireMembership(locale);
   const supabase = await createClient();
   const status = ["open", "seen", "fixed"].includes(str(formData, "status", 10)) ? str(formData, "status", 10) : "seen";
-  await supabase.from("problem_reports").update({ status }).eq("id", str(formData, "id", 60));
+  await supabase.from("problem_reports").update({ status }).eq("id", str(formData, "report", 60) || str(formData, "id", 60));
   revalidatePath(`/${locale}/reports`);
 }
 

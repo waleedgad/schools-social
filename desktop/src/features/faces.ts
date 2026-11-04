@@ -1,10 +1,19 @@
+import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import { exclusive } from "../core/lock";
+import { makeThumb, source } from "../core/media";
 import { marks, q, type Api, type Ctx } from "./ctx";
+
+// The whole photo, made small, beside a face the teacher is asked about.
+const CONTEXT = 600;
 
 // The Faces screens' questions: faces one by one with the whole photo
 // beside them, which events still have faces to name, the "Not a face" bin,
 // look-alikes and twins, class photos named row by row, and the teacher's
-// "Is this …?" check on the phone (only the photo already on the website and
-// where the face is; face data never leaves the Mac).
+// "Is this …?" check on the phone (the photo and where the face is, or two
+// small pictures; face data never leaves the Mac).
 export function facesApi(ctx: Ctx): Api {
   const { one, all, run } = q(ctx);
   const PERSON = "id, name_en, name_ar, class_name, kind, portrait, can_post, left_on";
@@ -132,17 +141,51 @@ export function facesApi(ctx: Ctx): Api {
   }
 
   // ---------- The teacher's check on the phone ----------
-  // Suggestions for a class, only in photos already on the website, go to
-  // the class teacher's phone as "Is this …?" with the photo and a box.
+  // Suggestions for a class go to the class teacher's phone as "Is this …?".
+  // A photo already on the website is shown with a box; for any other photo
+  // (B-03) the Mac uploads two small pictures: the face and the whole photo
+  // made small. They are deleted when answered or after 14 days; the face
+  // numbers never leave the Mac.
+  async function checkPictures(faceId: number, photoId: number, file: string) {
+    const client = ctx.client();
+    const schoolId = ctx.settings().get().schoolId as string | null;
+    const engine = ctx.engine();
+    if (!client || !schoolId || !engine || !existsSync(file)) return null;
+    const crop = await engine.faceCrop(faceId);
+    const context = path.join(ctx.data("cache"), "checks", `${photoId}.jpg`);
+    await mkdir(path.dirname(context), { recursive: true });
+    if (!existsSync(context)) await exclusive(async () => makeThumb(await source(file), context, CONTEXT));
+    const key = randomBytes(8).toString("hex");
+    const paths = { crop: `${schoolId}/checks/${faceId}-${key}-face.jpg`, context: `${schoolId}/checks/${faceId}-${key}.jpg` };
+    const bucket = client.storage.from("photos");
+    const options = { contentType: "image/jpeg", upsert: false };
+    const [a, b] = await Promise.all([bucket.upload(paths.crop, await readFile(crop), options), bucket.upload(paths.context, await readFile(context), options)]);
+    if (a.error || b.error) {
+      await bucket.remove([paths.crop, paths.context]).catch(() => null);
+      return null;
+    }
+    return paths;
+  }
+
   async function sendChecks(className: string) {
-    const rows = all<{ id: number; remote_id: string; x: number; y: number; w: number; h: number; suggest_id: string; suggest_score: number }>(
-      `select f.id, p.remote_id, f.x, f.y, f.w, f.h, f.suggest_id, f.suggest_score from faces f join photos p on p.id = f.photo_id join students s on s.id = f.suggest_id
-       where f.status = 'suggested' and p.remote_id is not null and p.missing = 0 and s.class_name = ? and f.suggest_score >= 0.5 order by f.suggest_score desc limit 200`,
+    const rows = all<{ id: number; pid: number; path: string; remote_id: string | null; x: number; y: number; w: number; h: number; suggest_id: string; suggest_score: number }>(
+      `select f.id, p.id pid, p.path, p.remote_id, f.x, f.y, f.w, f.h, f.suggest_id, f.suggest_score from faces f join photos p on p.id = f.photo_id join students s on s.id = f.suggest_id
+       where f.status = 'suggested' and p.missing = 0 and s.class_name = ? and f.suggest_score >= 0.5 and f.w > 0 order by f.suggest_score desc limit 200`,
       className,
     );
     if (!rows.length) return { sent: 0 };
-    await ctx.appApi("faceChecks", { className, items: rows.map((r) => ({ macId: r.id, photo: r.remote_id, box: [r.x, r.y, r.w, r.h].map((v) => +v.toFixed(4)), student: r.suggest_id, score: +r.suggest_score.toFixed(2) })) });
-    return { sent: rows.length };
+    const items = [];
+    for (const r of rows) {
+      const base = { macId: r.id, box: [r.x, r.y, r.w, r.h].map((v) => +v.toFixed(4)), student: r.suggest_id, score: +r.suggest_score.toFixed(2) };
+      if (r.remote_id) items.push({ ...base, photo: r.remote_id });
+      else {
+        const pics = await checkPictures(r.id, r.pid, r.path).catch(() => null);
+        if (pics) items.push({ ...base, ...pics });
+      }
+    }
+    if (!items.length) return { sent: 0 };
+    const res = await ctx.appApi("faceChecks", { className, items });
+    return { sent: Number(res?.sent ?? items.length) };
   }
   async function pullChecks() {
     const r = await ctx.appApi("faceAnswers", {}).catch(() => null);

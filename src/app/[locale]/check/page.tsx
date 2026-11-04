@@ -6,7 +6,7 @@ import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { classScope, classStudents, signPaths, staffClient } from "@/lib/team";
 
-type Check = { id: string; photo_id: string; box: number[]; student_code: string; class_name: string | null; answer: boolean | null };
+type Check = { id: string; photo_id: string | null; crop_path: string | null; context_path: string | null; box: number[]; student_code: string; class_name: string | null; answer: boolean | null };
 
 // "Is this …?" on the class teacher's phone: the Mac asks about faces it
 // isn't sure of; the answer goes back to the Mac, which names the face there.
@@ -19,18 +19,20 @@ export default async function CheckPage({ params }: { params: Promise<{ locale: 
   const schoolId = membership.school.id;
   const scope = await classScope(supabase, schoolId, user.id, membership.role);
 
-  let q = supabase.from("face_checks").select("id, photo_id, box, student_code, class_name, answer").eq("school_id", schoolId).is("answer", null).order("created_at").limit(30);
+  let q = supabase.from("face_checks").select("id, photo_id, crop_path, context_path, box, student_code, class_name, answer").eq("school_id", schoolId).is("answer", null).order("created_at").limit(30);
   if (!scope.all) q = q.in("class_name", scope.classes.length ? scope.classes : ["-"]);
   const { data } = await q.returns<Check[]>();
   const checks = data ?? [];
   const { count: answered } = await supabase.from("face_checks").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("answered_by", user.id);
 
   const { data: photos } = checks.length
-    ? await staffClient(supabase).from("photos").select("id, storage_path, edited_path").in("id", [...new Set(checks.map((c) => c.photo_id))])
+    ? await staffClient(supabase).from("photos").select("id, storage_path, edited_path").in("id", [...new Set(checks.map((c) => c.photo_id).filter((x): x is string => !!x))])
     : { data: [] as { id: string; storage_path: string; edited_path: string | null }[] };
   // The full web copy (not the edited one): the face box is a fraction of it.
   const pathOf = new Map((photos ?? []).map((p) => [p.id as string, (p.storage_path as string) ?? ""]));
-  const urls = await signPaths(supabase, [...pathOf.values()]);
+  // Photos not on the website come as two small pictures from the Mac (B-03):
+  // the whole photo made small (with the same box) and the face itself.
+  const urls = await signPaths(supabase, [...pathOf.values(), ...checks.flatMap((c) => [c.crop_path ?? "", c.context_path ?? ""])]);
   const students = new Map((await classStudents(supabase, schoolId, scope.all ? scope : { all: false, classes: [...new Set(checks.map((c) => c.class_name ?? ""))].filter((c) => scope.classes.includes(c)) }, locale)).map((s) => [s.code, s]));
 
   return (
@@ -41,7 +43,8 @@ export default async function CheckPage({ params }: { params: Promise<{ locale: 
       ) : (
         <ul className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
           {checks.map((c) => {
-            const url = urls.get(pathOf.get(c.photo_id) ?? "");
+            const url = urls.get((c.photo_id ? pathOf.get(c.photo_id) : c.context_path) ?? "");
+            const face = c.crop_path ? urls.get(c.crop_path) : undefined;
             const [x, y, w, h] = c.box;
             const s = students.get(c.student_code);
             return (
@@ -53,6 +56,10 @@ export default async function CheckPage({ params }: { params: Promise<{ locale: 
                       <img src={url} alt="" className="block w-full" />
                     ) : (
                       <div className="grid aspect-[4/3] place-items-center text-sm text-muted">{t("check.noPhoto")}</div>
+                    )}
+                    {face && (
+                      // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
+                      <img src={face} alt="" className="absolute bottom-2 end-2 z-10 size-20 rounded-lg border-2 border-surface object-cover shadow-lg" />
                     )}
                     {url && (
                       <span
@@ -67,7 +74,7 @@ export default async function CheckPage({ params }: { params: Promise<{ locale: 
                   </p>
                   <form action={answerFaceCheck} className="grid grid-cols-2 gap-2">
                     <input type="hidden" name="locale" value={locale} />
-                    <input type="hidden" name="id" value={c.id} />
+                    <input type="hidden" name="check" value={c.id} />
                     <Button name="answer" value="no" variant="quiet" icon="x" className="py-3">{t("check.no")}</Button>
                     <Button name="answer" value="yes" variant="good" icon="check" className="py-3">{t("check.yes")}</Button>
                   </form>

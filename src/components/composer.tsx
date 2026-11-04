@@ -357,7 +357,7 @@ export function Composer({ data }: { data: ComposerData }) {
   const hidden = (
     <>
       <input type="hidden" name="locale" value={data.locale} />
-      <input type="hidden" name="id" value={p.id} />
+      <input type="hidden" name="post" value={p.id} />
     </>
   );
 

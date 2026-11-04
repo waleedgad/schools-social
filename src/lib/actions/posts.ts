@@ -10,6 +10,11 @@ import { reusePost } from "@/lib/reuse";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
+// The post form names its hidden field "post", not "id": a field called "id"
+// hides the form's own id, and React then drops the value of the button that was
+// pressed (Duplicate, Reject, Delete). Older forms still send "id".
+const postId = (f: FormData) => String(f.get("post") ?? f.get("id") ?? "");
+
 async function curator(formData: FormData | { locale: string }, permission: "writePosts" | "viewPosts" = "writePosts") {
   const locale = formData instanceof FormData ? String(formData.get("locale") ?? "ar") : formData.locale;
   const { user, membership } = await requireMembership(locale);
@@ -114,7 +119,7 @@ function fields(formData: FormData) {
 export async function postAction(formData: FormData) {
   const { locale, user, membership } = await curator(formData, "viewPosts");
   const supabase = await createClient();
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const intent = String(formData.get("intent") ?? "save");
   const r = await runIntent({ supabase, userId: user.id, membership }, id, intent, {
     // Only the editor form carries the fields; the small forms (reject,
@@ -191,7 +196,7 @@ function captionOptions(formData: FormData): CaptionOptions {
 
 export async function generateCaptions(formData: FormData) {
   const { locale, user, membership, supabase } = await curator(formData);
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const r = await generateFor({ supabase, userId: user.id, membership }, id, captionOptions(formData));
   const query = r.ok ? { ai: r.demo ? "demo" : "done" } : { ai: r.error === "limit" ? "limit" : "error" };
   redirect({ href: { pathname: `/posts/${id}`, query }, locale });
@@ -199,7 +204,7 @@ export async function generateCaptions(formData: FormData) {
 
 export async function pickVariation(formData: FormData) {
   const { locale, supabase } = await curator(formData);
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const index = Number(formData.get("index") ?? 0);
   const { data: post } = await supabase.from("posts").select("variations").eq("id", id).single();
   const v = ((post?.variations ?? []) as Captions[])[index];
@@ -242,7 +247,7 @@ export async function aiCheck(locale: string, text: string) {
 
 export async function addComment(formData: FormData) {
   const { locale, user, membership, schoolId, supabase } = await curator(formData, "viewPosts");
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const body = String(formData.get("body") ?? "").trim().slice(0, 2000);
   if (body) {
     const { data: people } = await supabase.from("memberships").select("user_id, full_name").eq("school_id", schoolId).eq("active", true);
@@ -254,7 +259,7 @@ export async function addComment(formData: FormData) {
 
 export async function createReviewLink(formData: FormData) {
   const { locale, user, schoolId, supabase, audit } = await curator(formData);
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const label = String(formData.get("label") ?? "").trim().slice(0, 80);
   if (label.length < 2) redirect({ href: { pathname: `/posts/${id}`, query: { error: "label" } }, locale });
   const { data } = await supabase.from("review_links").insert({ post_id: id, school_id: schoolId, label, created_by: user.id }).select("token").single();
@@ -264,7 +269,7 @@ export async function createReviewLink(formData: FormData) {
 
 export async function restoreVersion(formData: FormData) {
   const { locale, supabase, audit } = await curator(formData);
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const version = Number(formData.get("version") ?? 0);
   const { data: v } = await supabase.from("post_versions").select("caption_ar, caption_en, caption_ig, hashtags").eq("id", version).eq("post_id", id).single();
   if (v) {
@@ -333,7 +338,7 @@ export async function answerReview(formData: FormData) {
 export async function splitEnglish(formData: FormData) {
   const { locale, user, membership } = await curator(formData, "writePosts");
   const supabase = await createClient();
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const en = String(formData.get("captionEn") ?? "").trim();
   const r = await runIntent({ supabase, userId: user.id, membership }, id, "duplicate", { values: {}, order: null, reviewNote: "" });
   if (!r.ok || !r.id) redirect({ href: { pathname: `/posts/${id}`, query: { error: r.ok ? "save" : r.error } }, locale });
@@ -371,7 +376,7 @@ export async function makeCountdown(formData: FormData) {
 export async function reuse(formData: FormData) {
   const { locale, user, membership } = await curator(formData, "writePosts");
   const supabase = await createClient();
-  const id = String(formData.get("id") ?? "");
+  const id = postId(formData);
   const kind = formData.get("kind") === "recap" ? "recap" : "story";
   const r = await reusePost({ supabase, userId: user.id, membership }, id, kind, locale === "en" ? "en" : "ar");
   if (!r.ok) redirect({ href: { pathname: `/posts/${id}`, query: { reuse: r.error } }, locale });

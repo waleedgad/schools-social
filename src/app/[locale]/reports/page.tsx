@@ -62,7 +62,7 @@ export default async function ReportsPage({ params, searchParams }: { params: Pr
                 {admin && (
                   <form action={setReportStatus} className="flex gap-2">
                     <input type="hidden" name="locale" value={locale} />
-                    <input type="hidden" name="id" value={r.id as string} />
+                    <input type="hidden" name="report" value={r.id as string} />
                     {r.status !== "seen" && <Button name="status" value="seen" variant="quiet" className="!py-1 text-xs">{t("reports.markSeen")}</Button>}
                     {r.status !== "fixed" && <Button name="status" value="fixed" variant="good" className="!py-1 text-xs">{t("reports.markFixed")}</Button>}
                   </form>

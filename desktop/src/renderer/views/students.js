@@ -159,7 +159,7 @@ App.views.students = {
     $("#st-cls", box)?.addEventListener("click", () => go("library", { className: ST.className }));
     $("#st-check", box)?.addEventListener("click", async () => {
       const r = await call("sendFaceChecks", ST.className);
-      toast(r.sent ? L(`${r.sent} "Is this …?" questions sent to the class teacher's phone.`, `أُرسل ${num(r.sent)} سؤال «هل هذا …؟» إلى هاتف معلم الفصل.`) : L("Nothing to ask: no suggestions in photos already on the website.", "لا شيء للسؤال: لا اقتراحات في صور موجودة على الموقع."));
+      toast(r.sent ? L(`${r.sent} "Is this …?" questions sent to the class teacher's phone.`, `أُرسل ${num(r.sent)} سؤال «هل هذا …؟» إلى هاتف معلم الفصل.`) : L("Nothing to ask: no face suggestions for this class yet. Signed in to the website?", "لا شيء للسؤال: لا اقتراحات وجوه لهذا الفصل بعد. هل سجّلت الدخول إلى الموقع؟"));
     });
     this.drawList();
   },

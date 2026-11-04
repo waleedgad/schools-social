@@ -117,7 +117,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
                     {c.done ? <Chip tone="good">{t("books.done")}</Chip> : comms && (
                       <form action={resolveBookComment}>
                         {hidden}
-                        <input type="hidden" name="id" value={c.id as string} />
+                        <input type="hidden" name="item" value={c.id as string} />
                         <button className="font-semibold text-accent-ink">{t("books.markDone")}</button>
                       </form>
                     )}
@@ -183,7 +183,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
                     {(comms || x.user_id === user.id) && (
                       <form action={removeBookText}>
                         {hidden}
-                        <input type="hidden" name="id" value={x.id as string} />
+                        <input type="hidden" name="item" value={x.id as string} />
                         <button className="text-danger">{t("books.remove")}</button>
                       </form>
                     )}

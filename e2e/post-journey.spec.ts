@@ -28,5 +28,17 @@ test("write, approve and find a text-only post", async ({ page }, info) => {
   await expect(page.locator("body")).toContainText("يوم مفتوح يوم السبت");
   await page.goto(url);
   await expect(page.getByLabel("Caption in Arabic")).toHaveValue(/يوم مفتوح/);
+
+  // The small buttons send which one was pressed (they used to lose it and
+  // only saved): Duplicate opens a copy, Delete removes the copy only.
+  await page.getByRole("button", { name: "Duplicate", exact: true }).first().click();
+  await expect(page).not.toHaveURL(url, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/en\/posts\/[0-9a-f-]+/);
+  await expect(page.getByLabel("Caption in Arabic")).toHaveValue(/يوم مفتوح/);
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Delete post" }).click();
+  await expect(page).toHaveURL(/\/en\/posts$/, { timeout: 15_000 });
+  await page.goto(url);
+  await expect(page.getByLabel("Caption in Arabic")).toHaveValue(/يوم مفتوح/);
   expect(errors).toEqual([]);
 });
