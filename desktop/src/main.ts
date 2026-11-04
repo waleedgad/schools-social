@@ -4,7 +4,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { watch, type FSWatcher } from "chokidar";
+import { watchTree, type TreeWatcher } from "./core/tree-watch";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, safeStorage, shell, Tray } from "electron";
 import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
@@ -125,7 +125,7 @@ let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
 let lastMessage = "";
-let watchers: FSWatcher[] = [];
+let watchers: TreeWatcher[] = [];
 let pushTimer: NodeJS.Timeout | null = null;
 let changed = new Set<string>();
 let timers: NodeJS.Timeout[] = [];
@@ -449,7 +449,7 @@ function isArchived(file: string) {
 // are copied into the library under "From <folder>".
 function startWatched(w: Watched) {
   if (!existsSync(w.path)) return;
-  const watcher = watch(w.path, { ignoreInitial: true, depth: 6, awaitWriteFinish: { stabilityThreshold: 3000, pollInterval: 500 } });
+  const watcher = watchTree(w.path, { depth: 6, settle: 3000 });
   watcher.on("add", async (file) => {
     const s = settings.get();
     if (!s.library || !isLibraryFile(file)) return;

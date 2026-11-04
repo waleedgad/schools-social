@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { copyFile, readdir, rm, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
-import { watch, type FSWatcher } from "chokidar";
+import { watchTree, type TreeWatcher } from "./tree-watch";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
@@ -44,7 +44,7 @@ const PREVIEW = 2048;
 const EDIT = /^(.*?)[-_ ](edit|edited|copy|retouch|retouched|final)(?:[-_ ]?\d+)?$/i;
 
 export class Engine {
-  private watcher: FSWatcher | null = null;
+  private watcher: TreeWatcher | null = null;
   private work: number[] = [];
   private faceWork: number[] = [];
   private running = 0;
@@ -114,11 +114,9 @@ export class Engine {
     const fixed = this.dedupePeople();
     if (fixed) this.o.log?.(`one person per photo: ${fixed} faces freed`);
     this.timer = setInterval(() => this.pump(), 400);
-    this.watcher = watch(this.o.library, {
-      ignoreInitial: true,
-      alwaysStat: true,
+    this.watcher = watchTree(this.o.library, {
       depth: 10,
-      awaitWriteFinish: { stabilityThreshold: 1500, pollInterval: 250 },
+      settle: 1500,
       ignored: (p, stats) => path.basename(p).startsWith(".") || (path.basename(p).startsWith("_") && p !== this.o.library) || (!!stats?.isFile() && !isLibraryFile(p)),
     });
     this.watcher.on("add", (file, stats) => stats && this.seen(file, stats.size, stats.mtimeMs));
