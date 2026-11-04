@@ -44,7 +44,7 @@ test("deleted folder: notice, then forget them to the Bin", async () => {
   await expect(win.locator("#grid .tile, #grid [data-id]").first()).toBeVisible({ timeout: 60_000 });
   await expect(win.locator("#missingbar")).toBeEmpty();
 
-  rmSync(event, { recursive: true, force: true });
+  rmSync(event, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); // Windows: the app may be reading a photo for a moment
   await win.evaluate(() => (window as unknown as { hub: { call: (f: string) => Promise<unknown> } }).hub.call("rescan"));
   await expect(win.locator("#missingbar")).toContainText("6 photos are missing", { timeout: 30_000 });
   await expect(win.locator("#missingbar")).toContainText("Sports day");
@@ -64,7 +64,7 @@ test("on a drive: the notice goes away until more go missing", async () => {
   const { app, win } = await launch(userData);
   await openLibrary(win);
   await expect(win.locator("#grid .tile, #grid [data-id]").first()).toBeVisible({ timeout: 60_000 });
-  rmSync(event, { recursive: true, force: true });
+  rmSync(event, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); // Windows: the app may be reading a photo for a moment
   await win.evaluate(() => (window as unknown as { hub: { call: (f: string) => Promise<unknown> } }).hub.call("rescan"));
   await expect(win.locator("#missingbar")).toContainText("missing", { timeout: 30_000 });
   await win.getByRole("button", { name: "They're on a drive I'll plug in" }).click();

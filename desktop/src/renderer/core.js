@@ -270,15 +270,12 @@ function sidebar() {
   ];
   for (const sec of NAV) {
     parts.push(sec.sec ? `<div class="navsec">${esc(sec.sec())}</div>` : `<div style="height: 6px"></div>`);
-    for (const it of sec.items) {
-      const c = it.count?.() ?? 0;
-      const on = App.view === it.id || (it.id === "students" && App.view === "student");
-      parts.push(`<button class="nav ${on ? "on" : ""}" data-go="${it.id}"><span class="ic">${icon(it.icon, 16)}</span>${esc(it.label())}${c ? `<span class="count">${num(c)}</span>` : ""}</button>`);
-    }
+    for (const it of sec.items) parts.push(`<button class="nav" data-go="${it.id}"><span class="ic">${icon(it.icon, 16)}</span>${esc(it.label())}<span class="count" hidden></span></button>`);
   }
-  // The Mac sends its status several times a second while it works. Only
-  // the parts that changed are redrawn: redrawing the whole sidebar each time
-  // swapped a button out from under the mouse and lost the click.
+  // The Mac sends its status several times a second while it works. The
+  // buttons are only drawn again when their names change; the selected tab
+  // and the counts are changed in place. Redrawing them each time swapped a
+  // button out from under the mouse and lost the click (B-29).
   const nav = parts.join("");
   if (side._nav !== nav) {
     side.innerHTML = `${nav}<div class="grow"></div><div id="sidestatus"></div>`;
@@ -287,6 +284,16 @@ function sidebar() {
     $$("[data-go]", side).forEach((b) => (b.onclick = () => go(b.dataset.go)));
     $("#sbtn", side).onclick = palette;
     $("#cbtn", side).onclick = () => go("posts", { new: true });
+  }
+  for (const it of NAV.flatMap((sec) => sec.items)) {
+    const b = $(`button.nav[data-go="${it.id}"]`, side);
+    if (!b) continue;
+    b.classList.toggle("on", App.view === it.id || (it.id === "students" && App.view === "student"));
+    const c = it.count?.() ?? 0;
+    const badge = $(".count", b);
+    const text = c ? num(c) : "";
+    if (badge.textContent !== text) badge.textContent = text;
+    badge.hidden = !c;
   }
   if (!side._menu) {
     side._menu = true;

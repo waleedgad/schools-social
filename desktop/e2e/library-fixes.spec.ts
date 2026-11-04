@@ -122,7 +122,7 @@ test("B-10 + B-19: missing original shows a note; closing gives no error", async
   await expect
     .poll(() => win.evaluate("Promise.all(lib.list.map((p) => window.hub.call('photo', p.id))).then((r) => r.every((x) => (x.value ?? x)?.thumb === 1))"), { timeout: 60_000 })
     .toBe(true);
-  rmSync(path.join(books, "IMG_2000.jpg"));
+  rmSync(path.join(books, "IMG_2000.jpg"), { maxRetries: 20, retryDelay: 250 });
   await win.evaluate(() => (window as unknown as { hub: { call: (f: string) => Promise<unknown> } }).hub.call("rescan"));
   await expect(win.locator("#missingbar")).toContainText("1 photo is missing", { timeout: 30_000 });
 
@@ -149,7 +149,7 @@ test("B-11: photos from a deleted folder can be imported again", async () => {
   cpSync(books, card, { recursive: true });
   const { app, win } = await launch(lib);
   await expect.poll(() => win.evaluate("lib.list.length"), { timeout: 30_000 }).toBe(6);
-  rmSync(books, { recursive: true, force: true });
+  rmSync(books, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   await win.evaluate(() => (window as unknown as { hub: { call: (f: string) => Promise<unknown> } }).hub.call("rescan"));
   await expect(win.locator("#missingbar")).toContainText("2 photos are missing", { timeout: 30_000 });
 
