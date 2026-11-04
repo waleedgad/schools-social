@@ -286,6 +286,7 @@ function sidebar() {
     { label: L("Keyboard shortcuts", "اختصارات لوحة المفاتيح"), run: shortcutSheet },
   ]);
   $("#pause", side)?.addEventListener("click", () => call("set", "paused", !S.paused));
+  $("#updatebar", side)?.addEventListener("click", updateSteps);
 }
 
 // Sidebar status: what the Mac is doing, imports running, and Pause.
@@ -310,7 +311,34 @@ function macStatus() {
   return `<div class="macstatus ${S.paused ? "paused" : S.signedIn ? "" : "off"}">
     <div class="row nowrap"><b class="grow">${icon(S.signedIn ? "laptop" : "cloud-off", 13)} ${S.signedIn ? L("Mac online", "الماك متصل") : L("Not signed in", "غير مسجّل الدخول")}</b>
     <button id="pause" class="pz" title="${S.paused ? L("Resume", "استئناف") : L("Pause", "إيقاف مؤقت")}">${icon(S.paused ? "play" : "pause", 13)}</button></div>
-    <span>${lines.map(esc).join(" · ")}</span>${impHtml}</div>`;
+    <span>${lines.map(esc).join(" · ")}</span>${impHtml}</div>${S.update ? `<button class="updatebar" id="updatebar">${icon("sparkles", 13)} ${L(`Version ${S.update.version} is ready`, `الإصدار ${S.update.version} جاهز`)}</button>` : ""}`;
+}
+
+// How to update while the app isn't signed by Apple: safety copy, download,
+// replace, one Terminal step. Nothing is lost: the library stays where it is.
+function updateSteps() {
+  const u = S.update;
+  if (!u) return;
+  const app = S.platform === "win32" ? "" : '"/Applications/School Social Hub Library.app"';
+  const cmd = `xattr -cr ${app}`;
+  const m = modal(`<h2>${L(`Version ${u.version} is ready`, `الإصدار ${u.version} جاهز`)}</h2>
+    ${u.notes ? `<p class="muted">${esc(u.notes)}</p>` : ""}
+    <ol class="steps col gap8">
+      <li><b>${L("Safety copy", "نسخة أمان")}</b> <span class="muted small" id="up-copy">${L("Saving your names, faces and settings…", "جارٍ حفظ الأسماء والوجوه والإعدادات…")}</span></li>
+      <li><b>${L("Download", "التنزيل")}</b> <button class="btn small" id="up-dl">${icon("download", 13)} ${L("Download the new version", "تنزيل الإصدار الجديد")}</button></li>
+      <li><b>${L("Replace", "الاستبدال")}</b> <span class="muted small">${L("Quit this app, open the download and drag the app into Applications. Choose Replace.", "أغلق هذا التطبيق، وافتح الملف المنزّل واسحب التطبيق إلى Applications. اختر Replace.")}</span></li>
+      ${S.platform === "win32" ? "" : `<li><b>${L("Allow it to open", "السماح بفتحه")}</b> <span class="muted small">${L("Open Terminal, paste this line and press Return:", "افتح Terminal والصق هذا السطر واضغط Return:")}</span>
+        <div class="row nowrap"><code class="ltr grow" id="up-cmd">${esc(cmd)}</code><button class="btn small" id="up-copycmd">${L("Copy", "نسخ")}</button></div></li>`}
+    </ol>
+    <p class="muted small">${L("Your photos stay where they are. If anything looks wrong after updating, the safety copy can bring everything back.", "صورك تبقى في مكانها. إذا بدا شيء غير صحيح بعد التحديث، يمكن لنسخة الأمان إعادة كل شيء.")}</p>
+    <div class="row"><span class="grow"></span><button class="btn" id="up-close">${L("Later", "لاحقًا")}</button></div>`);
+  call("safetyCopy").then(
+    () => ($("#up-copy", m).textContent = L("Done: saved on this Mac.", "تم: حُفظت على هذا الجهاز.")),
+    () => ($("#up-copy", m).textContent = L("Couldn't save it. Don't update yet; ask for help.", "تعذّر الحفظ. لا تحدّث الآن؛ اطلب المساعدة.")),
+  );
+  $("#up-dl", m).onclick = () => call("openUpdate");
+  $("#up-copycmd", m)?.addEventListener("click", () => navigator.clipboard.writeText(cmd).then(() => toast(L("Copied", "نُسخ"))));
+  $("#up-close", m).onclick = closeOverlay;
 }
 
 // Big clear page title; the bar is the window's title bar (drag to move).

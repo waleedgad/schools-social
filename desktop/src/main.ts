@@ -332,6 +332,7 @@ function state() {
     backupDisk: disk(s.backup),
     message: lastMessage,
     version: app.getVersion(),
+    update,
     folders: all("select * from folders"),
   };
 }
@@ -590,6 +591,44 @@ function missingSummary() {
 
 // Archives the whole library (photos list, names, faces, settings) and
 // starts the app again with an empty one. Originals on disk are untouched.
+// ---------- Update check ----------
+// The app isn't signed by Apple yet, so it can't replace itself. It asks the
+// website which version is newest and, when there is a newer one, shows
+// "Version x is ready" with a safety copy of the library and the steps.
+let update: { version: string; url: string; notes: string } | null = null;
+
+function newer(a: string, b: string) {
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0);
+  return false;
+}
+
+async function checkUpdate() {
+  const server = settings.get().server || DEFAULT_SERVER;
+  const body = await fetch(`${server}/api/desktop-config`, { signal: AbortSignal.timeout(15_000) })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  const l = body?.latest;
+  const next = l && typeof l.version === "string" && typeof l.url === "string" && l.url.startsWith("https://") && newer(l.version, app.getVersion()) ? { version: l.version, url: l.url, notes: String(l.notes ?? "") } : null;
+  if (JSON.stringify(next) !== JSON.stringify(update)) {
+    update = next;
+    push();
+  }
+  return update;
+}
+
+// A copy of the library list, names, faces and settings before updating.
+function safetyCopy() {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const dir = data(path.join("backups", `before-${update?.version ?? "update"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`));
+  fs.mkdirSync(dir, { recursive: true });
+  db.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
+  for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
+  log(`safety copy before update: ${dir}`);
+  return dir;
+}
+
 async function startNewLibrary() {
   const fs = require("node:fs") as typeof import("node:fs");
   const dir = data(path.join("archived-libraries", new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")));
@@ -1531,6 +1570,9 @@ app.whenReady().then(async () => {
     missingOnDrive: () => settings.set({ missingAck: missingOriginals().length }),
     forgetMissing: () => binPhotos(missingOriginals().map((r) => r.id)),
     startNewLibrary: () => startNewLibrary(),
+    checkUpdate: () => checkUpdate(),
+    safetyCopy: () => safetyCopy(),
+    openUpdate: () => { if (update) return shell.openExternal(update.url); },
     originalThere: (id: number) => engine?.originalThere(id) ?? false,
     retryAura: () => startAura(),
     retryFailed: () => queue.retryFailed(),
@@ -1727,7 +1769,10 @@ app.whenReady().then(async () => {
   timers.push(setInterval(() => checkWebUploads(), 60_000));
   setTimeout(() => checkWebUploads(), 8000);
 
-  if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  setTimeout(() => checkUpdate(), 5000);
+  timers.push(setInterval(() => checkUpdate(), 6 * 3600_000));
+  // Windows can update itself; the Mac waits for Apple signing (see checkUpdate).
+  if (app.isPackaged && process.platform === "win32") autoUpdater.checkForUpdatesAndNotify().catch(() => {});
 });
 
 app.on("before-quit", () => {

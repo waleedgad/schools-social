@@ -706,3 +706,8 @@ label.approved { padding: 4px 10px; border-radius: 99px; background: var(--good-
 .tour .tip { position: fixed; width: 320px; background: var(--surface); color: var(--text); border-radius: 12px; padding: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); transition: all .25s ease; }
 .tour .tip p { margin: 0 0 10px; line-height: 1.5; font-size: 13.5px; }
 .help ol, .help ul { margin: 6px 0; padding-inline-start: 20px; }
+
+/* "Version x is ready" under the Mac status */
+.updatebar { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 6px; padding: 7px 10px; border: 0; border-radius: 10px; background: var(--accent-bg); color: var(--accent-ink); font-weight: 600; cursor: pointer; text-align: start; }
+.steps { padding-inline-start: 18px; margin: 4px 0; }
+.steps code { padding: 6px 8px; border-radius: 8px; background: var(--grey-bg); font-size: 12px; overflow-x: auto; white-space: nowrap; }
