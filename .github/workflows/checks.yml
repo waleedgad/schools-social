@@ -75,3 +75,41 @@ jobs:
           name: app-test-report-${{ matrix.os }}
           path: desktop/e2e-report
           if-no-files-found: ignore
+
+  # Build check: make the real app a school installs (Apple Silicon Mac and
+  # Windows, not signed yet) and start it once: it must read photos with its
+  # image engine and load its face engine.
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            build: --mac zip --arm64
+            exe: release/mac-arm64/School Social Hub Library.app/Contents/MacOS/School Social Hub Library
+          - os: windows-latest
+            build: --win dir
+            exe: release/win-unpacked/School Social Hub Library.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm run build && npx electron-builder ${{ matrix.build }} --publish never
+      - run: PACKAGED_APP="$PWD/${{ matrix.exe }}" npx playwright test e2e/packaged.spec.ts
+      - if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-app-apple-silicon
+          path: desktop/release/*.zip
+          retention-days: 14

@@ -5,8 +5,6 @@ directories:
 files:
   - dist/**
   - package.json
-  - "!node_modules/onnxruntime-node/bin/napi-v6/{win32,linux}/**"
-  - "!node_modules/@img/*-{linux,linuxmusl,win32}-*/**"
 extraResources:
   - from: models
     to: models
@@ -16,8 +14,18 @@ asarUnpack:
   - node_modules/sharp/**
   - node_modules/@img/**
   - node_modules/onnxruntime-node/**
+# Each system only carries its own image and face engines. (These were
+# left out for every system, so a Windows build had no image engine at all.)
 win:
   target: nsis
+  files:
+    - "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**"
+    - "!node_modules/@img/*-{linux,linuxmusl,darwin}-*/**"
+linux:
+  target: dir
+  files:
+    - "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**"
+    - "!node_modules/@img/*-{darwin,win32}-*/**"
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -26,6 +34,9 @@ mac:
     - target: dmg
       arch: [arm64, x64]
   category: public.app-category.photography
+  files:
+    - "!node_modules/onnxruntime-node/bin/napi-v6/{win32,linux}/**"
+    - "!node_modules/@img/*-{linux,linuxmusl,win32}-*/**"
 publish:
   provider: github
   owner: waleedgad
