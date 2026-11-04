@@ -187,3 +187,27 @@ test("a teacher can't make themselves an admin or add staff", async () => {
   const role = await sb.from("memberships").select("role").eq("user_id", u.user!.id).single();
   expect(role.data?.role).toBe("teacher");
 });
+
+test("server functions refuse another school", async () => {
+  const calls: [string, Record<string, unknown>][] = [
+    ["set_school_profile", { p_school: B.id, p_profile: { tone: "hacked" } }],
+    ["set_posting_pause", { p_school: B.id, p_until: new Date(Date.now() + 864e5).toISOString(), p_reason: "x" }],
+    ["set_account_paused", { p_school: B.id, p_platform: "facebook", p_paused: true }],
+  ];
+  for (const [fn, args] of calls) {
+    const { error } = await A.client.rpc(fn, args);
+    expect(error, fn).not.toBeNull();
+  }
+  const reg = await A.client.rpc("register_computer", { p_school: B.id, p_device: "intruder-mac-01", p_name: "x", p_platform: "mac" });
+  expect(reg.data).toEqual({ error: "role" });
+  // This one quietly does nothing for another school.
+  await A.client.rpc("learn_caption", { p_school: B.id, p_text: "hacked" });
+  const prof = await admin().from("schools").select("profile").eq("id", B.id).single();
+  expect(JSON.stringify(prof.data?.profile ?? {})).not.toContain("hacked");
+  const meta = await A.client.rpc("meta_status", { p_school: B.id });
+  expect(meta.data ?? []).toEqual([]);
+  const tick = await A.client.rpc("tick_shot", { p_event: bRows.events.id, p_code: "S1", p_done: true });
+  expect(tick.error).not.toBeNull();
+  const computers = await admin().from("computers").select("device_id").eq("school_id", B.id);
+  expect(computers.data?.map((c) => c.device_id)).toEqual(["mac-test-0001"]);
+});
