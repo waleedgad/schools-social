@@ -5,7 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { watch, type FSWatcher } from "chokidar";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, safeStorage, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, safeStorage, shell, Tray } from "electron";
 import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
@@ -1173,7 +1173,15 @@ function search(q: string) {
 
 // ---------- Window ----------
 
+// The see-through sidebar on Mac (and Windows) takes its light or dark look
+// from the system. Follow the app's own Light/Dark choice instead, so light
+// text never sits on a light sidebar.
+function syncTheme() {
+  nativeTheme.themeSource = settings.get().theme ?? "system";
+}
+
 function createWindow() {
+  syncTheme();
   win = new BrowserWindow({
     width: 1360,
     height: 860,
@@ -1487,6 +1495,7 @@ app.whenReady().then(async () => {
       settings.set({ [key]: value } as Partial<Settings>);
       if (key === "openAtLogin") app.setLoginItemSettings({ openAtLogin: !!value, openAsHidden: true });
       if (key === "language") createMenu();
+      if (key === "theme") syncTheme();
       if (key === "faces" && value) engine?.queueFaceScan();
       push();
     },
