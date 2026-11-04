@@ -178,3 +178,10 @@ kbd {
     background: #fff;
   }
 }
+
+/* Keyboard users always see where they are (WCAG 2.4.7). Controls with
+   their own focus look keep it; everything else gets this ring. */
+:where(a, button, summary, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

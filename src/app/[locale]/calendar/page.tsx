@@ -216,7 +216,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
       title={t("calendar.title")}
       subtitle={label}
       actions={
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <ButtonLink href={{ pathname: "/calendar", query: prev }} variant="ghost" className="!px-2">‹</ButtonLink>
           <ButtonLink href={{ pathname: "/calendar", query: { view } }} variant="quiet" className="!px-2.5 !py-1.5 text-xs">{t("calendar.today")}</ButtonLink>
           <ButtonLink href={{ pathname: "/calendar", query: next }} variant="ghost" className="!px-2">›</ButtonLink>

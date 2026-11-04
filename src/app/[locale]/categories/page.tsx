@@ -59,7 +59,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
       {sp.ai && <Notice>{t(sp.ai === "limit" ? "composer.aiLimit" : "composer.aiFailed")}</Notice>}
 
       {tab === "categories" && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <Card title={t("brandPage.categories")}>
             <p className="mb-3 text-sm text-muted">{t("brandPage.categoriesHint")}</p>
             <ul className="divide-y divide-border">
@@ -97,7 +97,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
                 <Field label={t("brandPage.nameAr")} name="nameAr" dir="rtl" defaultValue={editing?.name_ar} maxLength={60} />
                 <Field label={t("brandPage.nameEn")} name="nameEn" dir="ltr" defaultValue={editing?.name_en} maxLength={60} />
                 <Field label={t("brandPage.description")} name="description" defaultValue={editing?.description ?? ""} maxLength={300} />
-                <div className="grid grid-cols-[4rem_1fr] gap-2">
+                <div className="grid grid-cols-[4rem_minmax(0,1fr)] gap-2">
                   <Field label={t("brandPage.color")} name="color" type="color" defaultValue={editing?.color ?? "#3b6cf6"} className="h-10 !p-1" />
                   <Field label={t("posts.hashtags")} name="hashtags" defaultValue={editing?.hashtags ?? ""} maxLength={300} />
                 </div>
@@ -132,7 +132,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
       )}
 
       {tab === "slots" && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <Card title={t("brandPage.slots")}>
             <p className="mb-3 text-sm text-muted">{t("brandPage.slotsHint")}</p>
             {!slots?.length && lead && (
@@ -231,7 +231,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
       )}
 
       {tab === "snippets" && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <Card title={t("brandPage.snippets")}>
             <p className="mb-3 text-sm text-muted">{t("brandPage.snippetsHint")}</p>
             <ul className="divide-y divide-border">
@@ -270,7 +270,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
       )}
 
       {tab === "brand" && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <Card title={t("brandPage.voice")}>
             <form action={saveProfile} className="grid gap-3 sm:grid-cols-2">
               {hidden}

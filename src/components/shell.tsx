@@ -171,13 +171,13 @@ export async function AppShell({
             <button className="font-semibold underline">{t("more.viewAs.back")}</button>
           </form>
         )}
-        <header className="sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-border bg-surface/85 px-4 py-2 backdrop-blur-xl md:px-6">
+        <header className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface/85 px-4 py-2 backdrop-blur-xl md:px-6">
           <MobileNavToggle label={t("shell.menu")} />
           <div className="min-w-0 grow leading-tight">
             <h1 className="truncate text-base font-bold md:text-lg">{title}</h1>
             {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
             {actions}
             {canPost && (
               <Link
