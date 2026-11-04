@@ -5,7 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { watchTree, type TreeWatcher } from "./core/tree-watch";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, safeStorage, shell, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, safeStorage, session, shell, Tray } from "electron";
 import { autoUpdater } from "electron-updater";
 import { openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
@@ -494,15 +494,6 @@ function startWatched(w: Watched) {
     }
   });
   watchers.push(watcher);
-}
-
-// "https://school.net" must not also match "https://school.net.other.com".
-function sameOrigin(url: string, server: string) {
-  try {
-    return new URL(url).origin === new URL(server).origin;
-  } catch {
-    return false;
-  }
 }
 
 async function connect(server: string) {
@@ -1272,19 +1263,12 @@ function createWindow() {
         ? { backgroundMaterial: "mica" as const, titleBarOverlay: { color: "#00000000", symbolColor: "#6b7180", height: 40 } }
         : { backgroundColor: "#f5f6f8" }),
     icon: path.join(__dirname, "renderer", "icon.png"),
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, webviewTag: true },
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, webviewTag: false },
   });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) shell.openExternal(url);
     return { action: "deny" };
-  });
-  win.webContents.on("will-attach-webview", (_e, prefs, params) => {
-    // The website shown inside the app gets no access to the Mac.
-    delete (prefs as Record<string, unknown>).preload;
-    prefs.nodeIntegration = false;
-    prefs.contextIsolation = true;
-    if (!sameOrigin(params.src, settings.get().server)) _e.preventDefault();
   });
   // The app window never leaves the app's own pages (a dropped link or file
   // can't take it over); web links open in the browser instead.
@@ -1417,7 +1401,24 @@ if (!app.requestSingleInstanceLock()) app.quit();
 app.on("second-instance", () => win?.show());
 app.on("activate", () => win?.show());
 
+// Electron's security guidelines, for every window or frame the app ever
+// makes: no new windows (web links open in the browser), no leaving the
+// app's own pages, and only the permissions the app uses.
+app.on("web-contents-created", (_e, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("https://")) void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  contents.on("will-navigate", (e, url) => {
+    if (!url.startsWith("file://")) e.preventDefault();
+  });
+  contents.on("will-attach-webview", (e) => e.preventDefault());
+});
+const ALLOWED_PERMISSIONS = new Set(["clipboard-sanitized-write", "notifications", "fullscreen"]);
+
 app.whenReady().then(async () => {
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, done) => done(ALLOWED_PERMISSIONS.has(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
   settings = new JsonStore<Settings>(data("settings.json"), {
     server: DEFAULT_SERVER,
     supabaseUrl: "",
@@ -1787,8 +1788,9 @@ app.whenReady().then(async () => {
   };
 
   ipcMain.handle("call", async (_e, name: string, ...args: unknown[]) => {
-    const fn = api[name];
-    if (!fn) return { ok: false, error: "unknown" };
+    // Only the app's own functions: never anything inherited, like "constructor".
+    const fn = typeof name === "string" && Object.hasOwn(api, name) ? api[name] : null;
+    if (typeof fn !== "function") return { ok: false, error: "unknown" };
     try {
       const value = await fn(...(args as never[]));
       return { ok: true, value };
