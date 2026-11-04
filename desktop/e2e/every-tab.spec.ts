@@ -8,6 +8,9 @@ import path from "node:path";
 // A screenshot of each tab goes into the test report.
 const TABS = ["today", "library", "import", "faces", "students", "coverage", "cleanup", "books", "posts", "calendar", "history", "settings", "help"];
 const root = path.join(__dirname, "..");
+// Words that stay in English on Arabic screens: product names, file types, keys.
+const KEEP = /School Social Hub|-edit|English|Facebook|Instagram|WhatsApp|Slack|Microsoft Teams|Teams|Google|Microsoft|OneDrive|Drive|Excel|CSV|xlsx|PowerSchool|Classera|Edunation|Finder|Terminal|Applications|Replace|Return|Apple|Vision|PNG|JPE?G|HEIC|RAW|PDF|Cmd|Ctrl|Shift|Enter|Esc|Delete|Space|\S+@\S+|https?:\/\/\S+|[\w.-]+\.(com|net|app)\b|[\/~][\w./ -]*|\b(IG|FB|AI|KG\d?|G\d+[A-Z]?|AM|PM|EN|AR|OK|DCIM)\b|[⌘⇧⌥]\S*/g;
+const englishOnArabic = (text: string) => text.split("\n").map((l) => l.replace(KEEP, "").trim()).filter((l) => /[A-Za-z]{3,}/.test(l)).map((l) => l.slice(0, 60));
 
 for (const language of ["en", "ar"] as const) {
   test(`every tab opens (${language})`, async ({}, info) => {
@@ -34,6 +37,10 @@ for (const language of ["en", "ar"] as const) {
       if (/undefined|NaN|\[object Object\]/.test(text)) problems.push(`${tab}: shows ${text.match(/undefined|NaN|\[object Object\]/)![0]}`);
       const overflow = await win.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (overflow > 1) problems.push(`${tab}: ${overflow}px wider than the window`);
+      if (language === "ar") {
+        const english = englishOnArabic(text);
+        if (english.length) problems.push(`${tab}: English on the Arabic screen: ${english.slice(0, 5).join(" | ")}`);
+      }
       if (errors.length > before) problems.push(`${tab}: ${errors.slice(before).join(" | ").slice(0, 200)}`);
       await win.screenshot({ path: info.outputPath(`${language}-${tab}.png`) });
     }

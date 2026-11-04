@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useLocale } from "next-intl";
+import { useEffect, useState } from "react";
 
 // datetime-local has no time zone, so send the moment as ISO from the
 // person's own device clock.
@@ -28,6 +29,14 @@ export function LocalDateTime({ name, label, value, disabled }: { name: string; 
   );
 }
 
+// A moment in the reader's own time zone and language. The server doesn't
+// know the reader's time zone, so it draws the date in UTC and the browser
+// redraws it after the page is ready (the same text on both sides first,
+// or the page is thrown away and drawn again).
 export function LocalTime({ iso }: { iso: string }) {
-  return <time dateTime={iso}>{new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time>;
+  const locale = useLocale();
+  const fmt = (timeZone?: string) => new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short", timeZone });
+  const [text, setText] = useState(() => fmt("UTC"));
+  useEffect(() => setText(fmt()), [iso, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <time dateTime={iso}>{text}</time>;
 }

@@ -10,6 +10,7 @@ import { signedThumbs } from "@/lib/posts";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
+import { categoryDescription } from "@/lib/category-defaults";
 
 const TABS = ["categories", "slots", "frames", "snippets", "brand"] as const;
 type Tab = (typeof TABS)[number];
@@ -69,7 +70,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
                     <span className="size-3 shrink-0 rounded-full" style={{ background: c.color }} />
                     <div className="min-w-0 grow">
                       <b className="text-sm">{categoryName(c, locale)}</b>
-                      {c.description && <p className="truncate text-xs text-muted">{c.description}</p>}
+                      {c.description && <p className="truncate text-xs text-muted">{categoryDescription(c.description as string, locale)}</p>}
                     </div>
                     <div className="hidden w-28 sm:block" title={t("brandPage.share", { share })}>
                       <div className="h-1.5 overflow-hidden rounded-full bg-grey-bg">
