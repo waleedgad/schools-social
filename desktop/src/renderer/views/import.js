@@ -4,7 +4,12 @@
 // events split by time gaps and named from the school calendar, a camera
 // clock fix, then the copy runs in the background with progress in the
 // sidebar. When it finishes: a summary with the next steps.
-const IMP = { scan: null, scanning: null, showAlready: false, done: null, device: null, ticked: new Set() };
+const IMP = { scan: null, scanning: null, showAlready: false, done: null, device: null, ticked: new Set(), showAll: new Set() };
+// Big folders (700+ photos) used to put every thumbnail on the page at once,
+// which left black areas and old pictures on screen (B-01). Each event now
+// shows its first photos and a "Show all" button; ticking a photo only
+// redraws that tile.
+const FIRST_TILES = 200;
 
 window.hub.on("importScan", (p) => {
   if (App.view !== "import") return;
@@ -33,6 +38,8 @@ App.views.import = {
     main.innerHTML = topbar(L("Import", "استيراد"), L("Cards, phones, photographers' folders and shared links. Photos are filed by year, term, event and class.", "كروت ومواقف وهواتف ومجلدات المصورين والروابط. تُرتب الصور حسب السنة والفصل الدراسي والفعالية والفصل."), `<button class="btn" id="i-hist">${icon("history", 14)} ${L("Import history", "سجل الاستيراد")}</button>`) +
       `<div class="content"><div class="col gap16" style="max-width: 1100px" id="imp"></div></div>`;
     $("#i-hist", main).onclick = () => go("history", { imports: true });
+    // Let go of the thumbnails when leaving, so they don't linger on screen.
+    App.leave = () => $$("#imp img").forEach((i) => (i.src = ""));
     if (params.summary) return this.summary(params.summary);
     if (params.sources?.length || params.source) return this.choose(params.sources ?? [params.source]);
     if (params.device) IMP.device = params.device;
@@ -100,6 +107,7 @@ App.views.import = {
     IMP.scan = s;
     // Everything is ticked except junk shots and photos already imported.
     IMP.ticked = new Set(s.files.filter((f) => !f.already && !f.junk).map((f) => f.n));
+    IMP.showAll = new Set();
     IMP.opts = { photographer: S.importPhotographer ?? "", category: S.importCategory ?? "", eject: S.importEject !== false, erase: !!S.importErase, archive: false, offsets: {} };
     IMP.showAlready = false;
     this.drawPreview();
@@ -253,7 +261,7 @@ App.views.import = {
       ${already ? `<label class="check muted">${sw("data-showal", IMP.showAlready)} ${L(`Show the ${num(already)} photos imported before`, `عرض ${num(already)} صورة استُوردت من قبل`)}</label>` : ""}
       ${s.events.map((e) => this.eventBlock(e, files, classes)).join("")}
       <datalist id="i-classes">${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</datalist>
-      <div class="ibar"><span class="grow"><b>${L(`${num(chosen().length)} photos ticked`, `${num(chosen().length)} صورة محددة`)}</b> <span class="muted">· ${fmtBytes(bytes)}</span></span>
+      <div class="ibar"><span class="grow" id="i-count"><b>${L(`${num(chosen().length)} photos ticked`, `${num(chosen().length)} صورة محددة`)}</b> <span class="muted">· ${fmtBytes(bytes)}</span></span>
         <button class="btn primary" id="i-go" ${chosen().length ? "" : "disabled"}>${icon("download", 15)} ${L(`Import ${num(chosen().length)} photos`, `استيراد ${num(chosen().length)} صورة`)}</button></div>`;
     $("#i-back", box).onclick = () => { IMP.scan = null; this.choose(); };
     $("#i-arch", box)?.addEventListener("click", () => go("settings", { page: "storage" }));
@@ -288,13 +296,44 @@ App.views.import = {
           const all = s.files.map((f) => f.n);
           const [a, b] = [all.indexOf(IMP.last), all.indexOf(n)].sort((x, y) => x - y);
           all.slice(a, b + 1).forEach((k) => IMP.ticked.add(k));
-        } else IMP.ticked.has(n) ? IMP.ticked.delete(n) : IMP.ticked.add(n);
+          IMP.last = n;
+          return this.drawPreview();
+        }
+        IMP.ticked.has(n) ? IMP.ticked.delete(n) : IMP.ticked.add(n);
         IMP.last = n;
-        this.drawPreview();
+        const on = IMP.ticked.has(n);
+        t.classList.toggle("off", !on);
+        t.style.opacity = on ? "" : ".38";
+        const tk = $(".tick", t);
+        if (tk) tk.innerHTML = icon(on ? "circle-check" : "circle", 18);
+        this.counts(files);
       };
     });
+    $$("[data-showall]", box).forEach((b) => (b.onclick = () => {
+      IMP.showAll.add(Number(b.dataset.showall));
+      this.drawPreview();
+    }));
     s.events.forEach((e) => this.where(e.id));
     $("#i-go", box).onclick = () => this.start();
+  },
+  // Update the numbers after ticking one photo, without redrawing the page.
+  counts(files) {
+    const chosen = [...IMP.ticked].filter((n) => files.has(n));
+    const bytes = chosen.reduce((a, n) => a + files.get(n).size, 0);
+    for (const e of IMP.scan.events) {
+      const ticked = e.files.filter((n) => IMP.ticked.has(n)).length;
+      const c = $(`#evcount-${e.id}`);
+      if (c) c.textContent = L(`${num(ticked)} of ${num(e.files.length)}`, `${num(ticked)} من ${num(e.files.length)}`);
+      const all = $(`[data-evall="${e.id}"]`);
+      if (all) all.checked = ticked === e.files.length;
+    }
+    const bar = $("#i-count");
+    if (bar) bar.innerHTML = `<b>${L(`${num(chosen.length)} photos ticked`, `${num(chosen.length)} صورة محددة`)}</b> <span class="muted">· ${fmtBytes(bytes)}</span>`;
+    const goBtn = $("#i-go");
+    if (goBtn) {
+      goBtn.disabled = !chosen.length;
+      goBtn.innerHTML = `${icon("download", 15)} ${L(`Import ${num(chosen.length)} photos`, `استيراد ${num(chosen.length)} صورة`)}`;
+    }
   },
   eventBlock(e, files, classes) {
     const shown = e.files.map((n) => files.get(n)).filter((f) => f && (IMP.showAlready || !f.already));
@@ -308,14 +347,15 @@ App.views.import = {
         <input data-ev="${e.id}" data-f="className" data-evplace="${e.id}" list="i-classes" placeholder="${L("Class", "الفصل")}" value="${esc(e.className ?? "")}" style="width: 80px" />
         ${e.id > 0 ? `<button class="btn small ghost" data-merge="${e.id}" title="${L("Join with the event above", "دمج مع الفعالية السابقة")}">${icon("merge", 14)}</button>` : ""}
       </div>
-      <div class="muted small row"><span class="grow" id="where-${e.id}"></span><span>${L(`${num(ticked)} of ${num(e.files.length)}`, `${num(ticked)} من ${num(e.files.length)}`)}${e.from ? ` · ${esc(e.from)}` : ""}</span></div>
-      <div class="igrid">${shown.map((f) => this.tile(f)).join("")}</div></div>`;
+      <div class="muted small row"><span class="grow" id="where-${e.id}"></span><span><span id="evcount-${e.id}">${L(`${num(ticked)} of ${num(e.files.length)}`, `${num(ticked)} من ${num(e.files.length)}`)}</span>${e.from ? ` · ${esc(e.from)}` : ""}</span></div>
+      <div class="igrid">${(IMP.showAll.has(e.id) ? shown : shown.slice(0, FIRST_TILES)).map((f) => this.tile(f)).join("")}</div>
+      ${!IMP.showAll.has(e.id) && shown.length > FIRST_TILES ? `<button class="btn small ghost" data-showall="${e.id}" style="align-self: center">${L(`Show all ${num(shown.length)} photos`, `عرض كل الصور (${num(shown.length)})`)}</button>` : ""}</div>`;
   },
   tile(f) {
     const on = IMP.ticked.has(f.n);
     const badge = f.already ? L("Imported before", "استُوردت من قبل") : f.junk ? JUNK()[f.junk] : "";
     return `<div class="tile itile ${on ? "" : "off"}" data-n="${f.n}" title="${esc(f.name)}" style="${on ? "" : "opacity: .38"}">
-      ${f.video ? `<div class="vph">${icon("film", 22)}</div>` : `<img loading="lazy" src="hub://ithumb/${f.thumb}" />`}
+      ${f.video ? `<div class="vph">${icon("film", 22)}</div>` : `<img loading="lazy" decoding="async" src="hub://ithumb/${f.thumb}" />`}
       <span class="tick" style="position:absolute;top:6px;inset-inline-start:6px">${icon(on ? "circle-check" : "circle", 18)}</span>
       ${f.burst != null && !f.best ? `<span class="b stackn" title="${L("Burst: best shot first", "تتابع: الأفضل أولًا")}">${icon("layers", 11)}</span>` : ""}
       ${f.raw ? `<span class="b">RAW</span>` : ""}${badge ? `<span class="b miss">${esc(badge)}</span>` : ""}</div>`;
