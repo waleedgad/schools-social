@@ -824,7 +824,7 @@ async function drawMissing() {
   if (!m.n || m.n <= m.ack) return (bar.innerHTML = "");
   const where = m.folders.map((f) => `<b class="ltr">${esc(f.name)}</b> (${num(f.n)})`).join(", ") + (m.more ? L(` and ${m.more} more`, ` و${num(m.more)} غيرها`) : "");
   bar.innerHTML = `<div class="note warn missingbar" role="status">${icon("folder-x", 15)}
-    <div class="grow"><b>${L(`${num(m.n)} photos are missing from the disk.`, `${num(m.n)} صورة مفقودة من القرص.`)}</b>
+    <div class="grow"><b>${L(m.n === 1 ? "1 photo is missing from the disk." : `${num(m.n)} photos are missing from the disk.`, `${num(m.n)} صورة مفقودة من القرص.`)}</b>
     ${L("Their folders were deleted or moved in Finder, or are on a drive that isn't plugged in:", "حُذفت مجلداتها أو نُقلت في Finder، أو هي على قرص غير موصول:")} ${where}.
     <div class="muted small">${L("Names, faces and posts already sent are kept.", "تبقى الأسماء والوجوه والمنشورات المرسلة كما هي.")}</div></div>
     <div class="row gap4"><button class="btn small" id="mb-find">${L("Find them…", "ابحث عنها…")}</button>
