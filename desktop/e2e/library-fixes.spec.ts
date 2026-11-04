@@ -119,6 +119,9 @@ test("B-10 + B-19: missing original shows a note; closing gives no error", async
   win.on("pageerror", (e) => errors.push(e.message));
   // Wait until every photo has its small copy, then delete one original.
   await expect.poll(() => win.evaluate("lib.list.length"), { timeout: 30_000 }).toBe(6);
+  await expect
+    .poll(() => win.evaluate("Promise.all(lib.list.map((p) => window.hub.call('photo', p.id))).then((r) => r.every((x) => (x.value ?? x)?.thumb === 1))"), { timeout: 60_000 })
+    .toBe(true);
   rmSync(path.join(books, "IMG_2000.jpg"));
   await win.evaluate(() => (window as unknown as { hub: { call: (f: string) => Promise<unknown> } }).hub.call("rescan"));
   await expect(win.locator("#missingbar")).toContainText("1 photo is missing", { timeout: 30_000 });
