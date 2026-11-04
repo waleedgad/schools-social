@@ -1,4 +1,4 @@
-import { watch as fsWatch, type Stats } from "node:fs";
+import { realpathSync, watch as fsWatch, type Stats } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { watch as chokidar } from "chokidar";
@@ -112,11 +112,27 @@ export function watchTree(root: string, o: TreeWatchOptions): TreeWatcher {
     }
   };
 
+  // The system reports changes under the folder's real location (on a Mac the
+  // temp folder /var/... is really /private/var/..., and a library can be a
+  // link), so watch that and give paths back under the folder as the app
+  // knows it.
+  let real = root;
+  try {
+    real = realpathSync(root);
+  } catch {
+    // watched as given
+  }
+  const back = (name: string) => {
+    const full = path.isAbsolute(name) ? name : path.join(real, name);
+    const rel = path.relative(real, full);
+    return rel.startsWith("..") || path.isAbsolute(rel) ? null : path.join(root, rel);
+  };
   let w: ReturnType<typeof fsWatch> | null = null;
   try {
-    w = fsWatch(root, { recursive: true, persistent: false }, (_type, name) => {
+    w = fsWatch(real, { recursive: true, persistent: false }, (_type, name) => {
       if (!name || closed) return;
-      settle(path.join(root, name.toString()));
+      const full = back(name.toString());
+      if (full) settle(full);
     });
     w.on("error", (e) => emit("error", e));
   } catch (e) {

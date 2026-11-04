@@ -97,6 +97,7 @@ test("import, face scan and sending at once: every click still answers", async (
   const answers: number[] = [];
   const until = Date.now() + 45_000;
   let busySeen = false;
+  const seenStates = new Set<string>();
   while (Date.now() < until) {
     for (const tab of TABS) {
       const t0 = Date.now();
@@ -107,10 +108,11 @@ test("import, face scan and sending at once: every click still answers", async (
       const st = (await call("state")).value as { engine?: { processing?: number; faceQueue?: number }; imports?: { state: string }[]; queue?: { pending?: number } };
       answers.push(Date.now() - a0);
       if ((st.engine?.processing ?? 0) + (st.engine?.faceQueue ?? 0) > 0 && st.imports?.some((i) => i.state === "running")) busySeen = true;
+      seenStates.add(`engine ${st.engine?.processing ?? 0}/${st.engine?.faceQueue ?? 0} import ${st.imports?.map((i) => i.state).join(",") ?? "-"}`);
     }
   }
   // The work really was running at the same time as the clicking.
-  expect(busySeen).toBe(true);
+  expect(busySeen, [...seenStates].slice(0, 30).join("\n")).toBe(true);
 
   // Stop the import from its own page: it stops and keeps what was copied.
   await win.locator('button.nav[data-go="import"]').click();

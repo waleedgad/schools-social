@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -74,4 +74,18 @@ test("whole-tree watch: a file still being copied is reported once it stops grow
   await wait(800);
   await w.close();
   assert.deepEqual(seen, [5000]);
+});
+
+test("whole-tree watch: a library reached through a link reports paths under the link", async () => {
+  const real = mkdtempSync(path.join(tmpdir(), "tree-real-"));
+  const root = path.join(mkdtempSync(path.join(tmpdir(), "tree-link-")), "Photos");
+  symlinkSync(real, root, process.platform === "win32" ? "junction" : "dir");
+  const added: string[] = [];
+  const w = watchTree(root, { depth: 4, settle: 200, native: true });
+  w.on("add", (f) => added.push(f));
+  await wait(200);
+  writeFileSync(path.join(real, "a.jpg"), "x");
+  await until(() => added.length === 1);
+  await w.close();
+  assert.deepEqual(added, [path.join(root, "a.jpg")]);
 });
