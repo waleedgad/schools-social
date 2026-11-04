@@ -38,7 +38,7 @@ export default async function ForgotPasswordPage({
           )}
         </Card>
         <p className="text-center text-sm">
-          <Link href="/login" className="font-semibold text-accent">
+          <Link href="/login" className="font-semibold text-accent-ink">
             {t("common.signIn")}
           </Link>
         </p>

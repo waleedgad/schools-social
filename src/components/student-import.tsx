@@ -28,9 +28,10 @@ export function StudentImport({ locale }: { locale: string }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted">{t("importHint")}</p>
+      <p id="student-import-hint" className="text-sm text-muted">{t("importHint")}</p>
       <input
         type="file"
+        aria-labelledby="student-import-hint"
         accept=".xlsx,.csv"
         onChange={(e) => e.target.files?.[0] && read(e.target.files[0])}
         className="block w-full text-sm"

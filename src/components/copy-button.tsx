@@ -13,7 +13,7 @@ export function CopyButton({ value, label, copiedLabel }: { value: string; label
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="text-sm font-semibold text-accent hover:underline"
+      className="text-sm font-semibold text-accent-ink hover:underline"
     >
       {copied ? copiedLabel : label}
     </button>

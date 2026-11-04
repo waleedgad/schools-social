@@ -103,7 +103,7 @@ export function AnnouncementMaker({ locale, schoolId, userId, schoolName, catego
           <p className="mb-2 text-sm font-semibold">{t("pack")}</p>
           <div className="flex flex-wrap gap-2">
             {PACK.map((p) => (
-              <button key={p} type="button" onClick={() => setTemplate(p)} className={`rounded-full px-3 py-1.5 text-sm ${template === p ? "bg-text text-surface font-semibold" : "bg-grey-bg"}`}>
+              <button key={p} type="button" onClick={() => setTemplate(p)} className={`rounded-full px-3 py-1.5 text-sm ${template === p ? "bg-foreground text-surface font-semibold" : "bg-grey-bg"}`}>
                 {t(`t.${p}`)}
               </button>
             ))}

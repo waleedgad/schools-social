@@ -57,14 +57,14 @@ export default async function ActivityPage({
         </Card>
         <div className="flex justify-between text-sm">
           {page > 0 ? (
-            <Link href={{ pathname: "/activity", query: { page: String(page - 1) } }} className="text-accent">
+            <Link href={{ pathname: "/activity", query: { page: String(page - 1) } }} className="text-accent-ink">
               {t("calendar.previous")}
             </Link>
           ) : (
             <span />
           )}
           {(rows ?? []).length === size && (
-            <Link href={{ pathname: "/activity", query: { page: String(page + 1) } }} className="text-accent">
+            <Link href={{ pathname: "/activity", query: { page: String(page + 1) } }} className="text-accent-ink">
               {t("calendar.next")}
             </Link>
           )}

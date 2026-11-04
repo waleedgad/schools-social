@@ -144,7 +144,7 @@ export default async function AccountsPage({ params, searchParams }: { params: P
             )}
             {isAdmin && (
               <div className="flex gap-4">
-                <a href={`/api/meta/connect?locale=${locale}`} className="text-sm font-semibold text-accent hover:underline">
+                <a href={`/api/meta/connect?locale=${locale}`} className="text-sm font-semibold text-accent-ink hover:underline">
                   {t("settings.reconnect")}
                 </a>
                 <form action={disconnectMeta}>

@@ -46,7 +46,7 @@ export default async function NewPostPage({ params, searchParams }: { params: Pr
   return (
     <AppShell locale={locale} membership={membership} workspaces={workspaces} active="posts" title={t("newPost.title")} subtitle={day ? t("newPost.forDay", { day }) : t("newPost.subtitle")}>
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title={<span className="inline-flex items-center gap-2"><Icon name="sparkle" className="text-accent" />{t("newPost.fromEvent")}</span>}>
+        <Card title={<span className="inline-flex items-center gap-2"><Icon name="sparkle" className="text-accent-ink" />{t("newPost.fromEvent")}</span>}>
           <form action={createPost} className="space-y-3">
             {hidden}
             <input type="hidden" name="best" value="1" />
@@ -68,21 +68,21 @@ export default async function NewPostPage({ params, searchParams }: { params: Pr
           </form>
         </Card>
 
-        <Card title={<span className="inline-flex items-center gap-2"><Icon name="library" className="text-accent" />{t("newPost.fromPhotos")}</span>}>
+        <Card title={<span className="inline-flex items-center gap-2"><Icon name="library" className="text-accent-ink" />{t("newPost.fromPhotos")}</span>}>
           <p className="mb-3 text-sm text-muted">{t("newPost.fromPhotosHint")}</p>
           <ButtonLink href="/library" icon="library" variant="primary" className="w-full">
             {t("newPost.openLibrary")}
           </ButtonLink>
         </Card>
 
-        <Card title={<span className="inline-flex items-center gap-2"><Icon name="sparkle" className="text-accent" />{t("announce.card")}</span>}>
+        <Card title={<span className="inline-flex items-center gap-2"><Icon name="sparkle" className="text-accent-ink" />{t("announce.card")}</span>}>
           <p className="mb-3 text-sm text-muted">{t("announce.cardHint")}</p>
           <ButtonLink href={day ? { pathname: "/posts/new/announcement", query: { day } } : "/posts/new/announcement"} icon="sparkle" variant="primary" className="w-full">
             {t("announce.cardButton")}
           </ButtonLink>
         </Card>
 
-        <Card title={<span className="inline-flex items-center gap-2"><Icon name="posts" className="text-accent" />{t("newPost.textOnly")}</span>}>
+        <Card title={<span className="inline-flex items-center gap-2"><Icon name="posts" className="text-accent-ink" />{t("newPost.textOnly")}</span>}>
           <form action={createPost} className="space-y-3">
             {hidden}
             <p className="text-sm text-muted">{t("newPost.textOnlyHint")}</p>
@@ -93,7 +93,7 @@ export default async function NewPostPage({ params, searchParams }: { params: Pr
           </form>
         </Card>
 
-        <Card title={<span className="inline-flex items-center gap-2"><Icon name="ideas" className="text-accent" />{t("newPost.idea")}</span>}>
+        <Card title={<span className="inline-flex items-center gap-2"><Icon name="ideas" className="text-accent-ink" />{t("newPost.idea")}</span>}>
           <form action={createPost} className="space-y-3">
             {hidden}
             <input type="hidden" name="kind" value="idea" />

@@ -31,7 +31,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </Link>
           <p className="text-center text-sm text-muted">
             {t("home.haveAccount")}{" "}
-            <Link href="/login" className="font-semibold text-accent">
+            <Link href="/login" className="font-semibold text-accent-ink">
               {t("common.signIn")}
             </Link>
           </p>

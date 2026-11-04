@@ -366,7 +366,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
             <p className="mt-3 text-xs text-muted">
               {t("more.connections.forMac")}{" "}
               {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download, not a page */}
-              <a href="/api/class-lists/file" className="font-semibold text-accent underline">{t("more.connections.download")}</a>
+              <a href="/api/class-lists/file" className="font-semibold text-accent-ink underline">{t("more.connections.download")}</a>
             </p>
           </Card>
         </>

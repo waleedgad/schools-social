@@ -187,10 +187,10 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
     plan: (
       <Card title={t("today.sections.plan")}>
         <ul className="space-y-1.5 text-sm">
-          {approvals?.data?.length ? <li><Link href="/posts" className="flex items-center gap-2 hover:underline"><Icon name="check" className="text-accent" />{t("today.plan.approve", { count: approvals.data.length })}</Link></li> : null}
-          {todayEmpty > 0 && <li><Link href={{ pathname: "/posts/new", query: { day: today } }} className="flex items-center gap-2 hover:underline"><Icon name="plus" className="text-accent" />{t("today.plan.empty", { count: todayEmpty })}</Link></li>}
-          {faceChecks?.count ? <li><Link href="/check" className="flex items-center gap-2 hover:underline"><Icon name="face" className="text-accent" />{t("today.plan.faces", { count: faceChecks.count })}</Link></li> : null}
-          {(upcoming?.data ?? []).filter((e) => e.event_date === today).map((e) => <li key={e.id as string}><Link href={((e.shot_list as unknown[]) ?? []).length ? `/shots/${e.id}` : { pathname: "/posts/new", query: { event: e.id as string } }} className="flex items-center gap-2 hover:underline"><Icon name="camera" className="text-accent" />{t("today.plan.event", { title: e.title as string })}</Link></li>)}
+          {approvals?.data?.length ? <li><Link href="/posts" className="flex items-center gap-2 hover:underline"><Icon name="check" className="text-accent-ink" />{t("today.plan.approve", { count: approvals.data.length })}</Link></li> : null}
+          {todayEmpty > 0 && <li><Link href={{ pathname: "/posts/new", query: { day: today } }} className="flex items-center gap-2 hover:underline"><Icon name="plus" className="text-accent-ink" />{t("today.plan.empty", { count: todayEmpty })}</Link></li>}
+          {faceChecks?.count ? <li><Link href="/check" className="flex items-center gap-2 hover:underline"><Icon name="face" className="text-accent-ink" />{t("today.plan.faces", { count: faceChecks.count })}</Link></li> : null}
+          {(upcoming?.data ?? []).filter((e) => e.event_date === today).map((e) => <li key={e.id as string}><Link href={((e.shot_list as unknown[]) ?? []).length ? `/shots/${e.id}` : { pathname: "/posts/new", query: { event: e.id as string } }} className="flex items-center gap-2 hover:underline"><Icon name="camera" className="text-accent-ink" />{t("today.plan.event", { title: e.title as string })}</Link></li>)}
           {problems?.data?.length ? <li className="flex items-center gap-2 text-danger"><Icon name="warning" />{t("today.plan.problems", { count: problems.data.length })}</li> : null}
         </ul>
         {!approvals?.data?.length && !todayEmpty && !faceChecks?.count && !problems?.data?.length && !(upcoming?.data ?? []).some((e) => e.event_date === today) && <p className="text-sm text-muted">{t("today.plan.nothing")}</p>}
@@ -265,7 +265,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
               const href = a.kind === "book" && body.book ? `/books/${body.book}` : body.post ? `/posts/${body.post}` : a.kind === "import" ? "/library" : null;
               return (
                 <li key={a.id as string} className={`flex items-center gap-2 py-1.5 text-sm ${read ? "text-muted" : ""}`}>
-                  <Icon name={a.kind === "import" ? "upload" : a.kind === "book" ? "book" : "bell"} className={read ? "text-faint" : "text-accent"} />
+                  <Icon name={a.kind === "import" ? "upload" : a.kind === "book" ? "book" : "bell"} className={read ? "text-faint" : "text-accent-ink"} />
                   {href ? <Link href={href} className="grow truncate hover:underline">{alertText({ kind: a.kind as string, body })}</Link> : <span className="grow truncate">{alertText({ kind: a.kind as string, body })}</span>}
                   {!read && (
                     <form action={readAlert}>
@@ -285,8 +285,8 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
       <Card title={t("today.sections.checks")}>
         <ul className="space-y-1.5 text-sm">
           {faceChecks?.count ? <li><Link href="/check" className="flex items-center gap-2 font-semibold text-accent-ink hover:underline"><Icon name="face" />{t("today.plan.faces", { count: faceChecks.count })}</Link></li> : null}
-          {(shotLists?.data ?? []).map((e) => <li key={e.id as string}><Link href={`/shots/${e.id}`} className="flex items-center gap-2 hover:underline"><Icon name="camera" className="text-accent" />{t("today.shotList", { title: e.title as string, day: dayName(e.event_date as string) })}</Link></li>)}
-          {(books?.data ?? []).filter((b) => !scope || scope.all || !b.class_name || scope.classes.includes(b.class_name as string)).map((b) => <li key={b.id as string}><Link href={{ pathname: `/books/${b.id}`, query: { tab: "names" } }} className="flex items-center gap-2 hover:underline"><Icon name="book" className="text-accent" />{t("today.bookToCheck", { title: b.title as string })}</Link></li>)}
+          {(shotLists?.data ?? []).map((e) => <li key={e.id as string}><Link href={`/shots/${e.id}`} className="flex items-center gap-2 hover:underline"><Icon name="camera" className="text-accent-ink" />{t("today.shotList", { title: e.title as string, day: dayName(e.event_date as string) })}</Link></li>)}
+          {(books?.data ?? []).filter((b) => !scope || scope.all || !b.class_name || scope.classes.includes(b.class_name as string)).map((b) => <li key={b.id as string}><Link href={{ pathname: `/books/${b.id}`, query: { tab: "names" } }} className="flex items-center gap-2 hover:underline"><Icon name="book" className="text-accent-ink" />{t("today.bookToCheck", { title: b.title as string })}</Link></li>)}
         </ul>
         {!faceChecks?.count && !shotLists?.data?.length && !books?.data?.length && <p className="text-sm text-muted">{t("today.empty.checks")}</p>}
       </Card>
@@ -387,7 +387,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
       active="today"
       title={greeting}
       subtitle={new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "full", timeZone: membership.school.timezone }).format(now)}
-      actions={<ButtonLink href={{ pathname: "/today", query: edit ? {} : { edit: "1" } }} variant="ghost" icon="settings" className="!px-2"><span className="hidden sm:inline">{t("today.customise")}</span></ButtonLink>}
+      actions={<ButtonLink href={{ pathname: "/today", query: edit ? {} : { edit: "1" } }} variant="ghost" icon="settings" className="!px-2" label={t("today.customise")}><span className="hidden sm:inline">{t("today.customise")}</span></ButtonLink>}
     >
       {password === "saved" && <Notice tone="good">{t("password.saved")}</Notice>}
       {school.data && isPaused(school.data) && (

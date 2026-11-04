@@ -45,8 +45,8 @@ export function StaffImport({ locale }: { locale: string }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted">{t("hint")}</p>
-      <input type="file" accept=".xlsx,.csv" onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} className="block w-full text-sm" />
+      <p id="staff-import-hint" className="text-sm text-muted">{t("hint")}</p>
+      <input type="file" aria-labelledby="staff-import-hint" accept=".xlsx,.csv" onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} className="block w-full text-sm" />
       {error && <p className="text-sm text-danger">{t("error")}</p>}
       {done !== null && <p className="text-sm text-good">{t("done", { count: done })}</p>}
       {rows && rows.length > 0 && done === null && (

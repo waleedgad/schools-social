@@ -260,7 +260,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
                     </Link>
                   ))}
                   {canWrite && !d.past && d.slots.map((sl) => (
-                    <Link key={sl.time} href={{ pathname: "/posts/new", query: { day: d.key } }} className="block rounded-lg border border-dashed border-border px-2 py-1 text-xs text-faint hover:border-accent hover:text-accent">
+                    <Link key={sl.time} href={{ pathname: "/posts/new", query: { day: d.key } }} className="block rounded-lg border border-dashed border-border px-2 py-1 text-xs text-faint hover:border-accent hover:text-accent-ink">
                       {sl.time} {sl.category ?? ""} · {t("more.calendar.noPostYet")}
                     </Link>
                   ))}

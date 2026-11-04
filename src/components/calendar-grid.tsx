@@ -77,7 +77,7 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
               <span className={`grid size-6 place-items-center rounded-full text-xs font-semibold ${d.today ? "bg-accent text-accent-foreground" : ""}`}>{d.day}</span>
               <span className="text-[11px] text-muted md:hidden">{weekdays[(new Date(`${d.key}T00:00:00Z`).getUTCDay() + 1) % 7]}</span>
               {canWrite && !d.past && (
-                <Link href={{ pathname: "/posts/new", query: { day: d.key } }} className="hidden size-5 place-items-center rounded text-faint hover:bg-accent-bg hover:text-accent group-hover:grid" aria-label={t("newOn")}>
+                <Link href={{ pathname: "/posts/new", query: { day: d.key } }} className="hidden size-5 place-items-center rounded text-faint hover:bg-accent-bg hover:text-accent-ink group-hover:grid" aria-label={t("newOn")}>
                   +
                 </Link>
               )}
@@ -122,7 +122,7 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
             {canWrite &&
               !d.past &&
               d.slots.map((s) => (
-                <Link key={s.time} href={{ pathname: "/posts/new", query: { day: d.key } }} className="truncate rounded-md border border-dashed border-border px-1 py-0.5 text-[10px] text-faint hover:border-accent hover:text-accent">
+                <Link key={s.time} href={{ pathname: "/posts/new", query: { day: d.key } }} className="truncate rounded-md border border-dashed border-border px-1 py-0.5 text-[10px] text-faint hover:border-accent hover:text-accent-ink">
                   {s.time} {s.category ?? t("freeSlot")}
                 </Link>
               ))}

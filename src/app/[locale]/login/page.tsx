@@ -34,7 +34,7 @@ export default async function LoginPage({
             <input type="hidden" name="next" value={nextPath} />
             <Field label={t("common.email")} name="email" type="email" autoComplete="email" dir="ltr" required />
             <Field label={t("common.password")} name="password" type="password" autoComplete="current-password" dir="ltr" required />
-            <Link href="/forgot" className="block text-end text-sm font-semibold text-accent">
+            <Link href="/forgot" className="block text-end text-sm font-semibold text-accent-ink">
               {t("password.forgot")}
             </Link>
             <Button className="w-full">{t("common.signIn")}</Button>
@@ -74,7 +74,7 @@ export default async function LoginPage({
         </Card>
         <p className="text-center text-sm text-muted">
           {t("login.noAccount")}{" "}
-          <Link href={{ pathname: "/signup", query: { next: nextPath } }} className="font-semibold text-accent">
+          <Link href={{ pathname: "/signup", query: { next: nextPath } }} className="font-semibold text-accent-ink">
             {t("common.signUp")}
           </Link>
         </p>

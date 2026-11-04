@@ -13,7 +13,7 @@ export function LanguageSwitcher() {
     <button
       type="button"
       onClick={() => router.replace(pathname, { locale: locale === "ar" ? "en" : "ar" })}
-      className="text-sm font-semibold text-accent hover:underline"
+      className="text-sm font-semibold text-accent-ink hover:underline"
     >
       {t("language")}
     </button>

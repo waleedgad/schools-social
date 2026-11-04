@@ -44,7 +44,7 @@ export default async function SignupPage({
         </Card>
         <p className="text-center text-sm text-muted">
           {t("signup.haveAccount")}{" "}
-          <Link href={{ pathname: "/login", query: { next: nextPath } }} className="font-semibold text-accent">
+          <Link href={{ pathname: "/login", query: { next: nextPath } }} className="font-semibold text-accent-ink">
             {t("common.signIn")}
           </Link>
         </p>

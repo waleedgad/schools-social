@@ -471,7 +471,7 @@ export function Composer({ data }: { data: ComposerData }) {
                   </button>
                 ))}
               </div>
-              {picks.size > 0 && <p className="text-xs text-accent">{t("willAdd", { count: picks.size })}</p>}
+              {picks.size > 0 && <p className="text-xs text-accent-ink">{t("willAdd", { count: picks.size })}</p>}
             </div>
           )}
         </Card>
@@ -613,7 +613,7 @@ export function Composer({ data }: { data: ComposerData }) {
                 ))}
               </select>
               {!data.frames.length && (
-                <Link href="/categories?tab=frames" className="text-xs text-accent">
+                <Link href="/categories?tab=frames" className="text-xs text-accent-ink">
                   {t("addFrames")}
                 </Link>
               )}
@@ -660,7 +660,7 @@ export function Composer({ data }: { data: ComposerData }) {
             <div className="space-y-2">
               <div className="flex gap-1">
                 {(["facebook", "instagram"] as const).map((x) => (
-                  <button key={x} onClick={() => setView(x)} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${view === x ? "border-accent text-accent" : "border-border text-muted"}`}>
+                  <button key={x} onClick={() => setView(x)} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${view === x ? "border-accent text-accent-ink" : "border-border text-muted"}`}>
                     <Icon name={x} size={12} /> {x === "facebook" ? "Facebook" : "Instagram"}
                   </button>
                 ))}
@@ -748,7 +748,7 @@ export function Composer({ data }: { data: ComposerData }) {
                         {v.ar || v.en}
                       </p>
                       {!readOnly && (
-                        <button className="mt-1 font-semibold text-accent">{t("ai.useThis")}</button>
+                        <button className="mt-1 font-semibold text-accent-ink">{t("ai.useThis")}</button>
                       )}
                     </form>
                   ))}
@@ -835,7 +835,7 @@ export function Composer({ data }: { data: ComposerData }) {
                     <form action={restoreVersion}>
                       {hidden}
                       <input type="hidden" name="version" value={v.id} />
-                      <button className="mt-1 font-semibold text-accent">{t("restore")}</button>
+                      <button className="mt-1 font-semibold text-accent-ink">{t("restore")}</button>
                     </form>
                   )}
                 </li>
@@ -857,7 +857,7 @@ export function Composer({ data }: { data: ComposerData }) {
               <li key={i} className={`flex items-center gap-1.5 ${r.ok ? "text-good" : "text-warn"}`}>
                 <Icon name={r.ok ? "check" : "warning"} size={14} className="shrink-0" />
                 <span className="grow">{r.text}</span>
-                {!r.ok && r.fix && <a href={`#${r.fix}`} className="font-semibold text-accent">{t("fix")}</a>}
+                {!r.ok && r.fix && <a href={`#${r.fix}`} className="font-semibold text-accent-ink">{t("fix")}</a>}
               </li>
             ))}
           </ul>
@@ -881,7 +881,7 @@ export function Composer({ data }: { data: ComposerData }) {
             <p className="text-sm">{tp("publishedAt")} {p.published_at && new Date(p.published_at).toLocaleString()}</p>
             <div className="mt-2 flex gap-3 text-sm">
               {p.fb_post_id && (
-                <a className="text-accent" href={`https://www.facebook.com/${p.fb_post_id}`} target="_blank" rel="noreferrer">
+                <a className="text-accent-ink" href={`https://www.facebook.com/${p.fb_post_id}`} target="_blank" rel="noreferrer">
                   Facebook ↗
                 </a>
               )}

@@ -247,14 +247,14 @@ export default async function LibraryPage({
                       <p className="text-danger">{p.ai_issues.map((i) => t(`library.issues.${i}`)).join("، ")}</p>
                     )}
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Link href={`/library/${p.id}`} className="text-accent hover:underline">
+                      <Link href={`/library/${p.id}`} className="text-accent-ink hover:underline">
                         {p.edited_path ? t("library.edited") : t("library.edit")}
                       </Link>
                       <form action={setOptedOut}>
                         <input type="hidden" name="locale" value={locale} />
                         <input type="hidden" name="id" value={p.id} />
                         <input type="hidden" name="value" value={String(!p.contains_opted_out)} />
-                        <button className="text-accent hover:underline">
+                        <button className="text-accent-ink hover:underline">
                           {p.contains_opted_out ? t("library.unflag") : t("library.flag")}
                         </button>
                       </form>

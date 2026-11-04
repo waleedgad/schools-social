@@ -64,8 +64,8 @@ export default async function StaffPage({
         <Card>
           <form action={viewAs} className="flex flex-wrap items-center gap-2 text-sm">
             <input type="hidden" name="locale" value={locale} />
-            <span className="font-semibold">{t("more.viewAs.title")}</span>
-            <select name="role" defaultValue="teacher" className="rounded-lg border border-border bg-background px-2 py-1 text-sm">
+            <span id="view-as-title" className="font-semibold">{t("more.viewAs.title")}</span>
+            <select name="role" aria-labelledby="view-as-title" defaultValue="teacher" className="rounded-lg border border-border bg-background px-2 py-1 text-sm">
               {ROLES.filter((r) => r !== "admin").map((r) => <option key={r} value={r}>{t(`roles.${r}`)}</option>)}
             </select>
             <Button variant="quiet" className="!px-3 !py-1">{t("more.viewAs.go")}</Button>
@@ -94,7 +94,7 @@ export default async function StaffPage({
                       <input type="hidden" name="locale" value={locale} />
                       <input type="hidden" name="userId" value={m.user_id} />
                       <input name="classes" defaultValue={m.classes.join(", ")} placeholder={t("staff.classesHint")} className="w-48 rounded border border-border bg-surface-2 px-2 py-0.5 text-xs" />
-                      <button className="text-xs text-accent">{t("common.save")}</button>
+                      <button className="text-xs text-accent-ink">{t("common.save")}</button>
                     </form>
                   )}
                 </div>
@@ -191,7 +191,7 @@ export default async function StaffPage({
                       <input type="hidden" name="locale" value={locale} />
                       <input type="hidden" name="id" value={i.id} />
                       <input type="hidden" name="link" value={`${origin}/${locale}/invite/${i.token}`} />
-                      <button className="text-sm font-semibold text-accent">{t("more.staffImport.email")}</button>
+                      <button className="text-sm font-semibold text-accent-ink">{t("more.staffImport.email")}</button>
                     </form>
                   )}
                   <CopyButton

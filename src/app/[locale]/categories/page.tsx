@@ -79,7 +79,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
                     </div>
                     {c.needs_extra_approval && <span className="text-[11px] text-warn">{t("brandPage.extra")}</span>}
                     {lead && (
-                      <a href={`?tab=categories&edit=${c.id}`} className="text-xs text-accent">
+                      <a href={`?tab=categories&edit=${c.id}`} className="text-xs text-accent-ink">
                         {t("brandPage.edit")}
                       </a>
                     )}

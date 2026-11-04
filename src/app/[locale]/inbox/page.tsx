@@ -92,7 +92,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
                         <p className="text-sm" dir="auto">
                           {c.text}
                         </p>
-                        <Link href={`/posts/${c.postId}`} className="block truncate text-[11px] text-muted hover:text-accent">
+                        <Link href={`/posts/${c.postId}`} className="block truncate text-[11px] text-muted hover:text-accent-ink">
                           ↳ {c.postText}
                         </Link>
                         <ReplyBox locale={locale} platform={c.platform} comment={c.id} text={c.text} postText={c.postText} />

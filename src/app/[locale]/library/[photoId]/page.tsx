@@ -40,7 +40,7 @@ export default async function PhotoPage({ params }: { params: Promise<{ locale: 
   const back = { pathname: "/library", query: photo!.event_id ? { event: photo!.event_id } : { event: "none" } };
 
   return (
-    <AppShell locale={locale} membership={membership} workspaces={workspaces} active="library" title={t("editor.title")} actions={<Link href={back} className="text-sm text-accent hover:underline">{t("editor.back")}</Link>}>
+    <AppShell locale={locale} membership={membership} workspaces={workspaces} active="library" title={t("editor.title")} actions={<Link href={back} className="text-sm text-accent-ink hover:underline">{t("editor.back")}</Link>}>
         {photo!.contains_opted_out && <Notice>{t("library.notForPosting")}</Notice>}
         {photo!.ai_score && (
           <Notice tone="info">

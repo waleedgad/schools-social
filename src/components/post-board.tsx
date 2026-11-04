@@ -215,7 +215,7 @@ export function PostBoard({ locale, view, posts, labels, canWrite, startIdea }: 
                     <Button className="w-full !py-1.5">{labels.save}</Button>
                   </form>
                 ) : (
-                  <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent">
+                  <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-xs text-muted hover:border-accent hover:text-accent-ink">
                     <Icon name="plus" size={14} /> {labels.addIdea}
                   </button>
                 )

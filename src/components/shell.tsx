@@ -187,6 +187,7 @@ export async function AppShell({
                 href="/posts/new"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground shadow-sm hover:opacity-90"
                 title={`${t("shell.newPost")} (N)`}
+                aria-label={t("shell.createPost")}
               >
                 <Icon name="plus" />
                 <span className="hidden sm:inline">{t("shell.createPost")}</span>

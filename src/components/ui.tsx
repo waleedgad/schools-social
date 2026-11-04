@@ -96,15 +96,18 @@ export function ButtonLink({
   icon,
   children,
   className = "",
+  label,
 }: {
   href: ComponentProps<typeof Link>["href"];
   variant?: keyof typeof BUTTON;
   icon?: IconName;
   children: ReactNode;
   className?: string;
+  // Name read out by screen readers when the words are hidden on small screens.
+  label?: string;
 }) {
   return (
-    <Link href={href} className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${BUTTON[variant]} ${className}`}>
+    <Link href={href} aria-label={label} title={label} className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${BUTTON[variant]} ${className}`}>
       {icon && <Icon name={icon} />}
       {children}
     </Link>
