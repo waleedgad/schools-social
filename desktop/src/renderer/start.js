@@ -1,3 +1,7 @@
+// Errors in the window are reported to the builder (see reportError in main).
+addEventListener("error", (e) => window.hub.call("reportError", e.message || String(e.error), e.error?.stack ?? null, `tab ${App.view}`).catch(() => {}));
+addEventListener("unhandledrejection", (e) => window.hub.call("reportError", e.reason?.message ?? String(e.reason), e.reason?.stack ?? null, `tab ${App.view}`).catch(() => {}));
+
 // First paint, then live updates from the Mac.
 window.hub.onState((next, changed) => {
   const before = S;

@@ -185,6 +185,40 @@ function log(m: string) {
   }
 }
 
+// Automatic error reports: an error in the app is sent to the builder (the
+// website's report_error), so it gets fixed without anyone describing it.
+// Kept on this computer until the app is connected, at most 30, each kind once
+// per run. Only the error text and where it happened: no photos, no names.
+const reported = new Set<string>();
+function reportError(source: "mac" | "mac-window", message: string, stack?: string | null, place?: string) {
+  if (!message || reported.has(message) || reported.size >= 50) return;
+  reported.add(message);
+  log(`error (${source}): ${message}`);
+  try {
+    const file = data("errors.json");
+    const list = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as unknown[]) : [];
+    list.push({ source, message: message.slice(0, 1000), stack: (stack ?? "").slice(0, 4000), place: (place ?? "").slice(0, 300), version: app.getVersion() });
+    writeFileSync(file, JSON.stringify(list.slice(-30)));
+  } catch {
+    // never let reporting stop the app
+  }
+  void sendErrors();
+}
+async function sendErrors() {
+  const sb = client();
+  const file = data("errors.json");
+  if (!sb || !existsSync(file)) return;
+  try {
+    const list = JSON.parse(readFileSync(file, "utf8")) as { source: string; message: string; stack: string; place: string; version: string }[];
+    writeFileSync(file, "[]");
+    for (const e of list) await sb.rpc("report_error", { p_source: e.source, p_version: e.version, p_message: e.message, p_stack: e.stack, p_place: e.place });
+  } catch {
+    // tried again next time
+  }
+}
+process.on("uncaughtException", (e) => reportError("mac", e?.message ?? String(e), e?.stack));
+process.on("unhandledRejection", (r) => reportError("mac", r instanceof Error ? r.message : String(r), r instanceof Error ? r.stack : null));
+
 // Safe updates: before a new version first opens the library, the library
 // database and settings are copied aside. "Go back" in Settings restores
 // them. The last five copies are kept.
@@ -1254,6 +1288,9 @@ function createWindow() {
   });
   // The app window never leaves the app's own pages (a dropped link or file
   // can't take it over); web links open in the browser instead.
+  win.webContents.on("render-process-gone", (_e, d) => {
+    if (d.reason !== "clean-exit") reportError("mac-window", `window stopped: ${d.reason}`, null, `exit code ${d.exitCode}`);
+  });
   win.webContents.on("will-navigate", (e, url) => {
     if (url.startsWith("file://")) return;
     e.preventDefault();
@@ -1506,6 +1543,7 @@ app.whenReady().then(async () => {
   timers.push(binTimer(ctx, features), cleanTimer(ctx));
 
   const api: Record<string, (...args: never[]) => unknown> = {
+    reportError: (message: string, stack: string | null, place: string) => reportError("mac-window", String(message ?? ""), stack ? String(stack) : null, String(place ?? "")),
     state: () => state(),
     contextMenu: (items: MenuSpec[], _at: unknown) => popupMenu(items),
     connect: (server: string) => connect(server),
@@ -1769,6 +1807,8 @@ app.whenReady().then(async () => {
   startAura();
   timers.push(setInterval(() => push(), 3000));
   timers.push(setInterval(() => checkWebUploads(), 60_000));
+  timers.push(setInterval(() => void sendErrors(), 10 * 60_000));
+  setTimeout(() => void sendErrors(), 20_000);
   setTimeout(() => checkWebUploads(), 8000);
 
   setTimeout(() => checkUpdate(), 5000);

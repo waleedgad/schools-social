@@ -50,6 +50,7 @@ async function seed(sb: SupabaseClient, school: string, userId: string) {
     book_comments: { book_id: book.id, page: 1, body: "secret" },
     book_texts: { book_id: book.id, body: "secret" },
     categories: { name_ar: "سر", name_en: "Secret" },
+    error_reports: { hash: `security-${school}`, source: "web", message: "secret" },
     computers: { device_id: "mac-test-0001" },
     face_checks: { student_code: "S1", mac_id: 1, photo_id: photo.id, box: {} },
     frames: { name: "Frame", storage_path: `${school}/frame.png` },
@@ -76,7 +77,8 @@ async function seed(sb: SupabaseClient, school: string, userId: string) {
   return made;
 }
 
-const SERVER_ONLY = ["meta_connections"];
+// Only the server reads these (sign-in tokens for Facebook/Instagram; error reports for the builder).
+const SERVER_ONLY = ["meta_connections", "error_reports"];
 let A: Awaited<ReturnType<typeof makeSchool>>;
 let B: Awaited<ReturnType<typeof makeSchool>>;
 let bRows: Record<string, Record<string, unknown>>;

@@ -41,7 +41,7 @@ jobs:
           (cd .. && npx next start -p 3123 > next.log 2>&1 &)
           npm ci && npm run build
           for i in $(seq 60); do curl -sf -o /dev/null http://localhost:3123/en/login && break; sleep 1; done
-          WEB_URL=http://localhost:3123 xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/nothing-hangs.spec.ts e2e/teacher-check.spec.ts
+          WEB_URL=http://localhost:3123 xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/nothing-hangs.spec.ts e2e/teacher-check.spec.ts e2e/error-reports.spec.ts
       - if: always()
         uses: actions/upload-artifact@v4
         with:
