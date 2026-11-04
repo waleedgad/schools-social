@@ -3,27 +3,27 @@
 /* Same look as the Mac app: calm greys, one accent, status colours. The
    school's own colour replaces --accent when set (see the shell). */
 :root {
-  --background: #f5f6f8;
+  --background: #f6f7f9;
   --surface: #ffffff;
-  --surface-2: #fafbfc;
-  --foreground: #1b1d22;
-  --muted: #5f6573;
-  --faint: #6a7080;
-  --border: #e3e6eb;
+  --surface-2: #f9fafb;
+  --foreground: #17191e;
+  --muted: #5d6474;
+  --faint: #646b7a;
+  --border: #e8eaee;
   --accent: #2f6fdf;
   --accent-bg: #eaf1fe;
   --accent-ink: #1f55b5;
   --accent-foreground: #ffffff;
-  --danger: #b3261e;
-  --danger-bg: #fde8e6;
-  --good: #1f6b43;
-  --good-bg: #e3f5ea;
+  --danger: #c0362c;
+  --danger-bg: #fde9e7;
+  --good: #1f7a4a;
+  --good-bg: #e2f6ea;
   --warn: #8a5a00;
-  --warn-bg: #fff3d9;
+  --warn-bg: #fff2d6;
   --info: #1f55b5;
-  --info-bg: #e7efff;
+  --info-bg: #e8f0ff;
   --violet: #5b3cc4;
-  --violet-bg: #efe9ff;
+  --violet-bg: #f0eaff;
   --grey-bg: #eef0f3;
   --shadow: 0 10px 30px rgba(20, 25, 35, 0.14);
   color-scheme: light;
@@ -31,13 +31,13 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: #15171b;
-    --surface: #1d2025;
-    --surface-2: #22252b;
-    --foreground: #e9ebef;
+    --background: #16181c;
+    --surface: #1e2126;
+    --surface-2: #23262c;
+    --foreground: #ebedf1;
     --muted: #a3a9b6;
-    --faint: #8a91a0;
-    --border: #2f333b;
+    --faint: #9198a6;
+    --border: #2e3239;
     --accent-bg: #1d2b45;
     --accent-ink: #8db4ff;
     --danger: #ff8b80;
@@ -57,13 +57,13 @@
 }
 
 :root[data-theme="dark"] {
-  --background: #15171b;
-  --surface: #1d2025;
-  --surface-2: #22252b;
-  --foreground: #e9ebef;
+  --background: #16181c;
+  --surface: #1e2126;
+  --surface-2: #23262c;
+  --foreground: #ebedf1;
   --muted: #a3a9b6;
-  --faint: #8a91a0;
-  --border: #2f333b;
+  --faint: #9198a6;
+  --border: #2e3239;
   --accent-bg: #1d2b45;
   --accent-ink: #8db4ff;
   --danger: #ff8b80;

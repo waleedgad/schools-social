@@ -21,6 +21,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run lint
+      # Website and Mac app share one set of colours (design/tokens.json).
+      - run: node scripts/design-tokens.mjs
       # A private, empty copy of the database with every migration applied,
       # so the robot tests can sign up, create a school and use it.
       - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta
