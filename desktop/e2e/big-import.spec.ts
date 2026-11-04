@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 
-// B-01: a big folder (Waleed's had 711 photos) made the Import preview go
+// B-01: a big folder (Waleed's had 711; the 0.5 checklist asks for 2,000) made the Import preview go
 // blank with black areas and old thumbnails. Now each event shows its first
 // 200 photos with "Show all", ticking one photo only redraws that tile, and
 // leaving Import lets go of the thumbnails.
 const root = path.join(__dirname, "..");
-const COUNT = 800;
+const COUNT = 2000;
 
-test("import preview stays usable with 800 photos", async () => {
+test("import preview stays usable with 2,000 photos", async () => {
   test.setTimeout(300_000);
   const base = mkdtempSync(path.join(tmpdir(), "hub-big-"));
   const lib = path.join(base, "Photos");
@@ -45,18 +45,18 @@ test("import preview stays usable with 800 photos", async () => {
   const tiles = await win.locator(".itile").count();
   const events = await win.locator("[data-evall]").count();
   expect(tiles).toBeLessThanOrEqual(events * 200);
-  await expect(win.locator("#i-count")).toContainText(`${COUNT} photos ticked`);
+  await expect(win.locator("#i-count")).toContainText(`${COUNT.toLocaleString("en")} photos ticked`);
   await expect(win.locator("[data-showall]").first()).toBeVisible();
 
   // Ticking one photo updates the numbers without redrawing the page.
   const first = win.locator(".itile").first();
   await first.evaluate((el) => ((el as HTMLElement & { marker?: boolean }).dataset.marker = "1"));
   await first.click();
-  await expect(win.locator("#i-count")).toContainText(`${COUNT - 1} photos ticked`);
-  await expect(win.locator("#i-go")).toContainText(`Import ${COUNT - 1} photos`);
+  await expect(win.locator("#i-count")).toContainText(`${(COUNT - 1).toLocaleString("en")} photos ticked`);
+  await expect(win.locator("#i-go")).toContainText(`Import ${(COUNT - 1).toLocaleString("en")} photos`);
   await expect(win.locator('.itile[data-marker="1"]')).toHaveClass(/off/);
   await first.click();
-  await expect(win.locator("#i-count")).toContainText(`${COUNT} photos ticked`);
+  await expect(win.locator("#i-count")).toContainText(`${COUNT.toLocaleString("en")} photos ticked`);
 
   // Show all puts every photo of that event on the page.
   await win.locator("[data-showall]").first().click();
@@ -70,6 +70,11 @@ test("import preview stays usable with 800 photos", async () => {
   // Leaving Import clears the preview from the screen.
   await win.locator('button.nav[data-go="library"]').click();
   await expect(win.locator(".itile")).toHaveCount(0);
+  // Coming back shows the same preview again, drawn fresh, at most 200 per event.
+  await win.locator('button.nav[data-go="import"]').click();
+  await expect(win.locator(".ibar")).toBeVisible({ timeout: 30_000 });
+  expect(await win.locator(".itile").count()).toBeLessThanOrEqual(events * 200);
+  await win.screenshot({ path: test.info().outputPath("big-import-back.png") });
   expect(errors).toEqual([]);
   await app.close();
 });

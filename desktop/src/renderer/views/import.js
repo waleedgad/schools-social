@@ -47,6 +47,8 @@ App.views.import = {
     if (IMP.scanning) return this.drawScanning();
     // Check the previewed folder is still there before showing it again.
     if (IMP.scan) {
+      // Coming back: start light again (first photos of each event only).
+      IMP.showAll = new Set();
       return quiet("importScan", IMP.scan.id).then((still) => {
         if (still) return this.drawPreview();
         IMP.scan = null;

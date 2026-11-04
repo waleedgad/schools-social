@@ -198,3 +198,37 @@ test("B-09: near-identical shots: choose which ones go, not only keep-best", asy
   await expect.poll(() => readdirSync(ev).length, { timeout: 10_000 }).toBe(2);
   await app.close();
 });
+
+test("B-04: moving never makes copies, even with clashing names; undo puts them back", async () => {
+  test.setTimeout(120_000);
+  const base = mkdtempSync(path.join(tmpdir(), "hub-lib-"));
+  const lib = path.join(base, "Photos");
+  const a = path.join(lib, "2025-2026", "Term 1", "2025-10-12 Sports day");
+  const b = path.join(lib, "2025-2026", "Term 1", "2025-10-20 Book week");
+  mkdirSync(a, { recursive: true });
+  mkdirSync(b, { recursive: true });
+  for (let i = 0; i < 5; i++) await jpeg(path.join(a, `IMG_100${i}.jpg`), i + 1);
+  // Same names, different photos, already in the other event.
+  for (let i = 0; i < 2; i++) await jpeg(path.join(b, `IMG_100${i}.jpg`), i + 20);
+  const files = () => [a, b].flatMap((d) => (existsSync(d) ? readdirSync(d) : [])).filter((f) => f.endsWith(".jpg"));
+  const { app, win } = await launch(lib);
+  await expect.poll(() => win.evaluate("lib.list.length"), { timeout: 30_000 }).toBe(7);
+  type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<unknown> } };
+  const ids = (await win.evaluate("lib.list.filter((p) => p.event_title === 'Sports day').slice(0, 3).map((p) => p.id)")) as number[];
+  expect(ids).toHaveLength(3);
+  await win.evaluate((x) => (window as unknown as Hub).hub.call("moveTo", x, { title: "Book week", date: "2025-10-20" }), ids);
+  await win.waitForTimeout(5000); // let the folder watcher see the moves
+  expect(files()).toHaveLength(7);
+  expect(readdirSync(b).length).toBe(5);
+  await expect.poll(() => win.evaluate("lib.list.length"), { timeout: 10_000 }).toBe(7);
+  const count = (await win.evaluate(() => (window as unknown as Hub).hub.call("albums"))) as { value: { counts: { all: number } } };
+  expect(count.value.counts.all).toBe(7);
+
+  await win.evaluate(() => (window as unknown as Hub).hub.call("undo"));
+  await win.waitForTimeout(4000);
+  expect(readdirSync(a).sort()).toEqual(["IMG_1000.jpg", "IMG_1001.jpg", "IMG_1002.jpg", "IMG_1003.jpg", "IMG_1004.jpg"]);
+  expect(readdirSync(b).sort()).toEqual(["IMG_1000.jpg", "IMG_1001.jpg"]);
+  const after = (await win.evaluate(() => (window as unknown as Hub).hub.call("albums"))) as { value: { counts: { all: number } } };
+  expect(after.value.counts.all).toBe(7);
+  await app.close();
+});
