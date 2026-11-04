@@ -4,14 +4,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 
-// Makes the "library made with 0.4" that upgrade.spec.ts opens. Not a check:
-// it only runs when OLD_APP points at a built copy of the 0.4 app
-// (git archive f7a5c31 desktop, link node_modules, npm run build).
-// The result is saved in e2e/fixtures/library-0.4 with the folder written
-// as __ROOT__, so the test can put it anywhere.
-test.skip(!process.env.OLD_APP, "only when making the 0.4 library");
+// Makes the "library made with 0.4" (or 0.3) that upgrade.spec.ts opens. Not
+// a check: it only runs when OLD_APP points at a built copy of the old app
+// (git archive f7a5c31 desktop for 0.4, 457308e for 0.3, link node_modules,
+// npm run build) and OLD_VERSION says which one (default 0.4.0).
+// The result is saved in e2e/fixtures/library-0.4 (or -0.3) with the folder
+// written as __ROOT__, so the test can put it anywhere.
+test.skip(!process.env.OLD_APP, "only when making an old library");
 
-const out = path.join(__dirname, "fixtures", "library-0.4");
+const version = process.env.OLD_VERSION ?? "0.4.0";
+// 0.3 had no teachers, parents or a person's main face yet.
+const v3 = version.startsWith("0.3");
+const out = path.join(__dirname, "fixtures", `library-${version.split(".").slice(0, 2).join(".")}`);
 
 type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<{ ok: boolean; value: unknown }> } };
 
@@ -27,7 +31,7 @@ function replaceIn(file: string, from: string, to: string) {
   writeFileSync(file, readFileSync(file, "utf8").split(from).join(to));
 }
 
-test("make a library with the 0.4 app", async () => {
+test("make a library with an old app", async () => {
   test.setTimeout(180_000);
   const base = mkdtempSync(path.join(tmpdir(), "hub-old-"));
   const lib = path.join(base, "Photos");
@@ -55,7 +59,7 @@ test("make a library with the 0.4 app", async () => {
     env: { ...process.env, HUB_TEST: "1" },
   });
   const win = await app.firstWindow();
-  expect(await app.evaluate(({ app }) => app.getVersion())).toBe("0.4.0");
+  expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
   await win.locator('button.nav[data-go="library"]').click();
   await expect.poll(() => win.evaluate("lib.list.length"), { timeout: 60_000 }).toBe(10);
   const call = (f: string, ...a: unknown[]) => win.evaluate(([f, a]) => (window as unknown as Hub).hub.call(f as string, ...(a as unknown[])), [f, a] as const);
@@ -67,13 +71,15 @@ test("make a library with the 0.4 app", async () => {
     { id: "S100", name_en: "Youssef Adel", name_ar: "يوسف عادل", class_name: "G3A" },
     { id: "S101", name_en: "Mariam Hany", name_ar: "مريم هاني", class_name: "G3A" },
     { id: "S102", name_en: "Omar Khaled", name_ar: "عمر خالد", class_name: "G4B" },
-    { id: "T1", name_en: "Ms Salma", name_ar: "أ. سلمى", class_name: "", kind: "teacher" },
-    { id: "P1", name_en: "Adel Mahmoud", name_ar: "عادل محمود", class_name: "", kind: "parent", linkTo: "S100" },
+    ...(v3 ? [] : [
+      { id: "T1", name_en: "Ms Salma", name_ar: "أ. سلمى", class_name: "", kind: "teacher" },
+      { id: "P1", name_en: "Adel Mahmoud", name_ar: "عادل محمود", class_name: "", kind: "parent", linkTo: "S100" },
+    ]),
   ]) expect((await call("addStudent", s)).ok).toBe(true);
   // Tags, stars, flags, colours, an album and a renamed event.
   await call("tagPhotos", [id("IMG_1000.jpg"), id("IMG_1001.jpg")], "S100");
   await call("tagPhotos", [id("IMG_1001.jpg")], "S101");
-  await call("tagPhotos", [id("IMG_2000.jpg")], "T1");
+  await call("tagPhotos", [id("IMG_2000.jpg")], v3 ? "S102" : "T1");
   await call("rate", [id("IMG_1000.jpg")], 5);
   await call("rate", [id("IMG_1002.jpg")], 3);
   await call("flag", [id("IMG_1003.jpg")], 1);
@@ -90,7 +96,7 @@ test("make a library with the 0.4 app", async () => {
   const db = new DatabaseSync(path.join(userData, "library.db"));
   const emb = Buffer.from(new Float32Array(128).map((_, i) => Math.sin(i)).buffer);
   db.prepare("insert into faces (photo_id, x, y, w, h, score, embedding, student_id, status) values (?, 0.2, 0.2, 0.3, 0.4, 0.97, ?, 'S102', 'confirmed')").run(id("IMG_1005.jpg"), emb);
-  db.prepare("update students set main_face = (select max(id) from faces) where id = 'S102'").run();
+  if (!v3) db.prepare("update students set main_face = (select max(id) from faces) where id = 'S102'").run();
   db.exec("pragma wal_checkpoint(truncate)");
   db.close();
 
