@@ -50,9 +50,15 @@ rmSync(newDir, { recursive: true, force: true });
 sh("npx", ["electron-builder", "--win", "nsis", "--publish", "never", `-c.directories.output=release-old`]);
 try {
   writeFileSync(pkgFile, JSON.stringify({ ...pkg, version: next }, null, 2) + "\n");
-  sh("npx", ["electron-builder", "--win", "nsis", "--publish", "never", `-c.directories.output=release-new`, "-c.publish.provider=generic", `-c.publish.url=${feed}`]);
+  // Same settings, but published to the local test server instead of GitHub.
+  const yml = readFileSync(path.join(root, "electron-builder.yml"), "utf8");
+  const testYml = yml.replace(/^publish:[\s\S]*?(?=^\S|(?![\s\S]))/m, `publish:\n  provider: generic\n  url: ${feed}\n`);
+  if (!testYml.includes("provider: generic")) fail("couldn't point the test build at the test server");
+  writeFileSync(path.join(root, "electron-builder.update-test.yml"), testYml);
+  sh("npx", ["electron-builder", "--config", "electron-builder.update-test.yml", "--win", "nsis", "--publish", "never", `-c.directories.output=release-new`]);
 } finally {
   writeFileSync(pkgFile, pkgText);
+  rmSync(path.join(root, "electron-builder.update-test.yml"), { force: true });
 }
 const setup = readdirSync(oldDir).find((f) => f.endsWith(".exe"));
 if (!setup) fail("no installer built");
