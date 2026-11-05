@@ -7,7 +7,8 @@ const withNextIntl = createNextIntlPlugin();
 // frame (stops click-tricks), no sniffing file types, referrer kept to our
 // own address, and no camera/microphone/location unless a page asks for it.
 const security = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  // No plug-ins, and no page can change where its links point (base-uri).
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

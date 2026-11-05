@@ -218,6 +218,8 @@ test("pages send the safety headers", async ({ request }) => {
   const res = await request.get("/en/login");
   const h = res.headers();
   expect(h["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(h["content-security-policy"]).toContain("object-src 'none'");
+  expect(h["content-security-policy"]).toContain("base-uri 'self'");
   expect(h["x-frame-options"]).toBe("DENY");
   expect(h["x-content-type-options"]).toBe("nosniff");
   expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
