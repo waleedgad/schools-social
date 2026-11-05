@@ -129,6 +129,7 @@ export default async function PostPage({
     whoIn: { names: allCodes.map((c) => nameOf.get(c) ?? c), named: allCodes.length, photosWithNobody: photos.filter((p) => !(peopleOf.get(p.id) ?? []).length).length, cantAppear: photos.filter((p) => (p as { contains_opted_out?: boolean }).contains_opted_out).length },
     history: (history ?? []).map((h) => ({ action: h.action as string, by: userName.get(h.user_id as string) ?? "", at: h.created_at as string })),
     noPostDays: ((school?.no_post_days as { weekdays?: number[] } | null)?.weekdays ?? []),
+    timezone: membership.school.timezone || "Africa/Cairo",
     holidays: ((school?.holidays as { name: string; start: string; end: string }[] | null) ?? []),
     frames: (frames ?? []).map((f) => ({ id: f.id as string, name: f.name as string, kind: f.kind as string, url: thumbs.get(f.storage_path as string) ?? "", shape: f.shape as string })),
     snippets: (snippets ?? []).map((s) => ({ id: s.id as string, kind: s.kind as string, title: s.title as string, body: s.body as string })),

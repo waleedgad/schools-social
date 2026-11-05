@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { createPost, movePost, spreadPosts } from "@/lib/actions/posts";
 import { BOARD, STATUS_TONE, type PostStatus } from "@/lib/posting";
 import { Icon } from "./icons";
+import { LocalTime } from "./local-datetime";
 import { Button, Chip } from "./ui";
 
 export type BoardPost = {
@@ -32,9 +33,11 @@ type Labels = {
 const DROPPABLE = new Set(["idea", "draft", "waiting"]);
 const DROP_STATUS: Record<string, string> = { idea: "idea", draft: "draft", waiting: "in_review" };
 
+// In the reader's own time zone, drawn after the page is ready (B-47: drawn
+// straight away, the server's UTC text didn't match and the page broke).
 function when(iso: string | null, locale: string) {
   if (!iso) return null;
-  return new Date(iso).toLocaleString(locale === "ar" ? "ar-EG" : "en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  return <LocalTime iso={iso} lang={locale === "ar" ? "ar-EG" : "en-GB"} options={{ weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }} />;
 }
 
 function Card({ p, locale, labels, picked, onPick }: { p: BoardPost; locale: string; labels: Labels; picked: boolean; onPick?: () => void }) {

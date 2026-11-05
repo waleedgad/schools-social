@@ -11,7 +11,9 @@ import { thumbPath } from "@/lib/images";
 import { CROPS, NO_EDIT, render, type EditSettings } from "@/lib/photo-edit";
 import { LIMITS, MORE_AFTER, type PostStatus } from "@/lib/posting";
 import { createClient } from "@/lib/supabase/client";
-import { LocalDateTime } from "./local-datetime";
+import { LocalDateTime, LocalTime } from "./local-datetime";
+
+const SHORT: Intl.DateTimeFormatOptions = { dateStyle: "short", timeStyle: "short" };
 import { Icon } from "./icons";
 import { Button, Card, Chip, Toggle } from "./ui";
 
@@ -58,6 +60,7 @@ export type ComposerData = {
   whoIn: { names: string[]; named: number; photosWithNobody: number; cantAppear: number };
   history: { action: string; by: string; at: string }[];
   noPostDays: number[];
+  timezone: string;
   holidays: { name: string; start: string; end: string }[];
   frames: { id: string; name: string; kind: string; url: string; shape: string }[];
   snippets: { id: string; kind: string; title: string; body: string }[];
@@ -279,7 +282,8 @@ export function Composer({ data }: { data: ComposerData }) {
   const showEn = data.languages !== "ar" && mode !== "ar";
 
   // Before sending: everything that isn't ready yet, with where to fix it.
-  const day = p.scheduled_at ? new Date(p.scheduled_at).toLocaleDateString("en-CA") : null;
+  // The school's day, not the reader's (B-47).
+  const day = p.scheduled_at ? new Date(p.scheduled_at).toLocaleDateString("en-CA", { timeZone: data.timezone }) : null;
   const holiday = day ? data.holidays.find((h) => h.start <= day && (h.end || h.start) >= day) : null;
   // A frame chosen here, or put on every photo by the Mac.
   const framed = !!frame || photos.every((x) => !!(x.settings as { frame?: string } | null)?.frame);
@@ -785,7 +789,7 @@ export function Composer({ data }: { data: ComposerData }) {
               <ul className="space-y-2">
                 {data.comments.map((c) => (
                   <li key={c.id} className={`rounded-lg p-2 text-xs ${c.kind === "review" ? "bg-warn-bg" : "bg-surface-2"}`}>
-                    <b>{c.author}</b> <span className="text-faint">{new Date(c.at).toLocaleString(data.locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                    <b>{c.author}</b> <span className="text-faint"><LocalTime iso={c.at} lang={data.locale === "ar" ? "ar-EG" : "en-GB"} options={SHORT} /></span>
                     <p className="whitespace-pre-wrap" dir="auto">
                       {c.body}
                     </p>
@@ -827,7 +831,7 @@ export function Composer({ data }: { data: ComposerData }) {
               {!data.versions.length && <p className="text-xs text-muted">{t("noVersions")}</p>}
               {data.versions.map((v, n) => (
                 <li key={v.id} className="rounded-lg border border-border p-2 text-xs">
-                  <span className="text-faint">{new Date(v.at).toLocaleString(data.locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                  <span className="text-faint"><LocalTime iso={v.at} lang={data.locale === "ar" ? "ar-EG" : "en-GB"} options={SHORT} /></span>
                   <p className="line-clamp-3" dir="auto">
                     {v.text}
                   </p>
@@ -843,7 +847,7 @@ export function Composer({ data }: { data: ComposerData }) {
               {data.history.length > 0 && <li className="pt-2 text-xs font-bold">{t("changes")}</li>}
               {data.history.map((h, i) => (
                 <li key={`h${i}`} className="flex gap-2 text-xs">
-                  <span className="w-24 shrink-0 text-faint">{new Date(h.at).toLocaleString(data.locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                  <span className="w-24 shrink-0 text-faint"><LocalTime iso={h.at} lang={data.locale === "ar" ? "ar-EG" : "en-GB"} options={SHORT} /></span>
                   <span><b>{h.by}</b> {t.has(`actions.${h.action}`) ? t(`actions.${h.action}`) : h.action.replace(/^post\./, "").replace(/_/g, " ")}</span>
                 </li>
               ))}
@@ -878,7 +882,7 @@ export function Composer({ data }: { data: ComposerData }) {
 
         {p.status === "published" ? (
           <Card className="!p-3">
-            <p className="text-sm">{tp("publishedAt")} {p.published_at && new Date(p.published_at).toLocaleString()}</p>
+            <p className="text-sm">{tp("publishedAt")} {p.published_at && <LocalTime iso={p.published_at} lang={data.locale === "ar" ? "ar-EG" : "en-GB"} />}</p>
             <div className="mt-2 flex gap-3 text-sm">
               {p.fb_post_id && (
                 <a className="text-accent-ink" href={`https://www.facebook.com/${p.fb_post_id}`} target="_blank" rel="noreferrer">
