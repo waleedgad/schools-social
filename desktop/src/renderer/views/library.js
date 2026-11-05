@@ -197,8 +197,10 @@ App.views.library = {
     return true;
   },
   async loadTree() {
+    // Two reloads close together: only the newest answer is drawn.
+    const seq = (lib.treeSeq = (lib.treeSeq ?? 0) + 1);
     const [t, cls, albums] = await Promise.all([quiet("tree"), quiet("classes"), quiet("albums")]);
-    if (!t || !$("#tree")) return;
+    if (seq !== lib.treeSeq || !t || !$("#tree")) return;
     lib.tree = t;
     lib.albums = albums ?? { counts: {}, mine: [], cats: [], occ: [], grades: [], kinds: [], photographers: [] };
     lib.classes = cls ?? [];
@@ -824,6 +826,8 @@ async function drawMissing() {
   const bar = $("#missingbar");
   if (!bar) return;
   const m = await call("missingSummary");
+  // The note and the sidebar's "Originals missing" album always agree.
+  if (m.n && lib.albums && !lib.albums.counts?.missing) App.views.library.loadTree();
   if (!m.n || m.n <= m.ack) return (bar.innerHTML = "");
   const where = m.folders.map((f) => `<b class="ltr">${esc(f.name)}</b> (${num(f.n)})`).join(", ") + (m.more ? L(` and ${m.more} more`, ` و${num(m.more)} غيرها`) : "");
   bar.innerHTML = `<div class="note warn missingbar" role="status">${icon("folder-x", 15)}

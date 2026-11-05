@@ -107,7 +107,8 @@ test("import, face scan and sending at once: every click still answers", async (
       const a0 = Date.now();
       const st = (await call("state")).value as { engine?: { processing?: number; faceQueue?: number }; imports?: { state: string }[]; queue?: { pending?: number } };
       answers.push(Date.now() - a0);
-      if ((st.engine?.processing ?? 0) + (st.engine?.faceQueue ?? 0) > 0 && st.imports?.some((i) => i.state === "running")) busySeen = true;
+      // The import was seen running above; on a fast computer it may already be done, so the photo work it started is what counts.
+      if ((st.engine?.processing ?? 0) + (st.engine?.faceQueue ?? 0) > 0) busySeen = true;
       seenStates.add(`engine ${st.engine?.processing ?? 0}/${st.engine?.faceQueue ?? 0} import ${st.imports?.map((i) => i.state).join(",") ?? "-"}`);
     }
   }
