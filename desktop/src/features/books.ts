@@ -17,6 +17,12 @@ import { q, type Api, type Ctx } from "./ctx";
 type Row = { id: number; spec: string; pages: string | null; versions: string; updated_at: number };
 type Version = { at: number; label: string; pages: Page[]; spec: BookSpec };
 
+// Robot tests save books into a set folder instead of asking, and open nothing.
+const testDir = () => (process.env.HUB_TEST && process.env.HUB_TEST_DIR) || null;
+const open = (p: string) => {
+  if (!process.env.HUB_TEST) shell.openPath(p);
+};
+
 export function booksApi(ctx: Ctx): Api {
   const { one, all, run } = q(ctx);
   const s = () => ctx.settings().get() as Record<string, any>;
@@ -113,7 +119,9 @@ export function booksApi(ctx: Ctx): Api {
   }
 
   // A hidden window with the book in it, sized to the page.
-  async function withBook<T>(html: string, spec: BookSpec, fn: (w: BrowserWindow) => Promise<T>, pxWidth?: number) {
+  // `missing` counts pictures that could not be drawn (so the book never
+  // goes out with empty frames without saying so).
+  async function withBook<T>(html: string, spec: BookSpec, fn: (w: BrowserWindow, missing: number) => Promise<T>, pxWidth?: number) {
     const tmp = ctx.data(`book-${Date.now()}.html`);
     writeFileSync(tmp, html);
     const size = pageSize(spec);
@@ -124,7 +132,8 @@ export function booksApi(ctx: Ctx): Api {
       await w.loadFile(tmp);
       w.webContents.setZoomFactor(zoom);
       await w.webContents.executeJavaScript("Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })))");
-      return await fn(w);
+      const missing = Number(await w.webContents.executeJavaScript("[...document.images].filter((i) => !i.naturalWidth).length"));
+      return await fn(w, missing);
     } finally {
       w.destroy();
       await rm(tmp, { force: true });
@@ -133,6 +142,7 @@ export function booksApi(ctx: Ctx): Api {
 
   async function pdf(id: number, file?: string) {
     const b = load(id);
+    file ??= testDir() ? path.join(testDir()!, `${safeName(b.spec.title ?? "Yearbook")}.pdf`) : undefined;
     if (!file) {
       const r = await dialog.showSaveDialog(ctx.win()!, { title: "Save the book", defaultPath: path.join(app.getPath("desktop"), `${safeName(b.spec.title ?? "Yearbook")}.pdf`), filters: [{ name: "PDF", extensions: ["pdf"] }] });
       if (r.canceled || !r.filePath) return null;
@@ -140,36 +150,38 @@ export function booksApi(ctx: Ctx): Api {
     }
     const res = await printResolver(b.spec, b.pages);
     const size = pageSize(b.spec);
-    await withBook(bookHtml(ctx.db(), b.spec, b.pages, res), b.spec, async (w) => {
+    const missing = await withBook(bookHtml(ctx.db(), b.spec, b.pages, res), b.spec, async (w, missing) => {
       const out = await w.webContents.printToPDF({ pageSize: { width: size.width, height: size.height }, printBackground: true, margins: { marginType: "none" }, preferCSSPageSize: true });
       writeFileSync(file!, out);
+      return missing;
     });
     version(id, "PDF saved");
-    return { file, pages: b.pages.length };
+    return { file, pages: b.pages.length, missing };
   }
 
   // Each page as a picture (for the flipbook and the website review).
   async function pagePictures(id: number, width: number) {
     const b = load(id);
     const out: Buffer[] = [];
+    let missing = 0;
     for (const p of b.pages) {
       const html = bookHtml(ctx.db(), { ...b.spec, cropMarks: false, bleed: false }, b.pages, { ...screen, logo: b.spec.logo && existsSync(b.spec.logo) ? pathToFileURL(b.spec.logo).href : null }, { only: p.id });
-      out.push(await withBook(html, { ...b.spec, cropMarks: false, bleed: false }, async (w) => (await w.webContents.capturePage()).toJPEG(82), width));
+      out.push(await withBook(html, { ...b.spec, cropMarks: false, bleed: false }, async (w, m) => ((missing += m), (await w.webContents.capturePage()).toJPEG(82)), width));
     }
-    return { book: b, images: out };
+    return { book: b, images: out, missing };
   }
 
   async function flipbook(id: number) {
-    const dir = await ctx.chooseFolder("Folder for the flipbook");
+    const dir = testDir() ?? (await ctx.chooseFolder("Folder for the flipbook"));
     if (!dir) return null;
-    const { book, images } = await pagePictures(id, 1100);
+    const { book, images, missing } = await pagePictures(id, 1100);
     const folder = path.join(dir, safeName(book.spec.title ?? "Yearbook"));
     await mkdir(path.join(folder, "pages"), { recursive: true });
     for (let i = 0; i < images.length; i++) await writeFile(path.join(folder, "pages", `${String(i + 1).padStart(3, "0")}.jpg`), images[i]);
     const rtl = book.spec.language !== "en";
     await writeFile(path.join(folder, "index.html"), flipbookHtml(book.spec.title ?? "Yearbook", images.length, rtl));
-    shell.openPath(path.join(folder, "index.html"));
-    return { folder, pages: images.length };
+    open(path.join(folder, "index.html"));
+    return { folder, pages: images.length, missing };
   }
 
   // ---------- Versions and locked pages ----------
@@ -249,7 +261,7 @@ export function booksApi(ctx: Ctx): Api {
   async function studentBooks(id: number) {
     const b = load(id);
     if (!b.spec.className) return null;
-    const dir = await ctx.chooseFolder("Folder for the books");
+    const dir = testDir() ?? (await ctx.chooseFolder("Folder for the books"));
     if (!dir) return null;
     const list = all<{ id: string; name_en: string | null; name_ar: string | null }>("select id, name_en, name_ar from students where class_name = ? and kind = 'student' order by coalesce(name_en, name_ar)", b.spec.className);
     let made = 0;
@@ -265,7 +277,7 @@ export function booksApi(ctx: Ctx): Api {
         .catch(() => {});
     }
     ctx.message("");
-    shell.openPath(dir);
+    open(dir);
     return { made, total: list.length };
   }
 

@@ -267,7 +267,10 @@ export function bookHtml(db: Db, spec: BookSpec, pages: Page[], r: Resolver, opt
   const nameOf = (s: Student) => (ar || both ? s.name_ar || s.name_en : s.name_en || s.name_ar) ?? s.id;
   const otherOf = (s: Student) => (ar || both ? s.name_en : s.name_ar) ?? "";
   const faceHtml = (s: Student) => {
-    const blurred = !s.can_post && spec.cantAppear !== "blur";
+    // A student who can't appear never gets a face picture on a class page,
+    // even in a book that blurs them in photos (a blurred face in a name grid
+    // still points to them).
+    const blurred = !s.can_post;
     const src = blurred ? null : r.face(s);
     return src ? `<img src="${src}" />` : `<span>${esc(nameOf(s).slice(0, 1))}</span>`;
   };

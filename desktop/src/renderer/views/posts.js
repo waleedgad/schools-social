@@ -384,7 +384,7 @@ async function announcementBox(opts = {}) {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.src = d.url;
-    images.set(d.path, img);
+    images.set(d.url, img); // the drawing looks designs up by their address
   }
   const paint = async () => {
     const cv = $("#an-cv", m);
@@ -400,9 +400,9 @@ async function announcementBox(opts = {}) {
       <b class="small">${L("Our own designs", "تصاميمنا")}</b>
       <div class="row">${(designs ?? []).map((d) => `<button class="dsn ${st.template === `design:${d.path}` ? "on" : ""}" data-dsn="${esc(d.path)}"><img src="${esc(d.url)}" /></button>`).join("")}<button class="btn small" id="an-add">${icon("upload", 14)} ${L("Add a design…", "إضافة تصميم…")}</button></div>
       ${pills([["post", L("Post 4:5", "منشور 4:5")], ["square", L("Square", "مربع")], ["story", L("Story", "قصة")]], st.size, "data-size")}
-      <label class="field">${L("Arabic title", "العنوان بالعربية")}<input id="an-ar" dir="rtl" value="${esc(st.ar)}" /></label>
-      <label class="field">${L("English title", "العنوان بالإنجليزية")}<input id="an-en" dir="ltr" value="${esc(st.en)}" /></label>
-      <label class="field">${L("Details (date, time, place)", "التفاصيل (التاريخ والوقت والمكان)")}<textarea id="an-det" rows="2"></textarea></label>
+      <label class="field">${L("Arabic title", "العنوان بالعربية")}<input id="an-ar" dir="rtl" maxlength="120" value="${esc(st.ar)}" /></label>
+      <label class="field">${L("English title", "العنوان بالإنجليزية")}<input id="an-en" dir="ltr" maxlength="120" value="${esc(st.en)}" /></label>
+      <label class="field">${L("Details (date, time, place)", "التفاصيل (التاريخ والوقت والمكان)")}<textarea id="an-det" rows="2" maxlength="120"></textarea></label>
       <div class="grid2"><label class="field">${L("Colour", "اللون")}<input type="color" id="an-ac" value="${esc(st.accent.startsWith("#") ? st.accent : "#3b6cf6")}" /></label>
         <label class="field">${L("Category", "التصنيف")}<select id="an-cat"><option value="">${L("No category", "بدون تصنيف")}</option>${cats.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></label></div>
       <label class="field">${L("Day (optional)", "اليوم (اختياري)")}<input type="date" id="an-day" value="${esc(opts.day ?? "")}" /></label>

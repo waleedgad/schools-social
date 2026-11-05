@@ -352,7 +352,7 @@ async function pickBookPhotos(page, done, max = 9) {
 async function savePdf(id) {
   toast(L("Making the PDF at print quality. Big books take a minute.", "جارٍ عمل ملف PDF بجودة الطباعة. الكتب الكبيرة تأخذ دقيقة."), { ms: 5000 });
   const r = await call("bookPdf", id);
-  if (r) toast(L(`Saved ${r.pages} pages`, `حُفظت ${num(r.pages)} صفحة`));
+  if (r) toast(r.missing ? L(`Saved ${r.pages} pages, but ${r.missing} pictures could not be found (their originals may be on a drive that isn't plugged in)`, `حُفظت ${num(r.pages)} صفحة، لكن تعذّر العثور على ${num(r.missing)} صورة (قد تكون الأصول على قرص غير موصول)`) : L(`Saved ${r.pages} pages`, `حُفظت ${num(r.pages)} صفحة`), r.missing ? { ms: 9000 } : undefined);
 }
 
 // A new book: which kind, which year, which grade, class or student.

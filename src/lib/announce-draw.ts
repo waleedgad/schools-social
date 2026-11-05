@@ -31,30 +31,37 @@ function fontFamily() {
   return `${css.getPropertyValue("--font-plex") || "'IBM Plex Sans Arabic'"}, ${css.getPropertyValue("--font-inter") || "Inter"}, sans-serif`;
 }
 
-function textBlock(ctx: CanvasRenderingContext2D, t: Text, x: number, y: number, width: number, color: string, align: CanvasTextAlign = "center") {
+// Draws the three texts from y down; returns where they end and the widest line.
+function textBlock(ctx: CanvasRenderingContext2D, t: Text, x: number, y: number, width: number, color: string, align: CanvasTextAlign = "center", scale = 1) {
   const family = fontFamily();
   ctx.fillStyle = color;
   ctx.textAlign = align;
   ctx.textBaseline = "top";
   let cy = y;
-  const put = (text: string, size: number, weight: number, rtl: boolean, gap: number) => {
+  let widest = 0;
+  const put = (text: string, base: number, weight: number, rtl: boolean, gap: number) => {
     if (!text.trim()) return;
+    const size = Math.round(base * scale);
     ctx.font = `${weight} ${size}px ${family}`;
     ctx.direction = rtl ? "rtl" : "ltr";
     for (const line of wrap(ctx, text, width)) {
+      widest = Math.max(widest, ctx.measureText(line).width);
       ctx.fillText(line, align === "center" ? x + width / 2 : align === "right" ? x + width : x, cy);
       cy += size * 1.25;
     }
-    cy += gap;
+    cy += gap * scale;
   };
   put(t.ar, 92, 700, true, 24);
   put(t.en, 58, 600, false, 40);
   ctx.globalAlpha = 0.85;
   put(t.details, 42, 500, /[؀-ۿ]/.test(t.details), 0);
   ctx.globalAlpha = 1;
-  return cy;
+  return { bottom: cy, widest };
 }
 
+// Draws the announcement. Long texts get smaller until they fit between the
+// top and the school's name (never running into it or off the picture);
+// returns whether they fit and how much they were shrunk.
 export async function drawAnnouncement(canvas: HTMLCanvasElement, template: Template, size: Size, t: Text, designs: Design[], images: Map<string, HTMLImageElement>) {
   const [w, h] = SIZES[size];
   canvas.width = w;
@@ -69,12 +76,21 @@ export async function drawAnnouncement(canvas: HTMLCanvasElement, template: Temp
     ctx.fillText(t.school, w / 2, h - 110);
     ctx.globalAlpha = 1;
   };
+  const fit = { fits: true, scale: 1 };
   const middle = (color: string, top = pad, bottom = h - 180) => {
-    // Measure first, then centre the block vertically.
+    // Measure first (smaller until it fits), then centre the block vertically.
     const probe = document.createElement("canvas").getContext("2d")!;
-    const height = textBlock(probe, t, pad, 0, w - pad * 2, color) - 0;
-    const y = top + Math.max(0, (bottom - top - height) / 2);
-    textBlock(ctx, t, pad, y, w - pad * 2, color);
+    const room = w - pad * 2;
+    let scale = 1;
+    let m = textBlock(probe, t, pad, 0, room, color, "center", scale);
+    while ((m.bottom > bottom - top || m.widest > room) && scale > 0.4) {
+      scale = Math.round((scale - 0.05) * 100) / 100;
+      m = textBlock(probe, t, pad, 0, room, color, "center", scale);
+    }
+    fit.fits = m.bottom <= bottom - top && m.widest <= room;
+    fit.scale = scale;
+    const y = top + Math.max(0, (bottom - top - m.bottom) / 2);
+    textBlock(ctx, t, pad, y, room, color, "center", scale);
   };
 
   if (template.startsWith("design:")) {
@@ -87,7 +103,7 @@ export async function drawAnnouncement(canvas: HTMLCanvasElement, template: Temp
       ctx.drawImage(img, (w - img.width * s) / 2, (h - img.height * s) / 2, img.width * s, img.height * s);
     }
     middle(t.ink);
-    return;
+    return fit;
   }
 
   switch (template) {
@@ -179,5 +195,5 @@ export async function drawAnnouncement(canvas: HTMLCanvasElement, template: Temp
       break;
     }
   }
+  return fit;
 }
-
