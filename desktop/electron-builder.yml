@@ -34,6 +34,15 @@ mac:
     - target: dmg
       arch: [arm64, x64]
   category: public.app-category.photography
+  # Ready for Apple signing (quality plan, Phase 5). Without a Developer ID
+  # certificate and Apple sign-in on the build machine, the app is built
+  # unsigned exactly as before; with them (see docs/signing.md) it is signed
+  # with the hardened runtime and sent to Apple for notarisation.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
   files:
     - "!node_modules/onnxruntime-node/bin/napi-v6/{win32,linux}/**"
     - "!node_modules/@img/*-{linux,linuxmusl,win32}-*/**"
