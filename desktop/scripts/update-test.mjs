@@ -114,10 +114,19 @@ await until(`the installed app to become ${next}`, () => {
 console.log(`now installed: ${version()}`);
 
 // 6. The new version opens the same library and keeps everything.
-const before = logText().length;
+// (The installer may have started it again already: close every copy first.)
+const killAll = () => {
+  try {
+    execFileSync("taskkill", ["/IM", `${name}.exe`, "/T", "/F"], { stdio: "ignore" });
+  } catch {
+    // none running
+  }
+};
+killAll();
+await wait(3000);
 const again = spawn(exe, [`--user-data-dir=${userData}`], { env: { ...process.env, HUB_UPDATE_FEED: "http://127.0.0.1:1/" }, stdio: "ignore", detached: true });
 again.unref();
-await until("the new version to start", () => logText().slice(before).length > 0, 120_000);
+await until(`version ${next} to start`, () => logText().includes(`started ${next}`), 120_000);
 await wait(8000);
 const { DatabaseSync } = await import("node:sqlite");
 const photos = (file) => {
@@ -134,11 +143,7 @@ console.log(`photos: ${inCopy} in the safety copy, ${now} after the update`);
 if (inCopy < 3 || now < inCopy) fail("photos were lost in the update");
 const settings = JSON.parse(readFileSync(path.join(userData, "settings.json"), "utf8"));
 if (settings.schoolName !== "Update Test School" || !settings.library) fail("settings were lost in the update");
-try {
-  execFileSync("taskkill", ["/IM", `${name}.exe`, "/T", "/F"], { stdio: "ignore" });
-} catch {
-  // already closed
-}
+killAll();
 server.close();
 console.log(`update test passed: ${pkg.version} -> ${next}, safety copy made, settings kept (server sent: ${[...new Set(served)].join(", ")})`);
 // Keep the build folders out of the way of later steps.

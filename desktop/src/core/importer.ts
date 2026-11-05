@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { exclusive } from "./lock";
 import { rawPreview } from "./media";
 import { retryBusy } from "./retry-busy";
+import { busy } from "./busy";
 
 // The parts of importing that don't need the app: reading a card, splitting
 // it into events, spotting junk shots and bursts, and copying safely.
@@ -26,6 +27,7 @@ const RAW = /\.(cr2|cr3|nef|arw|dng|raf|orf|rw2|srw|pef)$/i;
 const VIDEO = /\.(mp4|mov|m4v|avi|mts|3gp)$/i;
 
 export async function readSource(file: string): Promise<SourceFile> {
+  busy.set("import: reading the card");
   const s = await stat(file);
   let taken = s.mtimeMs;
   let camera = "";
@@ -143,6 +145,7 @@ export async function hashFile(file: string) {
 // Copies next to the target first, checks every byte arrived, then puts it
 // in place. A copy that doesn't match is removed and reported.
 export async function copyVerified(src: string, dest: string, srcHash?: string) {
+  busy.set("import: copying");
   const tmp = path.join(path.dirname(dest), `.${path.basename(dest)}.copying`);
   await copyFile(src, tmp, constants.COPYFILE_EXCL).catch(async (e) => {
     if (existsSync(tmp)) {

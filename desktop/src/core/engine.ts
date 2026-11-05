@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { copyFile, readdir, rm, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
+import { busy } from "./busy";
 import { watchTree, type TreeWatcher } from "./tree-watch";
 import exifr from "exifr";
 import sharp from "sharp";
@@ -140,6 +141,7 @@ export class Engine {
 
   // Walks the whole library once. Files that haven't changed are skipped.
   async scan() {
+    busy.set("reading the library folder");
     if (this.scanning) return;
     this.scanning = this.status.scanning = true;
     this.o.onChange("status");
@@ -287,6 +289,7 @@ export class Engine {
   }
 
   private async read(id: number) {
+    busy.set("reading a photo");
     const p = this.db.prepare("select * from photos where id = ?").get(id) as Row | undefined;
     if (!p || p.missing) return;
     const file = p.path as string;
@@ -401,6 +404,7 @@ export class Engine {
   }
 
   private async faces(id: number) {
+    busy.set("finding faces");
     const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, class_name, coalesce(taken_at, event_date) as at from photos where id = ?").get(id) as Row | undefined;
     if (!p || p.missing || p.faces_scanned) return;
     try {

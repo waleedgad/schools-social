@@ -1,6 +1,6 @@
 import { _electron, expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -145,6 +145,9 @@ test("import, face scan and sending at once: every click still answers", async (
     sentToWeb: withWeb ? await sentToWeb() : null,
   };
   console.log("nothing-hangs", JSON.stringify(report));
+  // When the app was too busy to answer, its log says what it was doing.
+  const stalls = existsSync(path.join(userData, "app.log")) ? readFileSync(path.join(userData, "app.log"), "utf8").split("\n").filter((l) => l.includes(" busy for ")) : [];
+  if (stalls.length) console.log("nothing-hangs stalls:\n" + stalls.slice(-15).join("\n"));
   writeFileSync(test.info().outputPath("timings.json"), JSON.stringify({ report, clicks, answers, long }, null, 1));
   await app.close();
 

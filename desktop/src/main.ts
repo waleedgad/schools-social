@@ -8,6 +8,7 @@ import { watchTree, type TreeWatcher } from "./core/tree-watch";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, safeStorage, session, shell, Tray } from "electron";
 import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
+import { busy, watchStalls } from "./core/busy";
 import { openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
@@ -1452,6 +1453,8 @@ app.on("web-contents-created", (_e, contents) => {
 const ALLOWED_PERMISSIONS = new Set(["clipboard-sanitized-write", "notifications", "fullscreen"]);
 
 app.whenReady().then(async () => {
+  log(`started ${app.getVersion()} on ${process.platform} ${process.arch}`);
+  watchStalls(log);
   session.defaultSession.setPermissionRequestHandler((_wc, permission, done) => done(ALLOWED_PERMISSIONS.has(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
   settings = new JsonStore<Settings>(data("settings.json"), {
@@ -1833,6 +1836,7 @@ app.whenReady().then(async () => {
     const fn = typeof name === "string" && Object.hasOwn(api, name) ? api[name] : null;
     if (typeof fn !== "function") return { ok: false, error: "unknown" };
     try {
+      busy.set(`window asked: ${name}`);
       const value = await fn(...(args as never[]));
       return { ok: true, value };
     } catch (e) {
