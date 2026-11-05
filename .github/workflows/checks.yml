@@ -94,7 +94,7 @@ jobs:
             build: --mac zip --arm64
             exe: release/mac-arm64/School Social Hub Library.app/Contents/MacOS/School Social Hub Library
           - os: windows-latest
-            build: --win dir
+            build: --win nsis dir
             exe: release/win-unpacked/School Social Hub Library.exe
     runs-on: ${{ matrix.os }}
     defaults:
@@ -118,6 +118,13 @@ jobs:
         with:
           name: mac-app-apple-silicon
           path: desktop/release/*.zip
+          retention-days: 14
+      # A Windows test build (installer), kept 14 days.
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: desktop/release/*.exe
           retention-days: 14
 
   # Update check: install this version on Windows, then let it update itself

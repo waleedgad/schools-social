@@ -26,9 +26,17 @@ linux:
   files:
     - "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**"
     - "!node_modules/@img/*-{darwin,win32}-*/**"
+# The Windows installer: English or Arabic, a desktop and Start menu
+# shortcut, and uninstalling never deletes the library, names or faces.
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  multiLanguageInstaller: true
+  installerLanguages: [en_US, ar_SA]
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: School Social Hub Library
+  deleteAppDataOnUninstall: false
 mac:
   target:
     - target: dmg

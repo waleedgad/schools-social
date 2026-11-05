@@ -90,7 +90,19 @@ export function eventFromPath(library: string, file: string): FolderEvent | null
 }
 
 const YEAR = /^\d{4}-\d{4}$/;
-const TERM = /^term \d$/i;
+// Term folders as schools name them: "Term 1", "Semester 2", "T3", and in
+// Arabic "الفصل الأول", "الفصل الدراسي الثاني", "الترم 3", "الفصل ١".
+// All are read as "Term N" so the sidebar and term dates line up.
+const ORDINAL: Record<string, number> = { "الأول": 1, "الاول": 1, "أول": 1, "الثاني": 2, "ثاني": 2, "الثالث": 3, "ثالث": 3 };
+export function termNumber(folder: string): number | null {
+  const f = folder.trim().replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/\s+/g, " ");
+  const en = /^(?:term|semester|trimester|t)\s?([1-4])$/i.exec(f);
+  if (en) return Number(en[1]);
+  const ar = /^(?:ال)?(?:فصل|ترم)(?: الدراسي)? (\S+)$/.exec(f);
+  if (!ar) return null;
+  if (/^[1-4]$/.test(ar[1])) return Number(ar[1]);
+  return ORDINAL[ar[1]] ?? null;
+}
 
 export type Place = { year: string | null; term: string | null; event: FolderEvent | null; className: string | null };
 
@@ -101,7 +113,8 @@ export function placeFromPath(library: string, file: string): Place {
   const parts = rel.split(path.sep).filter((p) => p && p !== ".");
   let i = 0;
   const year = YEAR.test(parts[i] ?? "") ? parts[i++] : null;
-  const termName = TERM.test(parts[i] ?? "") ? parts[i++] : null;
+  const tn = termNumber(parts[i] ?? "");
+  const termName = tn ? (i++, `Term ${tn}`) : null;
   if (i >= parts.length) return { ...none, year, term: termName };
   // Without year and term folders, the deepest folder is the event.
   const structured = year !== null;

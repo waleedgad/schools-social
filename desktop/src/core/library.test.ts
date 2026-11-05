@@ -8,7 +8,7 @@ import sharp from "sharp";
 import { openDb } from "./db";
 import { importPhotos, listFiles } from "./engine";
 import { similarity } from "./faces";
-import { guessEvent, placeFromPath } from "./library";
+import { guessEvent, placeFromPath, termNumber } from "./library";
 import { fileHash } from "./photo";
 import { classFrom, gradeLabel, parseRows } from "./students";
 
@@ -83,4 +83,15 @@ test("folder names give the event name and date", () => {
   assert.deepEqual(guessEvent("2020-10-12 Sports day"), { title: "Sports day", date: "2020-10-12" });
   assert.deepEqual(guessEvent("12-10-2020 Trip"), { title: "Trip", date: "2020-10-12" });
   assert.deepEqual(guessEvent("Science_fair"), { title: "Science fair", date: null });
+});
+
+test("term folders in English and Arabic are read as Term N", () => {
+  for (const [f, n] of [["Term 1", 1], ["term2", 2], ["Semester 2", 2], ["T3", 3], ["الفصل الأول", 1], ["الفصل الاول", 1], ["الفصل الدراسي الثاني", 2], ["الترم الثالث", 3], ["الفصل ١", 1], ["فصل 2", 2]] as const) {
+    assert.equal(termNumber(f), n, f);
+  }
+  for (const f of ["Sports day", "2026-10-12 Trip", "الفصل", "Term 9", "الرحلة الأولى"]) assert.equal(termNumber(f), null, f);
+  const p = placeFromPath("/lib", "/lib/2025-2026/الفصل الأول/2025-10-12 اليوم الرياضي/a.jpg".split("/").join(require("node:path").sep));
+  assert.equal(p.term, "Term 1");
+  assert.equal(p.event?.title, "اليوم الرياضي");
+  assert.equal(p.event?.date, "2025-10-12");
 });
