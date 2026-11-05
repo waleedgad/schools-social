@@ -1850,7 +1850,7 @@ app.whenReady().then(async () => {
     if (typeof fn !== "function") return { ok: false, error: "unknown" };
     try {
       busy.set(`window asked: ${name}`);
-      const value = await fn(...(args as never[]));
+      const value = await busy.time(() => `window asked: ${name}`, () => fn(...(args as never[])));
       return { ok: true, value };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "error" };

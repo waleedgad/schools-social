@@ -1,3 +1,4 @@
+import { busy } from "./busy";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 // Built into Electron's Node; no native module to compile for each Mac.
@@ -232,9 +233,27 @@ create table if not exists history (
 
 export type Db = InstanceType<typeof DatabaseSync>;
 
+// Every database step runs while the app waits for it, so a slow one is
+// noted with its first words (see busy.ts) when the app was too busy to answer.
+function timed(db: Db): Db {
+  const prepare = db.prepare.bind(db);
+  const exec = db.exec.bind(db);
+  const name = (sql: string) => `database: ${sql.replace(/\s+/g, " ").trim().slice(0, 70)}`;
+  db.exec = (sql: string) => busy.time(() => name(sql), () => exec(sql));
+  db.prepare = ((sql: string) => {
+    const st = busy.time(() => name(sql), () => prepare(sql));
+    for (const m of ["run", "get", "all", "iterate"] as const) {
+      const f = (st[m] as (...a: unknown[]) => unknown).bind(st);
+      (st as unknown as Record<string, unknown>)[m] = (...a: unknown[]) => busy.time(() => name(sql), () => f(...a));
+    }
+    return st;
+  }) as Db["prepare"];
+  return db;
+}
+
 export function openDb(file: string): Db {
   mkdirSync(path.dirname(file), { recursive: true });
-  const db = new DatabaseSync(file);
+  const db = timed(new DatabaseSync(file));
   db.exec("pragma journal_mode = wal; pragma foreign_keys = on; pragma synchronous = normal;");
   db.exec(SCHEMA);
   // Columns added after 0.2.0.
