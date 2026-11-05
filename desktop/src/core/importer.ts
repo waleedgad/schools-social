@@ -5,6 +5,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { exclusive } from "./lock";
 import { rawPreview } from "./media";
+import { retryBusy } from "./retry-busy";
 
 // The parts of importing that don't need the app: reading a card, splitting
 // it into events, spotting junk shots and bursts, and copying safely.
@@ -154,7 +155,7 @@ export async function copyVerified(src: string, dest: string, srcHash?: string) 
     await rm(tmp, { force: true });
     throw new Error("copy-check-failed");
   }
-  await rename(tmp, dest);
+  await retryBusy(() => rename(tmp, dest));
   return a;
 }
 

@@ -10,6 +10,7 @@ import { assignPhoto, cosine, findFaces, guessTraits, isSure, ranked, SAME_PERSO
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
+import { retryBusy } from "./retry-busy";
 import { fileHash } from "./photo";
 import type { StudentRow } from "./students";
 
@@ -974,7 +975,7 @@ export class Engine {
     const from = path.join(this.o.library, ...eventKey.split("/"));
     const parent = path.dirname(from);
     const to = await freeName(path.join(parent, `${date} ${safeName(title)}`));
-    await rename(from, to);
+    await retryBusy(() => rename(from, to));
     const rows = this.db.prepare("select id, path from photos where event_key = ?").all(eventKey) as { id: number; path: string }[];
     tx(this.db, () => {
       for (const r of rows) {
@@ -1027,7 +1028,7 @@ const like = (prefix: string) => prefix.replace(/[\\%_]/g, (c) => `\\${c}`) + "%
 export async function moveFile(from: string, to: string) {
   const { rename, unlink } = await import("node:fs/promises");
   try {
-    await rename(from, to);
+    await retryBusy(() => rename(from, to));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "EXDEV") throw e;
     await copyFile(from, to, constants.COPYFILE_EXCL);

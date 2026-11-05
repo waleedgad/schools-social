@@ -216,7 +216,8 @@ test("B-04: moving never makes copies, even with clashing names; undo puts them 
   type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<unknown> } };
   const ids = (await win.evaluate("lib.list.filter((p) => p.event_title === 'Sports day').slice(0, 3).map((p) => p.id)")) as number[];
   expect(ids).toHaveLength(3);
-  await win.evaluate((x) => (window as unknown as Hub).hub.call("moveTo", x, { title: "Book week", date: "2025-10-20" }), ids);
+  const moved = await win.evaluate((x) => (window as unknown as Hub).hub.call("moveTo", x, { title: "Book week", date: "2025-10-20" }), ids);
+  expect(moved).toMatchObject({ ok: true });
   await win.waitForTimeout(5000); // let the folder watcher see the moves
   expect(files()).toHaveLength(7);
   expect(readdirSync(b).length).toBe(5);
