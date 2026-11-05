@@ -1,0 +1,70 @@
+# Makes the Windows app a school installs, by hand from the Actions tab
+# ("Run workflow"). Until a code-signing certificate is bought it is
+# unsigned, as today (Windows shows "unknown publisher" once). With the
+# secrets in desktop/docs/signing-windows.md, the same button makes a signed
+# installer, and the app's self-update then only accepts updates signed by
+# the same publisher.
+name: Windows release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    env:
+      # Route 1: Azure Trusted Signing (a monthly service).
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT }}
+      AZURE_SIGN_ACCOUNT: ${{ secrets.AZURE_SIGN_ACCOUNT }}
+      AZURE_SIGN_PROFILE: ${{ secrets.AZURE_SIGN_PROFILE }}
+      WIN_PUBLISHER_NAME: ${{ secrets.WIN_PUBLISHER_NAME }}
+      # Route 2: a certificate file (.pfx) from a certificate company.
+      WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX_BASE64 }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - name: Build (signed when the secrets are there)
+        run: |
+          EXTRA=()
+          if [ -n "$AZURE_SIGN_ENDPOINT" ]; then
+            echo "Signing with Azure Trusted Signing"
+            EXTRA=(-c.win.azureSignOptions.endpoint="$AZURE_SIGN_ENDPOINT" -c.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGN_ACCOUNT" -c.win.azureSignOptions.certificateProfileName="$AZURE_SIGN_PROFILE" -c.win.azureSignOptions.publisherName="$WIN_PUBLISHER_NAME")
+          elif [ -n "$WIN_CSC_LINK" ]; then
+            echo "Signing with the certificate file"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "No certificate yet: building unsigned"
+          fi
+          npm run build && npx electron-builder --win nsis --publish never "${EXTRA[@]}"
+      - name: Check the signature
+        if: env.AZURE_SIGN_ENDPOINT != '' || env.WIN_CSC_LINK != ''
+        shell: pwsh
+        run: |
+          foreach ($f in @("release/win-unpacked/School Social Hub Library.exe") + (Get-ChildItem release/*.exe).FullName) {
+            $s = Get-AuthenticodeSignature $f
+            Write-Output "$f : $($s.Status) $($s.SignerCertificate.Subject)"
+            if ($s.Status -ne "Valid") { throw "not signed: $f" }
+          }
+      - name: The built app starts, reads photos and finds faces
+        run: PACKAGED_APP="$PWD/release/win-unpacked/School Social Hub Library.exe" npx playwright test e2e/packaged.spec.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest.yml
+          retention-days: 30
