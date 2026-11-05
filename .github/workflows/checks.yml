@@ -119,3 +119,22 @@ jobs:
           name: mac-app-apple-silicon
           path: desktop/release/*.zip
           retention-days: 14
+
+  # Update check: install this version on Windows, then let it update itself
+  # to a pretend next version from a local update server. It must make a
+  # safety copy first and keep the library, names and settings.
+  update:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: node scripts/update-test.mjs

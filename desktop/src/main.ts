@@ -645,10 +645,36 @@ async function checkUpdate() {
   return update;
 }
 
+// Windows updates itself: the new version downloads in the background and
+// goes in when the app is next closed. A safety copy of the library list,
+// names and faces is made first, like the Mac steps do. The Mac waits for
+// Apple signing (macOS only lets a signed app replace itself).
+// HUB_UPDATE_FEED points it at a test server (the update robot test).
+function startAutoUpdate() {
+  if (!app.isPackaged || process.platform !== "win32") return;
+  const feed = process.env.HUB_UPDATE_FEED;
+  if (feed) autoUpdater.setFeedURL({ provider: "generic", url: feed });
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-downloaded", (info) => {
+    try {
+      safetyCopy(info.version);
+    } catch (e) {
+      log(`safety copy failed: ${String(e)}`);
+    }
+    log(`update ${info.version} downloaded; goes in when the app closes`);
+    if (process.env.HUB_UPDATE_TEST) autoUpdater.quitAndInstall(true, false);
+  });
+  autoUpdater.on("error", (e) => log(`update: ${String(e).slice(0, 300)}`));
+  const check = () => autoUpdater.checkForUpdates().catch(() => null);
+  void check();
+  timers.push(setInterval(check, 6 * 3600_000));
+}
+
 // A copy of the library list, names, faces and settings before updating.
-function safetyCopy() {
+function safetyCopy(version = update?.version) {
   const fs = require("node:fs") as typeof import("node:fs");
-  const dir = data(path.join("backups", `before-${update?.version ?? "update"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`));
+  const dir = data(path.join("backups", `before-${version ?? "update"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`));
   fs.mkdirSync(dir, { recursive: true });
   db.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
@@ -1815,8 +1841,7 @@ app.whenReady().then(async () => {
 
   setTimeout(() => checkUpdate(), 5000);
   timers.push(setInterval(() => checkUpdate(), 6 * 3600_000));
-  // Windows can update itself; the Mac waits for Apple signing (see checkUpdate).
-  if (app.isPackaged && process.platform === "win32") autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  startAutoUpdate();
 });
 
 app.on("before-quit", () => {
