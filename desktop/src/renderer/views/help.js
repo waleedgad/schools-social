@@ -106,7 +106,7 @@ const GUIDES = () => [
   },
   {
     id: "keys", group: "basics", icon: "keyboard", title: L("Keyboard keys", "مفاتيح لوحة المفاتيح"),
-    body: `<table class="list"><tbody>
+    body: forPc(`<table class="list"><tbody>
       <tr><td><span class="k">P</span> / <span class="k">X</span> / <span class="k">U</span></td><td>${L("Pick, reject, clear", "اختيار، رفض، إلغاء")}</td></tr>
       <tr><td><span class="k">1</span>–<span class="k">5</span></td><td>${L("Stars (0 clears)", "النجوم (0 يمسح)")}</td></tr>
       <tr><td><span class="k">T</span></td><td>${L("Tag a person", "وسم شخص")}</td></tr>
@@ -116,7 +116,7 @@ const GUIDES = () => [
       <tr><td><span class="k">1</span>–<span class="k">4</span>, <span class="k">A</span>, <span class="k">⌘S</span></td><td>${L("In a post: steps, approve, save", "في المنشور: الخطوات، اعتماد، حفظ")}</td></tr>
       <tr><td><span class="k">D</span> / <span class="k">W</span> / <span class="k">M</span>, <span class="k">←</span> <span class="k">→</span></td><td>${L("Calendar: day, week, month, back and forward", "التقويم: يوم، أسبوع، شهر، سابق وتالٍ")}</td></tr>
       <tr><td><span class="k">⌘K</span></td><td>${L("Search anything", "البحث عن أي شيء")}</td></tr>
-      <tr><td><span class="k">⌘Z</span></td><td>${L("Undo", "تراجع")}</td></tr></tbody></table>`,
+      <tr><td><span class="k">⌘Z</span></td><td>${L("Undo", "تراجع")}</td></tr></tbody></table>`),
   },
   {
     id: "privacy", group: "basics", icon: "shield-check", title: L("Privacy", "الخصوصية"),

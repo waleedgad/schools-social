@@ -719,7 +719,7 @@ async function openPost(id, startStep) {
     const acts = [];
     const btn = (intent, label, cls = "") => acts.push(`<button class="btn ${cls}" data-act="${intent}">${label}</button>`);
     if (!locked) {
-      if (writer) btn("save", `${L("Save", "حفظ")} <span class="k">⌘S</span>`);
+      if (writer) btn("save", `${L("Save", "حفظ")} <span class="k">${forPc("⌘S")}</span>`);
       if (s === "idea" && writer) btn("start", L("Start writing this post", "ابدأ كتابة هذا المنشور"));
       if (writer && ["idea", "draft", "rejected"].includes(s) && !canApprove()) btn("submit", L("Send for approval", "أرسل للاعتماد"), "primary");
       if (canApprove()) btn("approve", `${icon("check", 14)} ${L("Approve", "اعتماد")} <span class="k">A</span>`, "primary");

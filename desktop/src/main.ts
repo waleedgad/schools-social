@@ -1328,6 +1328,13 @@ function createWindow() {
 // Right-click menus are the system's own: the window sends the items, the
 // chosen item's id comes back (null when the menu was closed).
 type MenuSpec = { id?: string; type?: "separator"; label?: string; key?: string | null; enabled?: boolean; checked?: boolean; sub?: MenuSpec[] };
+// The window writes Mac keys (⌘N, ⌘⌫); the menu wants CmdOrCtrl+N, and
+// Windows uses Delete for "move to Bin".
+function menuKey(key: string) {
+  if (key === "⌘⌫" || key === "⌘ ⌫") return process.platform === "darwin" ? "Cmd+Backspace" : "Delete";
+  return key.replace(/^⌘\s?/, "CmdOrCtrl+");
+}
+
 function popupMenu(items: MenuSpec[]) {
   return new Promise<string | null>((resolve) => {
     let picked: string | null = null;
@@ -1339,7 +1346,7 @@ function popupMenu(items: MenuSpec[]) {
               label: it.label ?? "",
               enabled: it.enabled !== false,
               ...(it.checked !== undefined && it.checked !== null ? { type: "checkbox" as const, checked: !!it.checked } : {}),
-              ...(it.key ? { accelerator: it.key, registerAccelerator: false } : {}),
+              ...(it.key ? { accelerator: menuKey(it.key), registerAccelerator: false } : {}),
               ...(it.sub ? { submenu: build(it.sub) } : {}),
               click: () => {
                 picked = it.id ?? null;
@@ -1364,49 +1371,55 @@ function sendWin(channel: string, ...args: unknown[]) {
 function createMenu() {
   const en = settings.get().language === "en";
   const L = (a: string, b: string) => (en ? a : b);
+  // Windows and Linux show no menu bar (the title bar is hidden), so the
+  // window handles Ctrl+I, Ctrl+N and the rest itself (core.js pcMenuKey);
+  // the menu keeps them only as labels so a key never runs twice.
+  const pc = process.platform !== "darwin";
+  const keys = (list: Electron.MenuItemConstructorOptions[]): Electron.MenuItemConstructorOptions[] =>
+    list.map((it) => ({ ...(pc && it.accelerator ? { ...it, registerAccelerator: false } : it), ...(Array.isArray(it.submenu) ? { submenu: keys(it.submenu) } : {}) }));
   Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
+    Menu.buildFromTemplate(keys([
       {
         label: "School Social Hub",
         submenu: [
           { role: "about", label: L("About School Social Hub", "عن School Social Hub") },
           { type: "separator" },
-          { label: L("Settings…", "الإعدادات…"), accelerator: "Cmd+,", click: () => send("go:settings") },
+          { label: L("Settings…", "الإعدادات…"), accelerator: "CmdOrCtrl+,", click: () => send("go:settings") },
           { type: "separator" },
           { role: "hide", label: L("Hide", "إخفاء") },
           { role: "hideOthers" },
           { type: "separator" },
-          { label: L("Quit", "إنهاء"), accelerator: "Cmd+Q", click: () => { quitting = true; app.quit(); } },
+          { label: L("Quit", "إنهاء"), accelerator: "CmdOrCtrl+Q", click: () => { quitting = true; app.quit(); } },
         ],
       },
       {
         label: L("File", "ملف"),
         submenu: [
-          { label: L("Import photos…", "استيراد صور…"), accelerator: "Cmd+I", click: () => send("go:import") },
+          { label: L("Import photos…", "استيراد صور…"), accelerator: "CmdOrCtrl+I", click: () => send("go:import") },
           { label: L("Import class list…", "استيراد قائمة الفصول…"), click: () => send("go:students-import") },
-          { label: L("New post from selection", "منشور جديد من المحدد"), accelerator: "Cmd+N", click: () => send("post") },
+          { label: L("New post from selection", "منشور جديد من المحدد"), accelerator: "CmdOrCtrl+N", click: () => send("post") },
         ],
       },
       {
         label: L("Edit", "تحرير"),
         submenu: [
-          { label: L("Undo", "تراجع"), accelerator: "Cmd+Z", click: () => send("undo") },
+          { label: L("Undo", "تراجع"), accelerator: "CmdOrCtrl+Z", click: () => send("undo") },
           { type: "separator" },
           { role: "cut" },
           { role: "copy" },
           { role: "paste" },
-          { label: L("Select all", "تحديد الكل"), accelerator: "Cmd+A", click: () => send("selectAll") },
-          { label: L("Search…", "بحث…"), accelerator: "Cmd+K", click: () => send("search") },
+          { label: L("Select all", "تحديد الكل"), accelerator: "CmdOrCtrl+A", click: () => send("selectAll") },
+          { label: L("Search…", "بحث…"), accelerator: "CmdOrCtrl+K", click: () => send("search") },
         ],
       },
       {
         label: L("View", "عرض"),
         submenu: [
-          { label: L("Today", "اليوم"), accelerator: "Cmd+1", click: () => send("go:today") },
-          { label: L("Library", "المكتبة"), accelerator: "Cmd+2", click: () => send("go:library") },
-          { label: L("Faces", "الوجوه"), accelerator: "Cmd+3", click: () => send("go:faces") },
-          { label: L("Students", "الطلاب"), accelerator: "Cmd+4", click: () => send("go:students") },
-          { label: L("Posts", "المنشورات"), accelerator: "Cmd+5", click: () => send("go:posts") },
+          { label: L("Today", "اليوم"), accelerator: "CmdOrCtrl+1", click: () => send("go:today") },
+          { label: L("Library", "المكتبة"), accelerator: "CmdOrCtrl+2", click: () => send("go:library") },
+          { label: L("Faces", "الوجوه"), accelerator: "CmdOrCtrl+3", click: () => send("go:faces") },
+          { label: L("Students", "الطلاب"), accelerator: "CmdOrCtrl+4", click: () => send("go:students") },
+          { label: L("Posts", "المنشورات"), accelerator: "CmdOrCtrl+5", click: () => send("go:posts") },
           { type: "separator" },
           { role: "togglefullscreen" },
           { role: "zoomIn" },
@@ -1417,7 +1430,7 @@ function createMenu() {
       },
       { role: "windowMenu" },
       { label: L("Help", "مساعدة"), submenu: [{ label: L("School Social Hub help", "مساعدة School Social Hub"), click: () => send("go:help") }] },
-    ]),
+    ])),
   );
 }
 

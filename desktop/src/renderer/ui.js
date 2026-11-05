@@ -161,7 +161,7 @@ function shortcutSheet() {
   const here = view?.keys?.() ?? [];
   const nav = Object.entries(JUMPS).map(([k, v]) => [`G ${k.toUpperCase()}`, NAV.flatMap((s) => s.items).find((n) => n.id === v)?.label() ?? v]);
   const block = (title, rows) =>
-    rows.length ? `<h3>${esc(title)}</h3><div class="keysheet">${rows.map(([k, t]) => `<div><span>${esc(t)}</span><span class="ltr">${k.split(" ").map((x) => `<span class="k">${esc(x)}</span>`).join(" ")}</span></div>`).join("")}</div>` : "";
+    rows.length ? `<h3>${esc(title)}</h3><div class="keysheet">${rows.map(([k, t]) => `<div><span>${esc(t)}</span><span class="ltr">${forPc(k).split(" ").map((x) => `<span class="k">${esc(x)}</span>`).join(" ")}</span></div>`).join("")}</div>` : "";
   modal(
     `<div class="row"><h2 class="grow">${L("Keyboard shortcuts", "اختصارات لوحة المفاتيح")}</h2><button class="btn ghost" data-x>${icon("x")}</button></div>
     ${block(L("On this screen", "في هذه الشاشة"), here)}

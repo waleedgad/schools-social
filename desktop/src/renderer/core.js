@@ -2,7 +2,18 @@
 const App = { state: null, view: "today", params: {}, views: {}, keyHandlers: [] };
 let S = null;
 
-const L = (en, ar) => (S?.language === "en" ? en : ar);
+// Windows (and Linux) say Ctrl where the Mac says ⌘, Delete for ⌘⌫, and
+// File Explorer where the Mac says Finder.
+const isMac = () => S?.platform === "darwin";
+const modKey = (e) => (isMac() ? e.metaKey : e.ctrlKey);
+function forPc(s) {
+  if (typeof s !== "string" || !S || isMac()) return s;
+  return s
+    .replace(/⌘\s?⌫/g, "Delete")
+    .replace(/⌘\s?/g, "Ctrl+")
+    .replace(/Finder/g, S.language === "en" ? "File Explorer" : "مستكشف الملفات");
+}
+const L = (en, ar) => forPc(S?.language === "en" ? en : ar);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 function h(html) {
   const t = document.createElement("template");
@@ -265,7 +276,7 @@ function sidebar() {
   const school = S.schoolName || L("Your school", "مدرستك");
   const parts = [
     `<div class="brand"><span class="logo">${esc(school.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase())}</span><div><b>${esc(school)}</b><span>School Social Hub</span></div></div>`,
-    `<button class="searchbox" id="sbtn">${icon("search", 14)} ${L("Search", "بحث")}<span class="k ltr">⌘K</span></button>`,
+    `<button class="searchbox" id="sbtn">${icon("search", 14)} ${L("Search", "بحث")}<span class="k ltr">${forPc("⌘K")}</span></button>`,
     `<button class="create" id="cbtn">${icon("plus", 15)} ${L("Create post", "إنشاء منشور")}</button>`,
   ];
   for (const sec of NAV) {
@@ -415,15 +426,31 @@ function applyLook() {
 // ---------- Keys, menu commands, drag and drop ----------
 document.addEventListener("keydown", (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) && document.activeElement.type !== "checkbox";
-  if (e.metaKey && e.key.toLowerCase() === "k") {
+  if (modKey(e) && e.key.toLowerCase() === "k") {
     e.preventDefault();
     return palette();
   }
+  // Windows: the window has no menu bar, so its shortcuts are handled here.
+  if (!isMac() && e.ctrlKey && !e.altKey && !e.shiftKey && pcMenuKey(e, typing)) return;
   if (App.overlayKeys) return App.overlayKeys(e, typing);
   if (typing) return;
   if (App.views[App.view]?.onKey?.(e) === true) return;
   globalKey(e);
 });
+
+// The Mac menu's shortcuts, for Windows (Ctrl+I, Ctrl+N, Ctrl+Z, Ctrl+A, Ctrl+1 to 5, Ctrl+,).
+function pcMenuKey(e, typing) {
+  const k = e.key.toLowerCase();
+  const views = { 1: "today", 2: "library", 3: "faces", 4: "students", 5: "posts" };
+  if (views[k]) return e.preventDefault(), go(views[k]), true;
+  if (k === ",") return e.preventDefault(), go("settings"), true;
+  if (k === "i") return e.preventDefault(), go("import"), true;
+  if (typing) return false; // Ctrl+Z, Ctrl+A and Ctrl+N keep their usual meaning in a text box
+  if (k === "z") return e.preventDefault(), doUndo(), true;
+  if (k === "n") return e.preventDefault(), App.views[App.view]?.onCommand?.("post"), true;
+  if (k === "a" && App.views[App.view]?.onCommand) return e.preventDefault(), App.views[App.view].onCommand("selectAll"), true;
+  return false;
+}
 
 window.hub.onCommand((c) => {
   if (c.startsWith("go:")) {

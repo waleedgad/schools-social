@@ -139,13 +139,13 @@ App.views.library = {
     if ($(".quicklook")) return;
     const ids = selectedIds();
     const k = e.key.toLowerCase();
-    if (e.metaKey && k === "a") {
+    if (modKey(e) && k === "a") {
       e.preventDefault();
       lib.shown.forEach((p) => lib.sel.add(p.id));
       refreshSelection();
       return true;
     }
-    if (e.metaKey && k === "backspace" && ids.length) return act.bin(ids), true;
+    if (((modKey(e) && k === "backspace") || (!isMac() && k === "delete")) && ids.length) return act.bin(ids), true;
     if (e.metaKey || e.ctrlKey) return;
     if (k === "escape") {
       lib.sel.clear();
