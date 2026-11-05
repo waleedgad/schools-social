@@ -47,4 +47,6 @@ jobs:
           path: |
             desktop/release/*.zip
             desktop/release/*.dmg
+            desktop/release/*.blockmap
+            desktop/release/latest-mac.yml
           retention-days: 30

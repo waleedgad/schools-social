@@ -31,9 +31,16 @@ secrets exist. No code changes are needed on the day.
    signature and Apple's approval, starts the built app once, and keeps the
    `.dmg` and `.zip` for 30 days.
 
-After that the app opens with a double-click (no Terminal step), and the
-in-app update check can download and install new versions by itself
-(planned for 1.0).
+After that the app opens with a double-click (no Terminal step), and it
+updates itself: a signed Mac app downloads a new version in the background,
+saves a safety copy, and installs it when the app is closed (the same way the
+Windows app already does). It switches on by itself once the app is signed;
+nothing to set.
+
+For that, each new version's files go up as a GitHub release (the run keeps
+them: the `.zip`, its `.blockmap` and `latest-mac.yml`). Until the repository
+is private, anyone can see a release; when it goes private, the download
+place moves (decided then).
 
 Never paste these values into a chat or a file in the code: only into
 GitHub's Secrets page.

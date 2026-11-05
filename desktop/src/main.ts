@@ -7,6 +7,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { watchTree, type TreeWatcher } from "./core/tree-watch";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, safeStorage, session, shell, Tray } from "electron";
 import { autoUpdater } from "electron-updater";
+import { canSelfUpdate, macSigner } from "./core/self-update";
 import { openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
@@ -620,7 +621,7 @@ function missingSummary() {
 // The app isn't signed by Apple yet, so it can't replace itself. It asks the
 // website which version is newest and, when there is a newer one, shows
 // "Version x is ready" with a safety copy of the library and the steps.
-let update: { version: string; url: string | null; notes: string } | null = null;
+let update: { version: string; url: string | null; notes: string; ready?: boolean } | null = null;
 
 function newer(a: string, b: string) {
   const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
@@ -630,6 +631,8 @@ function newer(a: string, b: string) {
 }
 
 async function checkUpdate() {
+  // Updating itself: the notice comes once the new version is downloaded.
+  if (selfUpdating) return update;
   const server = settings.get().server || DEFAULT_SERVER;
   const body = await fetch(`${server}/api/desktop-config`, { signal: AbortSignal.timeout(15_000) })
     .then((r) => (r.ok ? r.json() : null))
@@ -645,13 +648,17 @@ async function checkUpdate() {
   return update;
 }
 
-// Windows updates itself: the new version downloads in the background and
-// goes in when the app is next closed. A safety copy of the library list,
-// names and faces is made first, like the Mac steps do. The Mac waits for
-// Apple signing (macOS only lets a signed app replace itself).
+// The app updates itself where the system allows it: on Windows always, on a
+// Mac once it is signed with Apple's Developer ID (core/self-update.ts).
+// The new version downloads in the background and goes in when the app is
+// next closed (or at once with "Restart now"). A safety copy of the library
+// list, names and faces is made first. Elsewhere the "new version ready"
+// steps (Versions folder) stay.
 // HUB_UPDATE_FEED points it at a test server (the update robot test).
+let selfUpdating = false;
 function startAutoUpdate() {
-  if (!app.isPackaged || process.platform !== "win32") return;
+  selfUpdating = canSelfUpdate(process.platform, app.isPackaged, () => macSigner(path.resolve(process.execPath, "../../..")));
+  if (!selfUpdating) return;
   const feed = process.env.HUB_UPDATE_FEED;
   if (feed) autoUpdater.setFeedURL({ provider: "generic", url: feed });
   autoUpdater.autoDownload = true;
@@ -663,6 +670,8 @@ function startAutoUpdate() {
       log(`safety copy failed: ${String(e)}`);
     }
     log(`update ${info.version} downloaded; goes in when the app closes`);
+    update = { version: info.version, url: null, notes: typeof info.releaseNotes === "string" ? info.releaseNotes.replace(/<[^>]+>/g, "").slice(0, 500) : "", ready: true };
+    push();
     if (process.env.HUB_UPDATE_TEST) autoUpdater.quitAndInstall(true, false);
   });
   autoUpdater.on("error", (e) => log(`update: ${String(e).slice(0, 300)}`));
@@ -1640,6 +1649,12 @@ app.whenReady().then(async () => {
     checkUpdate: () => checkUpdate(),
     safetyCopy: () => safetyCopy(),
     openUpdate: () => { if (update?.url) return shell.openExternal(update.url); },
+    installUpdate: () => {
+      if (!selfUpdating || !update?.ready) return false;
+      quitting = true;
+      setTimeout(() => autoUpdater.quitAndInstall(false, true), 200);
+      return true;
+    },
     originalThere: (id: number) => engine?.originalThere(id) ?? false,
     retryAura: () => startAura(),
     retryFailed: () => queue.retryFailed(),

@@ -343,6 +343,17 @@ function macStatus() {
 function updateSteps() {
   const u = S.update;
   if (!u) return;
+  // Downloaded by the app itself (Windows, or a signed Mac): nothing to do by hand.
+  if (u.ready) {
+    const m = modal(`<h2>${L(`Version ${u.version} is ready`, `الإصدار ${u.version} جاهز`)}</h2>
+      ${u.notes ? `<p class="muted">${esc(u.notes)}</p>` : ""}
+      <p>${L("It has been downloaded and a safety copy of your names, faces and settings was saved. It goes in by itself the next time you close the app.", "تم تنزيله وحُفظت نسخة أمان من الأسماء والوجوه والإعدادات. سيُثبَّت تلقائيًا في المرة القادمة التي تغلق فيها التطبيق.")}</p>
+      <p class="muted small">${L("Your photos stay where they are.", "صورك تبقى في مكانها.")}</p>
+      <div class="row"><span class="grow"></span><button class="btn" id="up-close">${L("Later", "لاحقًا")}</button><button class="btn primary" id="up-now">${L("Restart now", "إعادة التشغيل الآن")}</button></div>`);
+    $("#up-close", m).onclick = closeOverlay;
+    $("#up-now", m).onclick = () => call("installUpdate");
+    return;
+  }
   const app = S.platform === "win32" ? "" : '"/Applications/School Social Hub Library.app"';
   const cmd = `xattr -cr ${app}`;
   const m = modal(`<h2>${L(`Version ${u.version} is ready`, `الإصدار ${u.version} جاهز`)}</h2>
