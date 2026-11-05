@@ -79,7 +79,7 @@ export async function checkBookNames(formData: FormData) {
       return { book_id: book, school_id: membership.school.id, student_code: code, ok: !fixed, fixed_name: fixed || null, note: str(formData, `note.${code}`, 500) || null, checked_by: user.id, checked_at: new Date().toISOString() };
     });
   if (rows.length) await supabase.from("book_checks").upsert(rows);
-  redirect({ href: { pathname: `/books/${book}`, query: { saved: "names" } }, locale });
+  redirect({ href: { pathname: `/books/${book}`, query: { tab: "names", saved: "names" } }, locale });
 }
 
 export async function commentOnBook(formData: FormData) {
@@ -114,7 +114,7 @@ export async function addBookText(formData: FormData) {
       book_id: book, school_id: membership.school.id, kind, body, user_id: user.id, author_name: membership.fullName,
       class_name: str(formData, "class", 60) || null, student_code: str(formData, "student", 40) || null,
     });
-  redirect({ href: { pathname: `/books/${book}`, query: { saved: "text" } }, locale });
+  redirect({ href: { pathname: `/books/${book}`, query: { tab: "texts", saved: "text" } }, locale });
 }
 
 export async function removeBookText(formData: FormData) {
