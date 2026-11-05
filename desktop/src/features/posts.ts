@@ -238,7 +238,12 @@ export function postsApi(ctx: Ctx): Api {
         try {
           const r = await render(l.id, { shape: o.shape, frame, blur: o.blur, position: o.positions?.[rid] ?? null });
           const path = await upload(`${rid}_e${Date.now()}`, r.full, r.thumb);
-          await ctx.appApi("editPhoto", { photo: rid, path, settings: { kind: "mac", crop: o.shape, frame: o.frameId, blur: o.blur, position: o.positions?.[rid] ?? null }, blur: r.blurred });
+          const saved = await ctx.appApi("editPhoto", { photo: rid, path, settings: { kind: "mac", crop: o.shape, frame: o.frameId, blur: o.blur, position: o.positions?.[rid] ?? null }, blur: r.blurred });
+          // The website said no (for example the role can't edit): not done, and the picture goes.
+          if (saved?.error) {
+            await ctx.client()?.storage.from("photos").remove([path, path.replace(/\.jpg$/, "_t.jpg")]);
+            throw new Error(String(saved.error));
+          }
           done.push(rid);
         } catch (e) {
           failed.push({ id: rid, why: (e as Error).message });
