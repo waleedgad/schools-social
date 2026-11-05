@@ -86,6 +86,14 @@ jobs:
           name: app-test-report-${{ matrix.os }}
           path: desktop/e2e-report
           if-no-files-found: ignore
+      # Every tab in English and Arabic as this computer draws it (kept 14 days).
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-screens-${{ matrix.os }}
+          path: desktop/test-results/**/*-*.png
+          retention-days: 14
+          if-no-files-found: ignore
 
   # Build check: make the real app a school installs (Apple Silicon Mac and
   # Windows, not signed yet) and start it once: it must read photos with its
