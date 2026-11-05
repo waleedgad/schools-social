@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { bookChecks, bookHtml, draftPages, pageCandidates, pageSize, type BookSpec, type Page, type Resolver } from "../core/books";
 import { safeName } from "../core/library";
 import { exclusive } from "../core/lock";
+import { readable } from "../core/media";
 import { q, type Api, type Ctx } from "./ctx";
 
 // The Yearbooks tab: books kept on this Mac (spec, pages, versions), the
@@ -89,7 +90,7 @@ export function booksApi(ctx: Ctx): Api {
     if (!existsSync(out)) {
       await mkdir(path.dirname(out), { recursive: true });
       await exclusive(async () => {
-        const base = sharp(p.path, { failOn: "none" }).rotate().resize(4200, 4200, { fit: "inside", withoutEnlargement: true });
+        const base = sharp(await readable(p.path), { failOn: "none" }).rotate().resize(4200, 4200, { fit: "inside", withoutEnlargement: true });
         const { data, info } = await base.jpeg({ quality: 92 }).toBuffer({ resolveWithObject: true });
         if (!boxes.length) return writeFile(out, data);
         const parts = await Promise.all(

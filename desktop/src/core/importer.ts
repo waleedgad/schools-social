@@ -4,7 +4,7 @@ import { copyFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { exclusive } from "./lock";
-import { rawPreview } from "./media";
+import { rawPreview, readable } from "./media";
 import { retryBusy } from "./retry-busy";
 import { busy } from "./busy";
 
@@ -92,7 +92,7 @@ export function lookAt(file: string, thumb: string): Promise<Look | null> {
 
 async function look(file: string, thumb: string): Promise<Look | null> {
   try {
-    const input = RAW.test(file) ? (await rawPreview(file)) ?? file : file;
+    const input = RAW.test(file) ? (await rawPreview(file)) ?? file : await readable(file);
     const img = sharp(input, { failOn: "none" }).rotate();
     await img.clone().resize({ width: 360, height: 360, fit: "inside" }).jpeg({ quality: 72 }).toFile(thumb);
     const { data, info } = await img.clone().resize({ width: 200, height: 200, fit: "inside" }).greyscale().raw().toBuffer({ resolveWithObject: true });

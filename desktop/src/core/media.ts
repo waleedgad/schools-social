@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import sharp from "sharp";
 import { isRaw } from "./library";
 
@@ -48,7 +49,14 @@ async function heicToJpeg(file: string): Promise<Buffer> {
 export async function source(file: string): Promise<string | Buffer> {
   if (isRaw(file)) return rawPreview(file);
   if (/\.hei[cf]$/i.test(file)) return heicToJpeg(file);
-  return file;
+  return readable(file);
+}
+
+// On Windows the image engine can't open a photo whose full path is 260
+// letters or more (deep folders with long Arabic names, B-37); Node can, so
+// the engine gets the file's bytes instead.
+export async function readable(file: string): Promise<string | Buffer> {
+  return process.platform === "win32" && path.resolve(file).length >= 240 ? readFile(file) : file;
 }
 
 export async function makeThumb(input: string | Buffer, out: string, size: number) {
