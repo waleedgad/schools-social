@@ -336,14 +336,14 @@ async function makeWeekBox() {
     const wd = new Date(`${p.date}T12:00:00`).getDay();
     const slot = slots.find((s) => s.weekday === wd);
     const ev = events.find((e) => (e.event_title ?? "").toLowerCase() && p.title.toLowerCase().includes((e.event_title ?? "").toLowerCase()));
-    return { ...p, time: slot?.at_time?.slice(0, 5) ?? "18:00", event: ev?.event_key ?? "", on: true };
+    return { ...p, time: slot?.at_time?.slice(0, 5) ?? "18:00", event: ev?.event_key ?? "", on: !p.taken };
   });
   const draw = () => {
     m.innerHTML = `<h2>${icon("sparkles", 18)} ${L("Make a week of posts", "أنشئ منشورات أسبوع")}</h2>
       <p class="muted small">${L("Untick what you don't want. Lines with an event get its best photos; the others become ideas to fill in.", "ألغِ ما لا تريده. السطور المرتبطة بفعالية تأخذ أفضل صورها، والباقي يصبح أفكاراً.")}</p>
       <div class="col gap4">${lines.map((p, i) => `<div class="wkrow"><input type="checkbox" data-on="${i}" ${p.on ? "checked" : ""} />
         <span class="muted small" style="width: 92px">${esc(fmtDate(p.date))} ${esc(p.time)}</span>
-        <span class="grow col"><b>${esc(p.title)}</b><span class="muted small">${esc(p.idea)}</span></span>
+        <span class="grow col"><b>${esc(p.title)}</b><span class="muted small">${esc(p.idea)}</span>${p.taken ? `<span class="tag warn" style="align-self: flex-start" data-taken>${L("This day already has a post", "هذا اليوم فيه منشور بالفعل")}</span>` : ""}</span>
         <select data-ev="${i}" style="max-width: 200px"><option value="">${L("No photos (idea)", "بلا صور (فكرة)")}</option>${events.map((e) => `<option value="${esc(e.event_key)}" ${e.event_key === p.event ? "selected" : ""}>${esc(eventName(e.event_title || e.event_key, e.event_date))}</option>`).join("")}</select></div>`).join("")}</div>
       <div class="row"><span class="grow"></span><button class="btn" id="wk-no">${L("Cancel", "إلغاء")}</button><button class="btn primary" id="wk-go">${L("Make them", "أنشئها")}</button></div>`;
     $$("[data-on]", m).forEach((x) => (x.onchange = () => (lines[x.dataset.on].on = x.checked)));

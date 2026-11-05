@@ -44,7 +44,7 @@ jobs:
           for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done
           npm run build
           for i in $(seq 60); do curl -sf -o /dev/null http://localhost:3123/en/login && break; sleep 1; done
-          WEB_URL=http://localhost:3123 xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/nothing-hangs.spec.ts e2e/teacher-check.spec.ts e2e/error-reports.spec.ts e2e/book-review.spec.ts e2e/post-pictures.spec.ts
+          WEB_URL=http://localhost:3123 xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/nothing-hangs.spec.ts e2e/teacher-check.spec.ts e2e/error-reports.spec.ts e2e/book-review.spec.ts e2e/post-pictures.spec.ts e2e/make-week.spec.ts
       - if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -149,7 +149,7 @@ export default async function PostsPage({
         </div>
       }
     >
-      {sp.planned && <Notice tone="good">{t("board.planned", { count: Number(sp.planned) })}</Notice>}
+      {sp.planned && (sp.planned === "0" ? <Notice>{t("board.plannedNone")}</Notice> : <Notice tone="good">{t("board.planned", { count: Number(sp.planned) })}</Notice>)}
       {sp.ai === "limit" && <Notice>{t("library.aiLimit", { count: 0 })}</Notice>}
       {sp.ai === "error" && <Notice>{t("library.aiError")}</Notice>}
       {sp.error === "post" && <Notice>{t("posts.createError")}</Notice>}

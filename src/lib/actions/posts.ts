@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { planWeek } from "@/lib/plan-week";
 import { redirect } from "@/i18n/navigation";
 import { AiLimitError, getAi, type CaptionOptions, type Captions, type SchoolProfile, type Tone, TONES } from "@/lib/ai";
 import { findMentions, spread } from "@/lib/posting";
@@ -284,41 +285,27 @@ export async function restoreVersion(formData: FormData) {
 export async function makeWeek(formData: FormData) {
   const { locale, user, membership, schoolId, supabase, audit } = await curator(formData);
   const days = Math.min(14, Math.max(3, Number(formData.get("days") ?? 7)));
-  const { profile } = await aiContext(supabase, schoolId);
-  const today = new Date().toISOString().slice(0, 10);
-  const until = new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10);
-  const [{ data: events }, { data: categories }] = await Promise.all([
-    supabase.from("events").select("id, title, event_date").eq("school_id", schoolId).gte("event_date", new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10)).lte("event_date", until).order("event_date"),
-    supabase.from("categories").select("id, name_en").eq("school_id", schoolId).order("position"),
-  ]);
   let plan;
   try {
-    plan = await getAi().planPosts({
-      schoolName: membership.school.name,
-      days,
-      events: (events ?? []).map((e) => `${e.event_date}: ${e.title}`),
-      categories: (categories ?? []).map((c) => c.name_en as string),
-      profile,
-    });
+    plan = await planWeek(supabase, { id: schoolId, name: membership.school.name, timezone: membership.school.timezone }, days);
   } catch (e) {
     redirect({ href: { pathname: "/posts", query: { ai: e instanceof AiLimitError ? "limit" : "error" } }, locale });
   }
-  const byName = new Map((categories ?? []).map((c) => [String(c.name_en).toLowerCase(), c.id as string]));
-  const rows = plan!.slice(0, 14).map((p) => {
-    const due = new Date(Date.parse(today) + p.day * 86400_000).toISOString().slice(0, 10);
-    const ev = (events ?? []).find((e) => p.title.toLowerCase().includes(String(e.title).toLowerCase()));
-    return {
+  // Only open days: a day that already has a post keeps it alone.
+  const rows = plan!
+    .filter((p) => !p.taken)
+    .slice(0, 14)
+    .map((p) => ({
       school_id: schoolId,
       created_by: user.id,
       status: "idea",
       idea: `${p.title}\n${p.idea}`.slice(0, 1000),
-      due_on: due,
-      category_id: byName.get(p.category.toLowerCase()) ?? null,
-      event_id: ev?.id ?? null,
-    };
-  });
+      due_on: p.date,
+      category_id: p.category_id,
+      event_id: p.event_id,
+    }));
   if (rows.length) await supabase.from("posts").insert(rows);
-  await audit("ai.week_planned", schoolId, { ideas: rows.length });
+  await audit("ai.week_planned", schoolId, { ideas: rows.length, skipped: plan!.length - rows.length });
   revalidatePath(`/${locale}/posts`);
   redirect({ href: { pathname: "/posts", query: { planned: String(rows.length) } }, locale });
 }

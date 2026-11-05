@@ -640,7 +640,8 @@
     "all": "All",
     "mine": "Mine",
     "makeWeek": "Make a week of posts",
-    "planned": "{count, plural, one {# idea was} other {# ideas were}} added to Ideas for the coming week."
+    "planned": "{count, plural, one {# idea was} other {# ideas were}} added to Ideas for the coming week.",
+    "plannedNone": "Every open day this week already has a post, so no new ideas were added."
   },
   "newPost": {
     "title": "New post",

@@ -1,4 +1,5 @@
 import "server-only";
+import { planWeek } from "./plan-week";
 import { getAi, isAiConfigured, type SchoolProfile } from "@/lib/ai";
 import { thumbPath } from "@/lib/images";
 import type { PostCtx } from "@/lib/post-core";
@@ -195,21 +196,8 @@ export async function handlePosts(ctx: PostCtx, body: Body, locale: "ar" | "en")
     // The AI's ideas for the next days (the website's "Make a week").
     case "planWeek": {
       const days = Math.min(14, Math.max(3, Number(body.days ?? 7)));
-      const today = new Date().toISOString().slice(0, 10);
-      const [{ data: events }, { data: cats }, { data: school }] = await Promise.all([
-        supabase.from("events").select("id, title, event_date").eq("school_id", schoolId).gte("event_date", shift(today, -7)).lte("event_date", shift(today, days)).order("event_date"),
-        supabase.from("categories").select("id, name_en").eq("school_id", schoolId).order("position"),
-        supabase.from("schools").select("profile").eq("id", schoolId).single(),
-      ]);
-      const plan = await getAi().planPosts({
-        schoolName: membership.school.name,
-        days,
-        events: (events ?? []).map((e) => `${e.event_date}: ${e.title}`),
-        categories: (cats ?? []).map((c) => c.name_en as string),
-        profile: (school?.profile ?? {}) as SchoolProfile,
-      });
-      const byName = new Map((cats ?? []).map((c) => [String(c.name_en).toLowerCase(), c.id as string]));
-      return { plan: plan.map((p) => ({ ...p, date: shift(today, p.day), category_id: byName.get(p.category.toLowerCase()) ?? null })) };
+      // taken: the day already has a post; the Mac shows it unticked.
+      return { plan: await planWeek(supabase, { id: schoolId, name: membership.school.name, timezone: membership.school.timezone }, days) };
     }
 
     // School events on the calendar: trips, exams, open days, occasions.
