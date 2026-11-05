@@ -277,3 +277,23 @@ test("smart crop keeps the faces in", async () => {
   const t = smartCrop(800, 1200, 1, [{ x: 0.4, y: 0.6, w: 0.2, h: 0.12 }]);
   assert.ok(t.top <= 0.6 * 1200 && t.top + t.height >= 0.72 * 1200);
 });
+
+test("faces of students who can't appear are blurred where they are, and only there", async () => {
+  const { blurBoxes } = await import("../features/posts.js");
+  // A 1200x800 photo cut to 640x800 on the right half (left 560), made 1080x1350.
+  const box = { left: 560, top: 0, width: 640, height: 800 };
+  const [ow, oh] = [1080, 1350];
+  // A face inside the cut: blurred around it.
+  const [inside] = blurBoxes([{ x: 0.75, y: 0.3, w: 0.1, h: 0.15 }], 1200, 800, box, ow, oh);
+  assert.ok(inside.left > 0 && inside.left + inside.width < ow);
+  const faceLeft = Math.floor(((0.75 * 1200 - 560) / 640) * ow), faceRight = Math.ceil(((0.85 * 1200 - 560) / 640) * ow);
+  assert.ok(inside.left <= faceLeft && inside.left + inside.width >= faceRight);
+  // A face outside the cut (far left of the photo): nothing is blurred.
+  // It used to blur a strip along the picture's left edge.
+  assert.deepEqual(blurBoxes([{ x: 0.05, y: 0.3, w: 0.1, h: 0.15 }], 1200, 800, box, ow, oh), []);
+  // A face half in at the left edge: only the part inside, from the edge.
+  const [half] = blurBoxes([{ x: 0.43, y: 0.3, w: 0.1, h: 0.15 }], 1200, 800, box, ow, oh);
+  assert.equal(half.left, 0);
+  assert.ok(half.width < Math.ceil(((0.1 * 1.4 * 1200) / 640) * ow));
+  assert.ok(half.width >= Math.ceil(((0.53 * 1200 - 560) / 640) * ow));
+});

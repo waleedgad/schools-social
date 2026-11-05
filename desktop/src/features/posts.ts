@@ -39,6 +39,23 @@ export function smartCrop(W: number, H: number, r: number, faces: Box[]) {
   return { left: 0, top: Math.round(Math.min(H - h, Math.max(0, top))), width: W, height: h };
 }
 
+// Where to blur each face of a student who can't appear, in a picture of
+// ow x oh made from the crop `box` of a W x H photo: the face with some
+// room around it, cut to the picture's edges. Faces outside the crop are
+// left out (they used to give a blurred strip along the edge).
+export function blurBoxes(faces: Box[], W: number, H: number, box: { left: number; top: number; width: number; height: number }, ow: number, oh: number) {
+  const out: { left: number; top: number; width: number; height: number }[] = [];
+  for (const f of faces) {
+    const fx = ((f.x - f.w * 0.2) * W - box.left) / box.width, fy = ((f.y - f.h * 0.25) * H - box.top) / box.height;
+    const fw = (f.w * 1.4 * W) / box.width, fh = (f.h * 1.5 * H) / box.height;
+    const left = Math.max(0, Math.floor(fx * ow)), top = Math.max(0, Math.floor(fy * oh));
+    const right = Math.min(ow, Math.ceil((fx + fw) * ow)), bottom = Math.min(oh, Math.ceil((fy + fh) * oh));
+    if (right - left < 4 || bottom - top < 4) continue;
+    out.push({ left, top, width: right - left, height: bottom - top });
+  }
+  return out;
+}
+
 // Where each frame is kept on this Mac (downloaded once).
 async function frameFile(ctx: Ctx, url: string | null, id: string | null) {
   if (!url || !id) return null;
@@ -87,13 +104,7 @@ export function postsApi(ctx: Ctx): Api {
       const ow = out.info.width, oh = out.info.height;
       const blurred: Box[] = [];
       if (o.blur) {
-        for (const f of faces.filter((x) => x.can_post === 0)) {
-          // The face box in the cropped picture.
-          const fx = ((f.x - f.w * 0.2) * W - box.left) / box.width, fy = ((f.y - f.h * 0.25) * H - box.top) / box.height;
-          const fw = (f.w * 1.4 * W) / box.width, fh = (f.h * 1.5 * H) / box.height;
-          const left = Math.max(0, Math.floor(fx * ow)), top = Math.max(0, Math.floor(fy * oh));
-          const width = Math.min(ow - left, Math.ceil(fw * ow)), height = Math.min(oh - top, Math.ceil(fh * oh));
-          if (width < 4 || height < 4) continue;
+        for (const { left, top, width, height } of blurBoxes(faces.filter((x) => x.can_post === 0), W, H, box, ow, oh)) {
           const input = await sharp(out.data).extract({ left, top, width, height }).resize(Math.max(2, Math.round(width / 24)), Math.max(2, Math.round(height / 24))).resize(width, height, { kernel: "cubic" }).blur(Math.max(2, width / 14)).toBuffer();
           parts.push({ input, left, top });
           blurred.push({ x: left / ow, y: top / oh, w: width / ow, h: height / oh });
