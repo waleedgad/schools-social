@@ -113,7 +113,7 @@ export async function publishNow(admin: SupabaseClient, id: string) {
 }
 
 // Called every few minutes by the scheduler.
-export async function publishDue(admin: SupabaseClient, limit = 5) {
+export async function publishDue(admin: SupabaseClient, limit = 5, budgetMs = 40_000) {
   const now = new Date().toISOString();
 
   // The extra approver didn't answer in time: go ahead or keep waiting, as
@@ -129,15 +129,25 @@ export async function publishDue(admin: SupabaseClient, limit = 5) {
   const { data: paused } = await admin.from("schools").select("id").gt("posting_paused_until", now);
   const pausedIds = (paused ?? []).map((s) => s.id as string);
 
-  let query = admin.from("posts").select("id").eq("status", "scheduled").lte("scheduled_at", now).order("scheduled_at").limit(limit);
-  if (pausedIds.length) query = query.not("school_id", "in", `(${pausedIds.join(",")})`);
-  const { data: due } = await query;
+  // Work through what is due in small batches until the time is nearly up
+  // (B-45: one batch of 5 per run let a backlog delay other schools' posts).
+  const started = Date.now();
   let published = 0;
-  for (const { id } of due ?? []) {
-    const post = await claim(admin, id, "scheduled");
-    if (!post) continue;
-    await publishClaimed(admin, post);
-    published++;
+  while (Date.now() - started < budgetMs) {
+    let query = admin.from("posts").select("id").eq("status", "scheduled").lte("scheduled_at", now).order("scheduled_at").limit(limit);
+    if (pausedIds.length) query = query.not("school_id", "in", `(${pausedIds.join(",")})`);
+    const { data: due } = await query;
+    if (!due?.length) break;
+    let claimed = 0;
+    for (const { id } of due) {
+      if (Date.now() - started >= budgetMs) break;
+      const post = await claim(admin, id, "scheduled");
+      if (!post) continue;
+      claimed++;
+      await publishClaimed(admin, post);
+      published++;
+    }
+    if (!claimed) break;
   }
 
   // A run that died half way leaves posts stuck in "publishing"; after

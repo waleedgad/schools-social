@@ -61,7 +61,9 @@ test("schedule, lose the Facebook connection, pause and retry", async ({ page, r
   // 3. The Page is disconnected, then the post is due: failed with the reason, team told.
   await admin.from("meta_connections").delete().eq("school_id", schoolId);
   await admin.from("posts").update({ scheduled_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", post);
-  expect((await cron()).status()).toBe(200);
+  // Other tests leave overdue posts in the shared test database; run the
+  // scheduler until it reaches this one.
+  await expect.poll(async () => (expect((await cron()).status()).toBe(200), (await status(post)).status), { timeout: 60_000 }).toBe("failed");
   expect(await status(post)).toMatchObject({ status: "failed", attempts: 1 });
   expect((await status(post)).publish_error).toMatch(/Connect the school's Facebook Page/);
   // Today lists it as a problem to fix.
