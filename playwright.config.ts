@@ -17,9 +17,14 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "phone", use: { ...devices["Pixel 7"] } },
   ],
-  webServer: {
-    command: "npx next start -p 3123",
-    url: "http://localhost:3123/en/login",
-    reuseExistingServer: false,
-  },
+  // The website talks to a stand-in for Facebook and Instagram, never the real one.
+  webServer: [
+    { command: "node e2e/fake-meta.mjs", url: "http://127.0.0.1:3998/__up", reuseExistingServer: false },
+    {
+      command: "npx next start -p 3123",
+      url: "http://localhost:3123/en/login",
+      reuseExistingServer: false,
+      env: { META_GRAPH_URL: "http://127.0.0.1:3998" },
+    },
+  ],
 });

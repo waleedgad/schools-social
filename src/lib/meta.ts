@@ -6,7 +6,9 @@ import { LIMITS } from "./posting";
 // developers.facebook.com/docs/instagram-platform/content-publishing
 
 const VERSION = (process.env.META_GRAPH_VERSION ?? "").trim() || "v23.0";
-const GRAPH = `https://graph.facebook.com/${VERSION}`;
+// Robot tests point this at a stand-in for Facebook (e2e/fake-meta.mjs), so
+// nothing ever reaches the real Meta.
+const GRAPH = (process.env.META_GRAPH_URL ?? "").trim() || `https://graph.facebook.com/${VERSION}`;
 
 export const META_SCOPES = [
   "pages_show_list",
