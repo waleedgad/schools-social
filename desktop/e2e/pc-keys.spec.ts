@@ -26,8 +26,26 @@ for (const language of ["en", "ar"] as const) {
     const view = () => win.evaluate("App.view");
 
     // Screens by number, settings, import.
+    // On the Mac these keys belong to the app menu, which robot key presses
+    // can't reach, so there the menu item that owns the key is clicked.
     for (const [key, name] of [["2", "library"], ["3", "faces"], ["4", "students"], ["5", "posts"], ["1", "today"], [",", "settings"], ["i", "import"]]) {
-      await win.locator("body").press(`${mod}+${key}`);
+      if (mac) {
+        const found = await app.evaluate(({ Menu, BrowserWindow }, acc) => {
+          const walk = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => {
+            for (const it of items) {
+              if (String(it.accelerator ?? "").toLowerCase() === acc) return it;
+              const sub = it.submenu && walk(it.submenu.items);
+              if (sub) return sub;
+            }
+          };
+          const item = walk(Menu.getApplicationMenu()?.items ?? []);
+          if (item) item.click(undefined, BrowserWindow.getAllWindows()[0]);
+          return !!item;
+        }, `cmdorctrl+${key}`);
+        expect(found, `menu item for ⌘${key}`).toBe(true);
+      } else {
+        await win.locator("body").press(`${mod}+${key}`);
+      }
       await expect.poll(view, { message: `${mod}+${key}` }).toBe(name);
     }
     // Search.
