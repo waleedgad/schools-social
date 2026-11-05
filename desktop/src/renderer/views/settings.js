@@ -43,7 +43,7 @@ function settingGroups(page, extra) {
           rows: [
             srow(L("Editing app", "تطبيق التعديل"), L("Photos open here with “Open in editing app”. Edits saved next to the original with “-edit” in the name are linked to it.", "تُفتح الصور فيه عند «فتح في تطبيق التعديل». التعديلات المحفوظة بجانب الأصل مع «-edit» في الاسم تُربط به."),
               `${S.editor ? pathText(S.editor) : `<span class="small muted">${L("The computer's default", "الافتراضي")}</span>`}${actBtn("chooseEditor", L("Choose…", "اختيار…"))}${S.editor ? actBtn("clearEditor", L("Default", "الافتراضي"), "ghost") : ""}`, "editor lightroom photoshop تعديل"),
-            srow(onMac ? L("Start with the Mac", "التشغيل مع الماك") : L("Start with Windows", "التشغيل مع ويندوز"), L("Keeps the library up to date from the menu bar.", "يُبقي المكتبة محدّثة من شريط القوائم."), toggle("openAtLogin", S.openAtLogin), "login startup start تشغيل"),
+            srow(onMac ? L("Start with the Mac", "التشغيل مع الماك") : L("Start with Windows", "التشغيل مع ويندوز"), (onMac ? L("Keeps the library up to date from the menu bar.", "يُبقي المكتبة محدّثة من شريط القوائم.") : L("Keeps the library up to date from the icons by the clock.", "يُبقي المكتبة محدّثة من الأيقونات بجوار الساعة.")), toggle("openAtLogin", S.openAtLogin), "login startup start تشغيل"),
           ],
         },
       ];
@@ -99,7 +99,7 @@ function settingGroups(page, extra) {
           adv: true,
           rows: [
             srow(L("RAW and edits in their own folders", "ملفات RAW والتعديلات في مجلدات خاصة"), L("RAW files go in a “RAW” folder and edits in “Edited”, inside each event.", "تذهب ملفات RAW إلى مجلد «RAW» والتعديلات إلى «Edited» داخل كل فعالية."), toggle("rawFolders", S.rawFolders), "raw edited"),
-            srow(L("Green Finder tag on picks", "وسم أخضر في Finder للمختارة"), L("No names or faces are written on files.", "لا تُكتب أسماء أو وجوه على الملفات."), toggle("finderTags", S.finderTags, !onMac), "finder tag green pick"),
+            ...(onMac ? [srow(L("Green Finder tag on picks", "وسم أخضر في Finder للمختارة"), L("No names or faces are written on files.", "لا تُكتب أسماء أو وجوه على الملفات."), toggle("finderTags", S.finderTags), "finder tag green pick")] : []),
             srow(L("Lock originals", "قفل الأصول"), L("Originals can't be changed by accident. Edits are always saved as new copies.", "لا يمكن تغيير الأصول بالخطأ. تُحفظ التعديلات دائمًا كنسخ جديدة."), toggle("lockOriginals", S.lockOriginals), "lock original"),
             srow(L("Fix event folder names", "تصحيح أسماء مجلدات الفعاليات"), L("Renames event folders to “YYYY-MM-DD Name”.", "يعيد تسمية مجلدات الفعاليات إلى «YYYY-MM-DD الاسم»."), actBtn("fixNames", L("Fix now…", "صحّح الآن…")), "rename folders names"),
           ],

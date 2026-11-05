@@ -6,7 +6,7 @@ import path from "node:path";
 // Windows (release 0.7): the keys and words are Windows' own. On Windows
 // (and Linux) Ctrl does what ⌘ does on the Mac: Ctrl+K search, Ctrl+1..5 to
 // switch screens, Ctrl+, settings, Ctrl+I import. No screen says ⌘ or
-// Finder there. On the Mac, ⌘ still works and is what it says.
+// Finder or "this Mac" there. On the Mac, ⌘ still works and is what it says.
 const TABS = ["today", "library", "import", "faces", "students", "coverage", "cleanup", "books", "posts", "calendar", "history", "settings", "help"];
 const root = path.join(__dirname, "..");
 const mac = process.platform === "darwin";
@@ -36,7 +36,7 @@ for (const language of ["en", "ar"] as const) {
     await win.keyboard.press("Escape");
 
     // The words on every screen and in the shortcut list.
-    const wrong = mac ? /Ctrl\+|File Explorer|مستكشف الملفات/ : /⌘|Finder/;
+    const wrong = mac ? /Ctrl\+|File Explorer|مستكشف الملفات/ : /⌘|Finder|\b[Tt](his|he) Mac\b|الماك/;
     const problems: string[] = [];
     for (const tab of TABS) {
       await win.locator(`button.nav[data-go="${tab}"]`).click();

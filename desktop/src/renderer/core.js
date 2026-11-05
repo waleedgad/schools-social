@@ -11,7 +11,10 @@ function forPc(s) {
   return s
     .replace(/⌘\s?⌫/g, "Delete")
     .replace(/⌘\s?/g, "Ctrl+")
-    .replace(/Finder/g, S.language === "en" ? "File Explorer" : "مستكشف الملفات");
+    .replace(/Finder/g, S.language === "en" ? "File Explorer" : "مستكشف الملفات")
+    .replace(/\b([Tt])(his|he) Mac\b/g, (_, t, w) => `${t}${w} computer`)
+    .replace(/\bMac (only|online|offline)\b/g, "computer $1")
+    .replace(/الماك/g, "الكمبيوتر");
 }
 const L = (en, ar) => forPc(S?.language === "en" ? en : ar);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -374,7 +377,7 @@ function updateSteps() {
       <li><b>${L("Download", "التنزيل")}</b> ${u.url
         ? `<button class="btn small" id="up-dl">${icon("download", 13)} ${L("Download the new version", "تنزيل الإصدار الجديد")}</button>`
         : `<span class="muted small" id="up-where">${L(`Take version ${u.version} from your Versions folder (the file name has ${u.version} in it).`, `خذ الإصدار ${u.version} من مجلد Versions (اسم الملف فيه ${u.version}).`)}</span>`}</li>
-      <li><b>${L("Replace", "الاستبدال")}</b> <span class="muted small">${L("Quit this app, open the download and drag the app into Applications. Choose Replace.", "أغلق هذا التطبيق، وافتح الملف المنزّل واسحب التطبيق إلى Applications. اختر Replace.")}</span></li>
+      <li><b>${L("Replace", "الاستبدال")}</b> <span class="muted small">${S.platform === "win32" ? L("Quit this app, then open the downloaded installer and follow its steps.", "أغلق هذا التطبيق، ثم افتح ملف التثبيت المنزّل واتبع خطواته.") : L("Quit this app, open the download and drag the app into Applications. Choose Replace.", "أغلق هذا التطبيق، وافتح الملف المنزّل واسحب التطبيق إلى Applications. اختر Replace.")}</span></li>
       ${S.platform === "win32" ? "" : `<li><b>${L("Allow it to open", "السماح بفتحه")}</b> <span class="muted small">${L("Open Terminal, paste this line and press Return:", "افتح Terminal والصق هذا السطر واضغط Return:")}</span>
         <div class="row nowrap"><code class="ltr grow" id="up-cmd">${esc(cmd)}</code><button class="btn small" id="up-copycmd">${L("Copy", "نسخ")}</button></div></li>`}
     </ol>
