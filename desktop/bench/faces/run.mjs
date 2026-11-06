@@ -505,6 +505,114 @@ for (const kind of KINDS) {
   results.groups[kind] = g;
 }
 
+// ---- 4b. Hard cases: the same test faces made harder, then found and
+// matched by the app's own code (3 confirmed faces each, whole set, so
+// harder than a class of 30). Each kind of trouble on its own:
+//   mask, sunglasses, hat, hand: part of the face covered
+//   dark: low light (dim and grainy); motion: camera or student moving
+//   small: a face at the back of a crowd (about 40 px wide)
+// A good result: as many named right as possible, none named wrong, and
+// faces too damaged to trust kept as "not usable" rather than guessed.
+const HARD = (process.env.BENCH_HARD ?? "mask,sunglasses,hat,hand,dark,motion,small").split(",").filter(Boolean);
+const hardResults = {};
+if (HARD.length) {
+  const hardKind = KINDS.at(-1);
+  const known = gallery(hardKind, 3);
+  const hardProbes = [];
+  for (const p of usablePeople) for (const s of byPerson.get(p).slice(strangers.has(p) ? 0 : 5, strangers.has(p) ? 4 : 11)) hardProbes.push({ truth: strangers.has(p) ? null : p, s });
+  const noise = (w, h, seed) => {
+    const rr = rng(seed);
+    const b = Buffer.alloc(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      const v = Math.floor(rr() * 255);
+      b[i * 4] = b[i * 4 + 1] = b[i * 4 + 2] = v;
+      b[i * 4 + 3] = 22;
+    }
+    return sharp(b, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer();
+  };
+  const rect = (w, h, colour, round = 0) =>
+    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" rx="${round}" fill="${colour}"/></svg>`);
+  const ellipse = (w, h, colour) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><ellipse cx="${w / 2}" cy="${h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${colour}"/></svg>`);
+  async function variant(s, how, seed) {
+    const [sw, sh] = s.size;
+    const [fx, fy, fw, fh] = [s.face.box[0] * sw, s.face.box[1] * sh, s.face.box[2] * sw, s.face.box[3] * sh];
+    const left = Math.max(0, Math.round(fx - fw * 0.7)), top = Math.max(0, Math.round(fy - fh * 0.7));
+    const cw = Math.min(sw - left, Math.round(fw * 2.4)), ch = Math.min(sh - top, Math.round(fh * 2.6));
+    const seen = await sharp(s.file, { failOn: "none" }).rotate().resize(sw, sh).toBuffer();
+    let img = await sharp(seen).extract({ left, top, width: cw, height: ch }).toBuffer();
+    // keep crops modest, as a face in an ordinary photo would be
+    const k = Math.min(1, 700 / Math.max(cw, ch));
+    const W = Math.max(16, Math.round(cw * k)), Hh = Math.max(16, Math.round(ch * k));
+    img = await sharp(img).resize(W, Hh).toBuffer();
+    const X = (fx - left) * k, Y = (fy - top) * k, FW = fw * k, FH = fh * k;
+    const at = (x, y) => ({ left: Math.max(0, Math.round(x)), top: Math.max(0, Math.round(y)) });
+    const clip = (w, h, x, y) => [Math.max(1, Math.min(Math.round(w), W - Math.max(0, Math.round(x)))), Math.max(1, Math.min(Math.round(h), Hh - Math.max(0, Math.round(y))))];
+    const over = async (svg, x, y, w, h) => {
+      const [cw2, ch2] = clip(w, h, x, y);
+      return sharp(img).composite([{ input: await sharp(svg).resize(cw2, ch2, { fit: "fill" }).png().toBuffer(), ...at(x, y) }]).toBuffer();
+    };
+    if (how === "mask") img = await over(rect(100, 100, "#a9c6dd", 30), X + FW * 0.05, Y + FH * 0.55, FW * 0.9, FH * 0.5);
+    if (how === "sunglasses") img = await over(rect(100, 30, "#111", 12), X + FW * 0.08, Y + FH * 0.22, FW * 0.84, FH * 0.24);
+    if (how === "hat") img = await over(rect(100, 100, "#7a2e2e", 8), X - FW * 0.25, Y - FH * 0.6, FW * 1.5, FH * 0.78);
+    if (how === "hand") img = await over(ellipse(100, 140, "#c99a7b"), X + FW * (seed % 2 ? 0.55 : -0.15), Y + FH * 0.35, FW * 0.6, FH * 0.75);
+    if (how === "dark") img = await sharp(await sharp(img).linear(0.35, 0).toBuffer()).composite([{ input: await noise(W, Hh, seed), left: 0, top: 0 }]).toBuffer();
+    if (how === "motion") {
+      const n = Math.max(5, Math.round(FW * 0.09)) | 1;
+      // (sharp needs at least 3 rows: a blur along the middle one only)
+      img = await sharp(img).convolve({ width: n, height: 3, kernel: [...Array(n).fill(0), ...Array(n).fill(1), ...Array(n).fill(0)], scale: n }).toBuffer();
+    }
+    if (how === "small") {
+      const k2 = 40 / FW;
+      img = await sharp(img).resize(Math.max(16, Math.round(W * k2)), Math.max(16, Math.round(Hh * k2))).toBuffer();
+      return { buf: await sharp(img).jpeg({ quality: 85 }).toBuffer(), box: [X / W, Y / Hh, FW / W, FH / Hh] };
+    }
+    return { buf: await sharp(img).jpeg({ quality: 88 }).toBuffer(), box: [X / W, Y / Hh, FW / W, FH / Hh] };
+  }
+  for (const how of HARD) {
+    const t = { n: 0, found: 0, usable: 0, right: 0, wrong: 0, suggestRight: 0, strangers: 0, strangerNamed: 0, why: {}, wrongList: [] };
+    for (const [i, p] of hardProbes.entries()) {
+      const key = `hard|${how}|${path.relative(photos, p.s.file)}`;
+      let a = cache.get(key);
+      if (!a) {
+        try {
+          const v = await variant(p.s, how, i);
+          a = { ...(await analyse(v.buf)), target: v.box };
+        } catch (e) {
+          continue;
+        }
+        cache.set(key, a);
+      }
+      if (p.truth) t.n++;
+      else t.strangers++;
+      // the face we made harder: the found face that overlaps it most
+      let best = null, bi = 0.25;
+      for (const f of a.faces) {
+        const v = iou(f.box, a.target);
+        if (v > bi) [best, bi] = [f, v];
+      }
+      if (!best) continue;
+      if (p.truth) t.found++;
+      if (!best.usable) {
+        t.why[best.why] = (t.why[best.why] ?? 0) + 1;
+        continue;
+      }
+      if (p.truth) t.usable++;
+      const list = F.ranked(best.emb[hardKind], known, base(hardKind));
+      const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
+      const d = decide(m, hardKind);
+      if (p.truth) {
+        if (d.how === "sure") d.pick === p.truth ? t.right++ : (t.wrong++, t.wrongList.push(`${how}: ${p.truth} "${title(p.s.file)}" named as ${d.pick}`));
+        else if (d.how === "suggest" && d.pick === p.truth) t.suggestRight++;
+      } else if (d.how === "sure") {
+        t.strangerNamed++;
+        t.wrongList.push(`${how}: stranger ${p.s.person} "${title(p.s.file)}" named as ${d.pick}`);
+      }
+    }
+    hardResults[how] = t;
+  }
+  await saveCache();
+}
+
 // ---- 5. Fair comparison: the most faces named by themselves with at most
 // 0.5% of all test faces named wrongly, each way at its own best setting.
 const q = (v, f) => {
@@ -584,6 +692,15 @@ for (const kind of KINDS) {
   const g = results.groups[kind];
   const t = g.normal;
   L.push(`| ${kind} | ${pct(g.found, g.faces)} | ${pct(t.sureRight, t.n)} | ${pct(t.sureWrong, t.n)} | ${pct(t.sugRight, t.n)} | ${pct(t.sugWrong, t.n)} | ${pct(t.strangerSure + t.strangerSug, t.strangers)} | ${g.tinyNamed} of ${g.tiny} | ${g.blurUsable} of ${g.blurred} | ${g.blurNamed} of ${g.blurred} | ${g.extra} / ${g.extraNamed} | ${g.twice} |`);
+}
+if (Object.keys(hardResults).length) {
+  L.push("", `## Hard cases (${KINDS.at(-1)}, 3 confirmed faces each, matched against everyone)`, "");
+  L.push(`| Trouble | Face still found | Kept as usable | Named by itself: right | Named WRONG | Suggested right | Strangers named | Why left out |`);
+  L.push(`|---|---|---|---|---|---|---|---|`);
+  for (const [how, t] of Object.entries(hardResults))
+    L.push(`| ${how} | ${pct(t.found, t.n)} | ${pct(t.usable, t.n)} | ${pct(t.right, t.n)} | ${t.wrong} | ${pct(t.suggestRight, t.n)} | ${t.strangerNamed} of ${t.strangers} | ${Object.entries(t.why).map(([k, v]) => `${k} ${v}`).join(", ")} |`);
+  const hw = Object.values(hardResults).flatMap((t) => t.wrongList);
+  if (hw.length) L.push("", ...hw.slice(0, 30).map((x) => `- ${x}`));
 }
 L.push("", `## Fair comparison (each at its own best setting, at most 0.5% named wrongly)`, "");
 L.push(`| Recogniser | Compare with | Confirmed faces | Right first guess | Named by itself | Setting (raw score, lead) | Right person's score (10th pct / median) | Stranger's best score (median / 99th pct) |`);
