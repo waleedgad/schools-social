@@ -174,8 +174,11 @@ test("closing the app in the middle of an import leaves no half photos, and the 
   await expect.poll(async () => (await jobOf(win, job))?.done ?? 0, { timeout: 60_000, intervals: [50] }).toBeGreaterThanOrEqual(8);
   // Killed, not closed nicely: like a crash or the power going.
   const done = (await jobOf(win, job))!.done;
-  app.process().kill("SIGKILL");
-  await new Promise((r) => setTimeout(r, 1000));
+  // On Windows the whole app (with its helper processes) must go, or the
+  // next start finds the old one still holding the library.
+  if (process.platform === "win32") execFileSync("taskkill", ["/pid", String(app.process().pid), "/T", "/F"], { stdio: "ignore" });
+  else app.process().kill("SIGKILL");
+  await new Promise((r) => setTimeout(r, process.platform === "win32" ? 4000 : 1000));
   expect(done).toBeLessThan(250);
 
   ({ app, win } = await launch(userData, volumes));

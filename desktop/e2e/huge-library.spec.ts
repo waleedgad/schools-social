@@ -20,7 +20,8 @@ function launch(userData: string) {
     executablePath: require("electron") as unknown as string,
     args: [root, `--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
     // A time zone with no summer time, so the test knows each photo's local day.
-    env: { ...process.env, HUB_TEST: "1", TZ: "Asia/Dubai" },
+    // (Windows takes its time zone from the computer, not from TZ.)
+    env: { ...process.env, HUB_TEST: "1", ...(process.platform === "win32" ? {} : { TZ: "Asia/Dubai" }) },
   });
 }
 
@@ -77,7 +78,7 @@ test("a library of 20,000 photos stays quick", async () => {
   // Release 0.10, item 9: what the school searches by. 600 students in 20
   // classes, named in the photos; some photos filed in a class folder; three
   // students who can't appear; each photo taken at its own time, some just
-  // after midnight (the day in Dubai, UTC+4, is the day before in UTC).
+  // after midnight (in Dubai, UTC+4, that's still the day before in UTC).
   const CLASSES = Array.from({ length: 20 }, (_, i) => `${Math.floor(i / 4) + 1}${"ABCD"[i % 4]}`);
   db.exec("begin");
   const addStudent = db.prepare("insert into students (id, name_en, class_name, can_post, added_at) values (?, ?, ?, ?, 0)");
@@ -91,7 +92,9 @@ test("a library of 20,000 photos stays quick", async () => {
     const e = Number(/Event (\d+)$/.exec(p.event_key)![1]);
     // Event 7's photos start at 00:30 local; the rest at 10:00.
     const local = Date.parse(`${p.event_date}T${e === 7 ? "00:30" : "10:00"}:00Z`) + (n % PER_EVENT) * 60_000;
-    const takenUtc = new Date(local - 4 * 3600_000).toISOString();
+    // Dubai is UTC+4; on Windows the computer's own time zone is used.
+    const offset = process.platform === "win32" ? -new Date(local).getTimezoneOffset() * 60_000 : 4 * 3600_000;
+    const takenUtc = new Date(local - offset).toISOString();
     const filed = e % 10 === 3 ? CLASSES[e % 20] : null;
     if (filed) addTo(want.byClass, filed, p.id);
     addTo(want.byDay, new Date(local).toISOString().slice(0, 10), p.id);
