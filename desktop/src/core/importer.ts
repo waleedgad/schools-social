@@ -147,12 +147,18 @@ export async function hashFile(file: string) {
 export async function copyVerified(src: string, dest: string, srcHash?: string) {
   busy.set("import: copying");
   const tmp = path.join(path.dirname(dest), `.${path.basename(dest)}.copying`);
-  await copyFile(src, tmp, constants.COPYFILE_EXCL).catch(async (e) => {
-    if (existsSync(tmp)) {
-      await rm(tmp, { force: true });
-      await copyFile(src, tmp, constants.COPYFILE_EXCL);
-    } else throw e;
-  });
+  await copyFile(src, tmp, constants.COPYFILE_EXCL)
+    .catch(async (e) => {
+      if (existsSync(tmp) && (e as NodeJS.ErrnoException).code === "EEXIST") {
+        await rm(tmp, { force: true });
+        await copyFile(src, tmp, constants.COPYFILE_EXCL);
+      } else throw e;
+    })
+    .catch(async (e) => {
+      // Disk full, card pulled out, drive gone: never leave half a photo.
+      await rm(tmp, { force: true }).catch(() => {});
+      throw e;
+    });
   const [a, b] = await Promise.all([srcHash ?? hashFile(src), hashFile(tmp)]);
   if (a !== b) {
     await rm(tmp, { force: true });

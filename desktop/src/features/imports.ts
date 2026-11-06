@@ -249,10 +249,14 @@ export function importsApi(ctx: Ctx) {
     return { job: jobId, importId };
   }
 
-  async function tick() {
+  // A job stopped by a problem (disk full, read-only, drive gone) is tried
+  // again by "Try again", the once-a-minute check or the drive coming back,
+  // never straight away in a loop (B-63).
+  async function tick(retryProblems = false) {
     // Paused (the library's Pause button): nothing is copied until Resume.
-    if (running || s().paused) return;
-    const next = all<{ id: number; spec: string }>("select id, spec from import_jobs where state in ('waiting', 'running') order by id");
+    // The library drive unplugged: wait for it, never copy anywhere else.
+    if (running || s().paused || !s().library || !existsSync(s().library)) return;
+    const next = all<{ id: number; spec: string }>(`select id, spec from import_jobs where state in ('waiting', 'running') ${retryProblems ? "" : "and error is null"} order by id`);
     for (const j of next) {
       // A card that isn't plugged in: wait for it.
       const src = one<{ src: string }>("select src from job_files where job_id = ? and state = 'todo' limit 1", j.id);
@@ -283,6 +287,12 @@ export function importsApi(ctx: Ctx) {
     const files = all<{ n: number; src: string; size: number; dest_dir: string }>("select n, src, size, dest_dir from job_files where job_id = ? and state = 'todo' order by n", jobId);
     for (const f of files) {
       if (cancel.has(jobId)) break;
+      if (!existsSync(root)) {
+        // The library drive was unplugged: wait for it (B-63).
+        run("update import_jobs set state = 'waiting', error = 'library-missing' where id = ?", jobId);
+        push(true);
+        return;
+      }
       if (s().paused) {
         // Pause stops after the photo being copied; Resume carries on here.
         run("update import_jobs set state = 'waiting' where id = ?", jobId);
@@ -339,6 +349,16 @@ export function importsApi(ctx: Ctx) {
           push(true);
           return;
         }
+        // The library drive is full, read-only or gone: stop with a clear
+        // note instead of failing every photo after it (B-63). Nothing
+        // half-copied is kept; "Try again" carries on from this photo.
+        const disk = diskProblem(e, root);
+        if (disk) {
+          if (dest) await rm(path.join(path.dirname(dest), `.${path.basename(dest)}.copying`), { force: true }).catch(() => {});
+          run("update import_jobs set state = 'waiting', error = ? where id = ?", disk, jobId);
+          push(true);
+          return;
+        }
         state = "failed";
         reason = e instanceof Error ? e.message : String(e);
       }
@@ -353,6 +373,14 @@ export function importsApi(ctx: Ctx) {
       return finish(jobId, spec, true);
     }
     return finish(jobId, spec, false);
+  }
+
+  function diskProblem(e: unknown, root: string) {
+    const code = (e as NodeJS.ErrnoException)?.code;
+    if (!existsSync(root)) return "library-missing";
+    if (code === "ENOSPC" || code === "EDQUOT") return "disk-full";
+    if (code === "EROFS" || code === "EACCES" || code === "EPERM") return "read-only";
+    return null;
   }
 
   // A library file with exactly these bytes.
@@ -478,6 +506,9 @@ export function importsApi(ctx: Ctx) {
       }
     }
     known = new Set([...known].filter((p) => now.some((v) => v.path === p)));
+    // The library drive is back: an import waiting for it carries on.
+    const root = s().library as string | null;
+    if (!running && root && existsSync(root) && one("select id from import_jobs where state = 'waiting' and error = 'library-missing' limit 1")) void tick(true);
     const has = await iphonePlugged();
     if (has && !phone && !first && s().importAutoOpen !== false) {
       ctx.win()?.show();
@@ -512,10 +543,10 @@ export function importsApi(ctx: Ctx) {
       }
     }
     timers.push(setInterval(() => void checkDevices(), process.platform === "win32" ? 8000 : 6000));
-    timers.push(setInterval(() => void tick(), 60_000));
+    timers.push(setInterval(() => void tick(true), 60_000));
     timers.push(setInterval(() => void dropTick(), 20_000));
     // Anything left from last time (sleep, quit, unplugged card) carries on.
-    setTimeout(() => void tick(), 4000);
+    setTimeout(() => void tick(true), 4000);
   }
   function stopWatching() {
     watcher?.close();

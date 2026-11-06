@@ -1,4 +1,5 @@
 import { _electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,7 +12,7 @@ import sharp from "sharp";
 // and "pulling it out" is moving that folder away.
 const root = path.join(__dirname, "..");
 type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<{ ok: boolean; value: unknown }> } };
-type Job = { id: number; importId: number; state: string; done: number; total: number; waitingForCard: boolean; paused?: boolean };
+type Job = { id: number; importId: number; state: string; done: number; total: number; waitingForCard: boolean; paused?: boolean; error?: string | null };
 
 const sha = (f: string) => createHash("sha256").update(readFileSync(f)).digest("hex");
 
@@ -246,4 +247,90 @@ test("Pause stops copying at once and Resume carries on where it stopped", async
   expect(checkLibrary(lib, card)).toBe(250);
   expect(existsSync(card)).toBe(true);
   await app.close();
+});
+
+test("the library drive unplugged mid-import: a clear note, nothing copied anywhere else, and it carries on when it's back", async () => {
+  test.setTimeout(300_000);
+  // Windows won't let a folder the app is watching be moved away, so the
+  // stand-in for unplugging doesn't work there; the app code is the same.
+  test.skip(process.platform === "win32", "a watched folder can't be moved on Windows");
+  const { base, lib, volumes, userData } = setup();
+  const card = path.join(volumes, "CARD5");
+  await makeCard(path.join(card, "DCIM"), 250);
+  const { app, win } = await launch(userData, volumes);
+  const errors: string[] = [];
+  win.on("pageerror", (e) => errors.push(e.message));
+  const { job } = await startImport(win, path.join(card, "DCIM"));
+  await expect.poll(async () => (await jobOf(win, job))?.done ?? 0, { timeout: 60_000, intervals: [50] }).toBeGreaterThanOrEqual(8);
+  const away = path.join(base, "Photos-unplugged");
+  await move(lib, away);
+  await win.locator('button.nav[data-go="import"]').click();
+  await expect(win.locator("#imp")).toContainText("the library drive isn't connected", { timeout: 30_000 });
+  await win.screenshot({ path: test.info().outputPath("library-unplugged.png") });
+  // B-63: the import never makes a new, empty library where the drive was.
+  await new Promise((r) => setTimeout(r, 3000));
+  expect(existsSync(lib), "no new library folder made in the drive's place").toBe(false);
+  expect((await jobOf(win, job))!.done).toBeLessThan(250);
+  await move(away, lib);
+  await expect.poll(async () => (await jobOf(win, job))?.state, { timeout: 90_000 }).toBe("done");
+  expect(checkLibrary(lib, card)).toBe(250);
+  expect(errors).toEqual([]);
+  await app.close();
+});
+
+// A real full disk and a real read-only drive: a small RAM disk as the
+// library (Linux, where the test machine lets us make one).
+const canMount = (() => {
+  if (process.platform !== "linux") return false;
+  try {
+    execFileSync("sudo", ["-n", "true"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+test("a full library drive and a read-only one: a clear note, no crash, nothing half-written", async () => {
+  test.skip(!canMount, "needs a small RAM disk (Linux with sudo)");
+  test.setTimeout(300_000);
+  const { lib, volumes, userData } = setup();
+  execFileSync("sudo", ["-n", "mount", "-t", "tmpfs", "-o", `size=6m,mode=0777`, "tmpfs", lib]);
+  try {
+    const card = path.join(volumes, "CARD6");
+    await makeCard(path.join(card, "DCIM"), 20);
+    const cardSize = walk(card).reduce((n, f) => n + statSync(f).size, 0);
+    expect(cardSize, "the card holds more than the drive").toBeGreaterThan(7e6);
+    const { app, win } = await launch(userData, volumes);
+    const errors: string[] = [];
+    win.on("pageerror", (e) => errors.push(e.message));
+    await win.locator('button.nav[data-go="import"]').click();
+    const { job } = await startImport(win, path.join(card, "DCIM"));
+    await expect.poll(async () => (await jobOf(win, job))?.state, { timeout: 60_000 }).toBe("problem");
+    const j = (await jobOf(win, job)) as Job & { error: string };
+    expect(j.error).toBe("disk-full");
+    expect(j.done, "stopped part way").toBeLessThan(20);
+    await expect(win.locator("#imp")).toContainText("the library drive is full", { timeout: 20_000 });
+    await win.screenshot({ path: test.info().outputPath("disk-full.png") });
+    // Every photo on the drive is whole (the same bytes as on the card), and no half copy.
+    const want = new Set(walk(card).map(sha));
+    const there = walk(lib).filter((f) => /\.jpe?g$/i.test(f));
+    expect(there.length).toBeGreaterThan(0);
+    for (const f of there) expect(want.has(sha(f)), `${f} is whole`).toBe(true);
+    expect(walk(lib).filter((f) => f.endsWith(".copying"))).toEqual([]);
+
+    // Read-only now (a locked drive): the same, with its own note.
+    execFileSync("sudo", ["-n", "mount", "-o", "remount,ro,size=40m", lib]);
+    await win.locator("[data-retry]").click();
+    await expect.poll(async () => ((await jobOf(win, job)) as Job & { error: string })?.error, { timeout: 30_000 }).toBe("read-only");
+    await expect(win.locator("#imp")).toContainText("can't be written to", { timeout: 20_000 });
+    // Space made and writable again: Try again finishes, each photo once.
+    execFileSync("sudo", ["-n", "mount", "-o", "remount,rw,size=40m", lib]);
+    await win.locator("[data-retry]").click();
+    await expect.poll(async () => (await jobOf(win, job))?.state, { timeout: 60_000 }).toBe("done");
+    expect(checkLibrary(lib, card)).toBe(20);
+    expect(errors).toEqual([]);
+    await app.close();
+  } finally {
+    execFileSync("sudo", ["-n", "umount", "-l", lib]);
+  }
 });

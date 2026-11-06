@@ -38,6 +38,12 @@ window.hub.on("importDevice", (d) => {
 const progressLine = (label, done, total) =>
   `<div class="row"><b class="grow">${label}</b><span class="muted ltr">${num(done)} / ${num(total)}</span></div><div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>`;
 const timeLeft = (s) => (s == null ? "" : s < 60 ? L("less than a minute left", "أقل من دقيقة متبقية") : s < 3600 ? L(`about ${Math.round(s / 60)} min left`, `حوالي ${num(Math.round(s / 60))} دقيقة متبقية`) : L(`about ${(s / 3600).toFixed(1)} h left`, `حوالي ${num(+(s / 3600).toFixed(1))} ساعة متبقية`));
+// Library drive problems: what happened and what to do, in plain words.
+const PROBLEM = () => ({
+  "disk-full": L("Stopped: the library drive is full. Free some space (or empty the Bin), then press Try again.", "توقف: قرص المكتبة ممتلئ. وفّر بعض المساحة (أو أفرغ السلة)، ثم اضغط إعادة المحاولة."),
+  "read-only": L("Stopped: the library folder can't be written to (it's read-only or locked). Check the drive, then press Try again.", "توقف: لا يمكن الكتابة في مجلد المكتبة (للقراءة فقط أو مقفل). افحص القرص، ثم اضغط إعادة المحاولة."),
+  "library-missing": L("Waiting: the library drive isn't connected. Plug it in and the import carries on.", "في الانتظار: قرص المكتبة غير موصول. وصّله وسيكمل الاستيراد."),
+});
 const JUNK = () => ({ dark: L("Pocket shot", "صورة داخل الجيب"), blank: L("Blank", "فارغة"), blurry: L("Very blurry", "مهزوزة جدًا") });
 
 App.views.import = {
@@ -176,7 +182,7 @@ App.views.import = {
       <button class="btn primary" id="i-sum">${L("See summary", "عرض الملخص")}</button><button class="btn ghost" id="i-sumx">${icon("x", 14)}</button></div>`;
   },
   jobRow(j) {
-    const state = j.state === "running" ? timeLeft(j.left) : j.waitingForCard ? L("Waiting: plug the card back in to carry on", "في الانتظار: أعد إدخال الكارت للمتابعة") : j.state === "problem" ? L(`Stopped: ${j.error}`, `توقف: ${j.error}`) : j.paused ? L("Paused: press Resume to carry on", "متوقف مؤقتًا: اضغط استئناف للمتابعة") : j.state === "waiting" ? L("Waiting for the one before", "في انتظار السابق") : j.state === "done" ? L("Finished", "انتهى") : L("Cancelled", "أُلغي");
+    const state = j.state === "running" ? timeLeft(j.left) : j.waitingForCard ? L("Waiting: plug the card back in to carry on", "في الانتظار: أعد إدخال الكارت للمتابعة") : j.state === "problem" ? (PROBLEM()[j.error] ?? L(`Stopped: ${j.error}`, `توقف: ${j.error}`)) : j.paused ? L("Paused: press Resume to carry on", "متوقف مؤقتًا: اضغط استئناف للمتابعة") : j.state === "waiting" ? L("Waiting for the one before", "في انتظار السابق") : j.state === "done" ? L("Finished", "انتهى") : L("Cancelled", "أُلغي");
     const live = j.state === "running" || j.state === "waiting" || j.state === "problem";
     return `<div class="col gap4"><div class="row nowrap"><b class="grow">${esc(j.title)}</b><span class="muted small">${esc(state)}</span>
       ${live ? `<button class="btn small ghost" data-open="${j.importId}" title="${L("Start picking while it copies", "ابدأ الاختيار أثناء النسخ")}">${icon("images", 14)}</button>` : `<button class="btn small" data-sumj="${j.importId}">${L("Summary", "الملخص")}</button>`}
