@@ -145,19 +145,22 @@ App.views.students = {
     const sub = $("#st-sub");
     if (sub) sub.textContent = `${this.title()} · ${plural(rows.length, "person", "people", "شخص")}`;
     const teacher = ST.className ? ST.tree?.teachers?.[ST.className] : null;
-    box.innerHTML = `<div class="col gap12">
+    // Drawn again in place (B-73): picking another class or filter keeps
+    // the faces already on screen instead of loading every picture again.
+    morph(box, `<div class="col gap12">
       ${ST.className ? `<div class="card"><div class="row"><div class="grow col gap4"><h2 style="margin: 0">${L("Class", "فصل")} ${esc(ST.className)}</h2>
           <span class="muted small">${teacher ? `${L("Class teacher", "معلم الفصل")}: <b>${esc(teacher.name)}</b>` : L("No class teacher set", "لم يُعيَّن معلم للفصل")} · <button class="link small" id="st-ct">${teacher ? L("Change", "تغيير") : L("Set", "تعيين")}</button></span></div>
           <button class="btn small" id="st-check">${icon("smartphone", 14)} ${L("Ask the class teacher", "اسأل معلم الفصل")}</button>
           <button class="btn small" id="st-cov">${icon("chart-pie", 14)} ${L("Coverage", "التغطية")}</button>
           <button class="btn small" id="st-cls">${icon("images", 14)} ${L("Class photos", "صور الفصل")}</button></div></div>` : ""}
-      <div class="row" id="st-chips"></div>
-      <div id="st-body"></div></div>`;
+      <div class="row" id="st-chips" data-own></div>
+      <div id="st-body" data-own></div></div>`);
     this.chips();
-    $("#st-ct", box)?.addEventListener("click", () => classTeacherBox(ST.className));
-    $("#st-cov", box)?.addEventListener("click", () => go("coverage", { className: ST.className }));
-    $("#st-cls", box)?.addEventListener("click", () => go("library", { className: ST.className }));
-    $("#st-check", box)?.addEventListener("click", async () => {
+    const on = (sel, fn) => { const el = $(sel, box); if (el) el.onclick = fn; };
+    on("#st-ct", () => classTeacherBox(ST.className));
+    on("#st-cov", () => go("coverage", { className: ST.className }));
+    on("#st-cls", () => go("library", { className: ST.className }));
+    on("#st-check", async () => {
       const r = await call("sendFaceChecks", ST.className);
       toast(r.sent ? L(`${r.sent} "Is this …?" questions sent to the class teacher's phone.`, `أُرسل ${num(r.sent)} سؤال «هل هذا …؟» إلى هاتف معلم الفصل.`) : L("Nothing to ask: no face suggestions for this class yet. Signed in to the website?", "لا شيء للسؤال: لا اقتراحات وجوه لهذا الفصل بعد. هل سجّلت الدخول إلى الموقع؟"));
     });
@@ -181,17 +184,17 @@ App.views.students = {
     const miss = (r) => (r.missing.length ? `<span class="warnic" title="${esc(r.missing.map((m) => MISSING()[m]).join(" · "))}">${icon("triangle-alert", 12)}</span>` : "");
     const sub = (r) => (r.kind === "student" ? r.class_name ?? "" : KINDS()[r.kind] ?? "");
     if (ST.view === "grid") {
-      box.innerHTML = `<div class="people">${rows.map((r) => `<div class="person ${r.can_post ? "" : "off"} ${ST.sel.has(r.id) ? "sel" : ""}" data-id="${esc(r.id)}">
+      morph(box, `<div class="people">${rows.map((r) => `<div class="person ${r.can_post ? "" : "off"} ${ST.sel.has(r.id) ? "sel" : ""}" data-key="${esc(r.id)}" data-id="${esc(r.id)}">
           <span class="ptick">${icon("check", 11)}</span>${faceImg(r, true)}
           <b class="small">${esc(name(r))}</b>${otherName(r) ? `<span class="tiny muted" dir="auto">${esc(otherName(r))}</span>` : ""}
           <span class="tiny muted row nowrap" style="gap: 5px; justify-content: center">${dot(r.photos)}${esc(sub(r))}${miss(r)}</span>
-          ${!r.can_post ? `<span class="tag bad tiny">${L("Can't appear", "لا يظهر")}</span>` : r.left_on ? `<span class="tag tiny">${r.left_why === "graduated" ? L("Graduated", "تخرّج") : L("Left", "غادر")} ${esc(r.left_on.slice(0, 4))}</span>` : r.suggested ? `<span class="badge">${L(`${r.suggested} to check`, `${num(r.suggested)} للتأكيد`)}</span>` : ""}</div>`).join("")}</div>`;
+          ${!r.can_post ? `<span class="tag bad tiny">${L("Can't appear", "لا يظهر")}</span>` : r.left_on ? `<span class="tag tiny">${r.left_why === "graduated" ? L("Graduated", "تخرّج") : L("Left", "غادر")} ${esc(r.left_on.slice(0, 4))}</span>` : r.suggested ? `<span class="badge">${L(`${r.suggested} to check`, `${num(r.suggested)} للتأكيد`)}</span>` : ""}</div>`).join("")}</div>`);
     } else {
-      box.innerHTML = `<table class="list"><thead><tr><th style="width: 28px"></th><th></th><th>${L("Name", "الاسم")}</th><th>${L("Class", "الفصل")}</th><th>${L("ID", "الرقم")}</th><th>${L("Photos", "الصور")}</th><th>${L("Last seen", "آخر ظهور")}</th><th>${L("Clubs", "الأندية")}</th><th>${L("In posts", "في المنشورات")}</th></tr></thead><tbody>
-        ${rows.map((r) => `<tr class="click ${ST.sel.has(r.id) ? "on" : ""}" data-id="${esc(r.id)}"><td><input type="checkbox" data-tick ${ST.sel.has(r.id) ? "checked" : ""} /></td><td style="width: 44px">${faceImg(r)}</td>
+      morph(box, `<table class="list"><thead><tr><th style="width: 28px"></th><th></th><th>${L("Name", "الاسم")}</th><th>${L("Class", "الفصل")}</th><th>${L("ID", "الرقم")}</th><th>${L("Photos", "الصور")}</th><th>${L("Last seen", "آخر ظهور")}</th><th>${L("Clubs", "الأندية")}</th><th>${L("In posts", "في المنشورات")}</th></tr></thead><tbody>
+        ${rows.map((r) => `<tr class="click ${ST.sel.has(r.id) ? "on" : ""}" data-key="${esc(r.id)}" data-id="${esc(r.id)}"><td><input type="checkbox" data-tick ${ST.sel.has(r.id) ? "checked" : ""} /></td><td style="width: 44px">${faceImg(r)}</td>
           <td><b>${esc(name(r))}</b> ${miss(r)}${otherName(r) ? `<div class="small muted" dir="auto">${esc(otherName(r))}</div>` : ""}</td><td>${esc(sub(r))}</td><td class="muted ltr">${esc(r.id)}</td>
           <td>${dot(r.photos)} ${num(r.photos)}${r.suggested ? ` <span class="tag warn">? ${num(r.suggested)}</span>` : ""}</td><td class="muted small">${esc(dayLabel(r.last_seen))}</td><td class="small">${esc(r.clubs ?? "")}</td>
-          <td>${r.can_post ? `<span class="tag good">${L("Yes", "نعم")}</span>` : `<span class="tag bad">${L("No", "لا")}</span>`}</td></tr>`).join("")}</tbody></table>`;
+          <td>${r.can_post ? `<span class="tag good">${L("Yes", "نعم")}</span>` : `<span class="tag bad">${L("No", "لا")}</span>`}</td></tr>`).join("")}</tbody></table>`);
     }
     $$("[data-id]", box).forEach((el) => (el.onclick = (e) => {
       const id = el.dataset.id;
@@ -288,7 +291,7 @@ async function classTeacherBox(className) {
     await call("setClassTeacher", className, t.id);
     undoToast(L(`${name(t)} is the class teacher of ${className}. They see this class's coverage on their phone.`, `${name(t)} معلم فصل ${className}. يرى تغطية هذا الفصل على هاتفه.`));
     if (App.view === "students") (App.views.students.tree(), App.views.students.list());
-    else rerender();
+    else rerender(true);
   }, { kind: "teacher" });
 }
 
@@ -323,7 +326,7 @@ async function editPerson(id, preset = {}) {
     if (id) {
       await call("saveStudent", id, v);
       undoToast(L("Saved", "تم الحفظ"));
-      rerender();
+      rerender(true);
     } else {
       const nid = await call("addStudent", { id: v.id, name_en: v.name_en, name_ar: v.name_ar, class_name: v.class_name, kind: v.kind });
       const rest = Object.fromEntries(Object.entries(v).filter(([k, x]) => x && !["id", "name_en", "name_ar", "class_name", "kind"].includes(k)));
@@ -349,7 +352,7 @@ async function newYear() {
     closeOverlay();
     const r = await call("promote", plan);
     undoToast(L(`Done: ${r.moved} students moved up for ${p.next}.`, `تم: انتقل ${num(r.moved)} طالب إلى ${p.next}.`));
-    rerender();
+    rerender(true);
   };
 }
 

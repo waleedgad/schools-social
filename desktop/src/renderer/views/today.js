@@ -115,12 +115,13 @@ App.views.today = {
       })
       .join("");
     const hidden = TODAY.layout.filter((x) => x.hidden);
-    box.innerHTML =
+    // Drawn again in place (B-69): cards that didn't change stay as they are.
+    morph(box,
       (TODAY.editing
         ? `<div class="card wide row"><span class="grow"><b>${L("Customise Today", "تخصيص اليوم")}</b> <span class="muted small">${L("Drag cards to move them, make them wider, or hide them. Your layout follows you to every computer and the website.", "اسحب البطاقات لنقلها، أو اجعلها أعرض، أو أخفها. يتبعك ترتيبك على كل جهاز وعلى الموقع.")}</span></span>
             <button class="btn small ghost" id="t-reset">${L("Back to default", "الوضع الافتراضي")}</button><button class="btn small primary" id="t-done">${L("Done", "تم")}</button></div>
             ${hidden.length ? `<div class="card wide"><b class="small">${L("Add a card", "إضافة بطاقة")}</b><div class="row" style="margin-top: 8px">${hidden.map((x) => `<button class="btn small" data-show="${x.key}">${icon(cards[x.key].icon, 13)} ${cards[x.key].title}</button>`).join("")}</div></div>` : ""}`
-        : this.computerLimit()) + html;
+        : this.computerLimit()) + html);
     this.bind(box);
   },
   computerLimit() {
@@ -354,8 +355,10 @@ App.views.today = {
         }
       }));
     }));
-    $("#t-retry", box)?.addEventListener("click", () => call("retryFailed"));
-    $("#t-wizard", box)?.addEventListener("click", () => setupWizard());
+    const retry = $("#t-retry", box);
+    if (retry) retry.onclick = () => call("retryFailed");
+    const wizard = $("#t-wizard", box);
+    if (wizard) wizard.onclick = () => setupWizard();
     $$("[data-step]", box).forEach((b) => (b.onclick = () => this._steps[Number(b.dataset.step)][3]()));
     // Customising.
     if (!TODAY.editing) return;

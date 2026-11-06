@@ -28,6 +28,80 @@ function nameIconButtons(root = document.body) {
 }
 new MutationObserver(() => nameIconButtons()).observe(document.documentElement, { childList: true, subtree: true });
 
+// ---------- Drawing again without flicker ----------
+// A box drawn again (new counts, a photo arrived) keeps the parts that
+// didn't change: they don't replay their "appear" animation and their
+// pictures don't blink while they load again. Only what changed is touched.
+// Children are matched by data-key (or id), else by position and tag.
+// Event handlers set with el.onclick = … are simply set again afterwards.
+function morph(el, html) {
+  const next = document.createElement(el.tagName === "TBODY" ? "tbody" : "div");
+  next.innerHTML = html;
+  morphChildren(el, next);
+  nameIconButtons(el);
+}
+const morphKey = (n) => (n.nodeType === 1 ? n.getAttribute("data-key") ?? (n.id || null) : null);
+function morphChildren(from, to) {
+  const keyed = new Map();
+  for (const c of from.childNodes) {
+    const k = morphKey(c);
+    if (k != null) keyed.set(k, c);
+  }
+  const wanted = new Set([...to.childNodes].map(morphKey).filter((k) => k != null));
+  let at = from.firstChild;
+  // Ones that are gone are taken out first, so the ones that stay don't
+  // have to be moved.
+  const skipGone = () => {
+    while (at && morphKey(at) != null && !wanted.has(morphKey(at))) {
+      const n = at.nextSibling;
+      keyed.delete(morphKey(at));
+      at.remove();
+      at = n;
+    }
+  };
+  for (const want of [...to.childNodes]) {
+    skipGone();
+    const k = morphKey(want);
+    let have = null;
+    if (k != null) {
+      have = keyed.get(k) ?? null;
+      keyed.delete(k);
+    } else if (at && morphKey(at) == null && at.nodeName === want.nodeName) have = at;
+    if (have && have.nodeName === want.nodeName) {
+      if (have !== at) from.insertBefore(have, at);
+      morphNode(have, want);
+      at = have.nextSibling;
+    } else {
+      if (have && k != null) {
+        if (have === at) at = at.nextSibling;
+        have.remove();
+      }
+      from.insertBefore(want, at);
+    }
+  }
+  while (at) {
+    const n = at.nextSibling;
+    at.remove();
+    at = n;
+  }
+  for (const left of keyed.values()) if (left.isConnected && left.parentNode === from) left.remove();
+}
+function morphNode(from, to) {
+  if (from.nodeType === 3 || from.nodeType === 8) {
+    if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue;
+    return;
+  }
+  // A tick box the person clicked keeps its own state; set it to what's drawn.
+  if (from.tagName === "INPUT" && /^(checkbox|radio)$/.test(from.type)) from.checked = to.hasAttribute("checked");
+  if (from.isEqualNode(to)) return;
+  for (const a of [...to.attributes]) if (from.getAttribute(a.name) !== a.value) from.setAttribute(a.name, a.value);
+  // aria-label and title are added by nameIconButtons; keep them.
+  for (const a of [...from.attributes]) if (!to.hasAttribute(a.name) && a.name !== "aria-label" && a.name !== "title") from.removeAttribute(a.name);
+  // A box marked data-own fills itself (its own morph); leave what's in it.
+  if (from.tagName === "TEXTAREA" || to.hasAttribute("data-own")) return;
+  morphChildren(from, to);
+}
+
 // ---------- Right-click menus ----------
 // items: [{ label, icon?, key?, run, enabled?, checked?, danger?, sub? } | "-"]
 // The menu itself is the Mac's (or Windows') own menu, drawn by the system.
@@ -51,15 +125,24 @@ async function menu(items, at) {
 }
 
 // Right-click (and Ctrl-click) on anything matching sel inside root.
+// Calling it again on the same box (drawn again in place) replaces the menu
+// for that selector instead of adding a second one.
 function onContext(root, sel, build) {
-  root.addEventListener("contextmenu", (e) => {
-    const el = sel ? e.target.closest(sel) : root;
-    if (!el || !root.contains(el)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const items = build(el, e);
-    if (items?.length) menu(items);
-  });
+  if (!root._ctx) {
+    root._ctx = new Map();
+    root.addEventListener("contextmenu", (e) => {
+      for (const [s, b] of root._ctx) {
+        const el = s ? e.target.closest(s) : root;
+        if (!el || !root.contains(el)) continue;
+        e.preventDefault();
+        e.stopPropagation();
+        const items = b(el, e);
+        if (items?.length) menu(items);
+        return;
+      }
+    });
+  }
+  root._ctx.set(sel ?? "", build);
 }
 
 // ---------- Pills ----------
@@ -119,7 +202,7 @@ async function setSetting(key, value, label) {
     toastAction(label ?? L("Saved", "تم الحفظ"), L("Undo", "تراجع"), async () => {
       await call("set", key, before);
       S[key] = before;
-      rerender();
+      rerender(true);
     });
 }
 function toastAction(msg, action, fn, ms = 5000) {

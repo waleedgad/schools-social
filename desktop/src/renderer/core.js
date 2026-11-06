@@ -83,7 +83,7 @@ function toast(msg, opts = {}) {
 async function doUndo() {
   const what = await call("undo");
   toast(what ? L("Undone", "تم التراجع") : L("Nothing to undo", "لا يوجد ما يمكن التراجع عنه"));
-  rerender();
+  rerender(true);
 }
 
 // ---------- Overlays ----------
@@ -216,19 +216,24 @@ function palette() {
       res.append(el);
     });
   };
+  let seq = 0;
   const load = async () => {
     const q = input.value.trim();
     const cmds = commands().filter((c) => !q || c.label.toLowerCase().includes(q.toLowerCase()));
-    items = [];
+    const mine = ++seq;
+    const next = [];
     if (q) {
       const r = await quiet("search", q);
+      // Typed on since: an older answer never replaces a newer one (B-75).
+      if (mine !== seq) return;
       if (r) {
-        items.push(...r.students.map((s) => ({ grp: L("Students", "الطلاب"), label: name(s), sub: s.class_name, icon: "user", run: () => go("student", { id: s.id }) })));
-        items.push(...r.classes.map((c) => ({ grp: L("Classes", "الفصول"), label: c.class_name, sub: plural(c.n, "student", "students", "طالب"), icon: "school", run: () => go("students", { className: c.class_name }) })));
-        items.push(...r.events.map((e) => ({ grp: L("Events", "الفعاليات"), label: e.event_title, sub: fmtDate(e.event_date), icon: "folder", run: () => go("library", { event: e.event_key }) })));
+        next.push(...r.students.map((s) => ({ grp: L("Students", "الطلاب"), label: name(s), sub: s.class_name, icon: "user", run: () => go("student", { id: s.id }) })));
+        next.push(...r.classes.map((c) => ({ grp: L("Classes", "الفصول"), label: c.class_name, sub: plural(c.n, "student", "students", "طالب"), icon: "school", run: () => go("students", { className: c.class_name }) })));
+        next.push(...r.events.map((e) => ({ grp: L("Events", "الفعاليات"), label: e.event_title, sub: fmtDate(e.event_date), icon: "folder", run: () => go("library", { event: e.event_key }) })));
       }
     }
-    items.push(...cmds.slice(0, q ? 8 : 30));
+    next.push(...cmds.slice(0, q ? 8 : 30));
+    items = next;
     on = 0;
     draw();
   };
@@ -400,19 +405,44 @@ function topbar(title, sub = "", right = "") {
 function go(view, params = {}) {
   if (App.leave) App.leave();
   App.leave = null;
+  const same = view === App.view;
   App.view = view;
   App.params = params;
   closeOverlay();
-  rerender();
+  rerender(same);
 }
 
-function rerender() {
+// Moving within the same tab (another guide in Help, another student) is not
+// a new page: nothing fades in again and the lists stay scrolled where they
+// were (B-74). Only a different tab gets the gentle fade-in.
+function rerender(same = false) {
   sidebar();
   const v = App.views[App.view] ?? App.views.today;
   const main = $("#main");
+  const scrolls = same ? [...main.querySelectorAll("*")].filter((e) => e.scrollTop > 0).map((e) => [scrollPath(main, e), e.scrollTop]) : [];
+  main.classList.toggle("still", same);
   main.replaceChildren();
   v.render(main, App.params);
+  if (!scrolls.length) return;
+  const put = () => scrolls.forEach(([p, top]) => { const e = fromScrollPath(main, p); if (e && e.scrollTop < top) e.scrollTop = top; });
+  put();
+  // Lists filled a moment later get their place back too.
+  requestAnimationFrame(put);
+  setTimeout(put, 250);
 }
+const scrollPath = (root, e) => {
+  const p = [];
+  for (; e && e !== root; e = e.parentElement) p.unshift(e.id ? `#${e.id}` : `${e.tagName}.${e.className}`);
+  return p;
+};
+const fromScrollPath = (root, p) => {
+  let e = root;
+  for (const step of p) {
+    e = [...e.children].find((c) => (step[0] === "#" ? `#${c.id}` === step : `${c.tagName}.${c.className}` === step));
+    if (!e) return null;
+  }
+  return e;
+};
 
 function applyLook() {
   const root = document.documentElement;

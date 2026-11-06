@@ -45,7 +45,7 @@ async function drawViewer() {
     ["T", L("tag", "وسم")], ["Y / N", L("yes / no to suggestions", "نعم / لا للاقتراحات")], ["B", L("before / after", "قبل / بعد")],
     ["C", L("compare", "مقارنة")], ["F", L("faces", "الوجوه")], ["Esc", L("close", "إغلاق")],
   ];
-  overlay.innerHTML = `<div class="viewer ${opening ? "opening" : ""}">
+  const html = `<div class="viewer ${opening ? "opening" : ""}">
     <div class="vtop"><b>${esc(p.name)}</b><span class="muted small">${num(V.i + 1)} / ${num(V.ids.length)}</span>
       ${V.opts.cull ? `<span class="tag info">${L("Culling: P / X moves on", "الفرز: P / X ينتقل للتالي")}</span>` : ""}
       <span class="grow"></span>
@@ -58,9 +58,14 @@ async function drawViewer() {
         <button class="btn small" id="v-mfind">${L("Find missing…", "البحث عن المفقودة…")}</button><button class="btn small" id="v-mshow">${S.platform === "win32" ? L("Show in Explorer", "إظهار في المستكشف") : L("Show in Finder", "إظهار في Finder")}</button></div>
       ${faces.map((f) => (f.w ? `<div class="facebox ${f.status} ${f.status !== "suggested" && f.can_post === 0 ? "nopost" : ""}" data-face="${f.id}" style="left: ${f.x * 100}%; top: ${f.y * 100}%; width: ${f.w * 100}%; height: ${f.h * 100}%"><span class="nm">${esc(faceLabel(f))}</span></div>` : "")).join("")}
       ${V.before ? `<span class="tag" style="position: absolute; top: 8px; left: 8px">${L("Original", "الأصل")}</span>` : ""}</div></div>
-      <aside class="vside" id="v-side"></aside></div>
+      <aside class="vside${$("#v-side.hide") ? " hide" : ""}" id="v-side" data-own></aside></div>
     <div class="keys">${keys.map(([k, t]) => `<span><span class="k">${k}</span> ${t}</span>`).join("")}</div>
-    <div class="strip" id="v-strip"></div></div>`;
+    <div class="strip" id="v-strip" data-own></div></div>`;
+  // Moving to the next photo changes the viewer in place: the photo strip,
+  // buttons and side panel stay put and only what changed is drawn again
+  // (B-71). Opening draws it fresh.
+  if (!opening && $(".viewer", overlay)) morph(overlay, html);
+  else overlay.innerHTML = html;
   drawSide(p);
   drawStrip();
   for (const k of [V.i + 1, V.i - 1]) if (V.ids[k] !== undefined) void viewerPreload(`hub://preview/${V.ids[k]}`, 0);
@@ -99,15 +104,15 @@ function drawSide(p) {
   const named = p.faces.filter((f) => f.student_id && f.status !== "suggested");
   const sug = p.faces.filter((f) => f.status === "suggested");
   const unknown = p.faces.filter((f) => f.status === "unknown" && f.w);
-  side.innerHTML = `
+  morph(side, `
     <div class="col gap4"><b>${esc(p.event_title ?? L("Not in an event", "خارج الفعاليات"))}</b>
       <span class="muted">${[p.taken_at && fmtDate(p.taken_at), p.class_name, p.term, p.year].filter(Boolean).map(esc).join(" · ")}</span>
       <span class="muted">${p.width ?? "?"}×${p.height ?? "?"} · ${fmtBytes(p.size)}${p.quality ? ` · ${L("quality", "الجودة")} ${p.quality}/10` : ""}</span>
       <div class="row">${p.remote_id ? `<span class="tag info">☁ ${L("On the website", "على الموقع")}</span>` : ""}${p.is_raw || p.raw.length ? `<span class="tag">RAW</span>` : ""}${p.edits.length ? `<span class="tag violet">✎ ${L("Edited", "معدّلة")}</span>` : ""}</div></div>
     <div class="col gap4"><b>${L("People", "الأشخاص")}</b>
-      ${named.map((f) => `<div class="who" data-fm="${f.id}">${avatar({ ...f, id: f.student_id, portrait: null })}<div class="grow"><div>${esc(name(f))}</div><div class="muted tiny">${esc(f.class_name ?? "")}</div></div>${f.can_post === 0 ? `<span class="tag bad" title="${L("Can't appear in posts", "لا يظهر في المنشورات")}">⛔</span>` : ""}<button class="btn small ghost" data-untag="${f.id}" title="${L("Remove", "إزالة")}">✕</button></div>`).join("")}
-      ${sug.map((f) => `<div class="who" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div>${esc(S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en)}?</div><div class="muted tiny">${L("match", "تطابق")} ${Math.round((f.suggest_score ?? 0) * 100)}%</div></div><button class="btn small" data-yes="${f.id}" title="Y">✓</button><button class="btn small" data-no="${f.id}" title="N">✕</button></div>`).join("")}
-      ${unknown.map((f) => `<div class="who" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div class="muted">${L("Who is this?", "من هذا؟")}</div><div class="row gap4" data-guess="${f.id}"></div></div><button class="btn small" data-name="${f.id}">${L("Name", "تسمية")}</button></div>`).join("")}
+      ${named.map((f) => `<div class="who" data-key="f${f.id}" data-fm="${f.id}">${avatar({ ...f, id: f.student_id, portrait: null })}<div class="grow"><div>${esc(name(f))}</div><div class="muted tiny">${esc(f.class_name ?? "")}</div></div>${f.can_post === 0 ? `<span class="tag bad" title="${L("Can't appear in posts", "لا يظهر في المنشورات")}">⛔</span>` : ""}<button class="btn small ghost" data-untag="${f.id}" title="${L("Remove", "إزالة")}">✕</button></div>`).join("")}
+      ${sug.map((f) => `<div class="who" data-key="f${f.id}" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div>${esc(S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en)}?</div><div class="muted tiny">${L("match", "تطابق")} ${Math.round((f.suggest_score ?? 0) * 100)}%</div></div><button class="btn small" data-yes="${f.id}" title="Y">✓</button><button class="btn small" data-no="${f.id}" title="N">✕</button></div>`).join("")}
+      ${unknown.map((f) => `<div class="who" data-key="f${f.id}" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div class="muted">${L("Who is this?", "من هذا؟")}</div><div class="row gap4" data-guess="${f.id}" data-own></div></div><button class="btn small" data-name="${f.id}">${L("Name", "تسمية")}</button></div>`).join("")}
       ${!p.faces.length ? `<span class="muted">${p.faces_scanned === 1 ? L("No faces found.", "لم يتم العثور على وجوه.") : L("Looking for faces…", "جارٍ البحث عن وجوه…")}</span>` : ""}
       <button class="btn small" id="v-tag">+ ${L("Tag someone (T)", "وسم شخص (T)")}</button></div>
     ${p.edits.length || p.original ? `<div class="col gap4"><b>${L("Versions", "النسخ")}</b>
@@ -117,7 +122,7 @@ function drawSide(p) {
     <div class="col gap4"><b>${L("File", "الملف")}</b>
       <button class="btn small" id="v-finder">${L("Show in Finder", "إظهار في Finder")}</button>
       <button class="btn small" id="v-editor">${L("Open in editing app", "فتح في تطبيق التعديل")}</button>
-      <button class="btn small primary" id="v-post">${icon("square-pen", 14)} ${L("New post with this photo", "منشور جديد بهذه الصورة")}</button></div>`;
+      <button class="btn small primary" id="v-post">${icon("square-pen", 14)} ${L("New post with this photo", "منشور جديد بهذه الصورة")}</button></div>`);
   $$("[data-untag]", side).forEach((b) => (b.onclick = () => faceAction("rejectFaces", [Number(b.dataset.untag)])));
   $$("[data-yes]", side).forEach((b) => (b.onclick = () => confirmSuggestion(p.faces.find((f) => f.id === Number(b.dataset.yes)))));
   $$("[data-no]", side).forEach((b) => (b.onclick = () => faceAction("rejectFaces", [Number(b.dataset.no)])));
@@ -125,6 +130,7 @@ function drawSide(p) {
   // The three likeliest people, one click each.
   $$("[data-guess]", side).forEach(async (box) => {
     const id = Number(box.dataset.guess);
+    if (box.childElementCount) return; // already filled for this face
     const g = (await quiet("faceGuesses", id)) ?? [];
     box.innerHTML = g.map((x, i) => `<button class="btn small" data-pickg="${esc(x.studentId)}" title="${Math.round(x.score * 100)}%">${esc(name(x.student))}</button>`).join("");
     $$("[data-pickg]", box).forEach((b) => (b.onclick = () => faceAction("confirmFaces", [id], b.dataset.pickg)));
@@ -142,7 +148,7 @@ function drawStrip() {
   const strip = $("#v-strip");
   const from = Math.max(0, V.i - 12);
   const ids = V.ids.slice(from, from + 25);
-  strip.innerHTML = ids.map((id, k) => `<img src="hub://thumb/${id}" class="${from + k === V.i ? "on" : ""}" data-k="${from + k}" loading="lazy" />`).join("");
+  morph(strip, ids.map((id, k) => `<img src="hub://thumb/${id}" class="${from + k === V.i ? "on" : ""}" data-key="${from + k}" data-k="${from + k}" loading="lazy" />`).join(""));
   $$("img", strip).forEach((im) => (im.onclick = () => { V.i = Number(im.dataset.k); drawViewer(); }));
 }
 

@@ -571,7 +571,7 @@ function tileHtml(p, i) {
   if (p.is_raw || p.has_raw) b.push(`<span class="b">RAW</span>`);
   if (p.edits) b.push(`<span class="b">${ti("pen-line")}</span>`);
   if (p.problems) b.push(`<span class="b" title="${esc(p.problems.split(",").map((x) => PROBLEMS()[x] ?? x).join(", "))}">${ti("triangle-alert")}</span>`);
-  return `<div class="tile ${lib.sel.has(p.id) ? "sel" : ""} ${p.flag === -1 ? "rejected" : ""} ${p.hidden ? "hiddenp" : ""} ${stack ? "stack" : ""}" data-i="${i}" draggable="true">
+  return `<div class="tile ${lib.sel.has(p.id) ? "sel" : ""} ${p.flag === -1 ? "rejected" : ""} ${p.hidden ? "hiddenp" : ""} ${stack ? "stack" : ""}" data-key="${p.id}" data-i="${i}" draggable="true">
     ${p.thumb === 1 ? `<img loading="lazy" src="hub://thumb/${p.id}" alt="${esc(p.name ?? "")}" />` : p.thumb === -1 ? `<div class="empty small" style="position:absolute;inset:0;padding:10px">${icon("image-off", 20)}<span>${L("Can't read", "تعذّرت القراءة")}</span></div>` : `<div class="skel" style="position:absolute;inset:0"></div>`}
     ${p.rating ? `<span class="stars">${"★".repeat(p.rating)}</span>` : ""}${p.label ? `<span class="lab ${esc(p.label)}"></span>` : ""}${stack ? `<span class="stackn" data-stack="${p.id}" title="${L("Burst: click to open the stack", "لقطات متتابعة: انقر لفتح المجموعة")}">${icon("layers", 10)} ${stack.length}</span>` : ""}<div class="badges">${b.join("")}</div></div>`;
 }
@@ -608,10 +608,10 @@ function drawGrid() {
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(p);
     }
-    grid.innerHTML = [...groups].map(([k, list]) => {
+    morph(grid, [...groups].map(([k, list]) => {
       const cover = list.reduce((a, b) => ((b.quality ?? 0) + (b.flag === 1 ? 5 : 0) > (a.quality ?? 0) + (a.flag === 1 ? 5 : 0) ? b : a), list[0]);
-      return `<div class="zcard" data-z="${esc(k)}"><img loading="lazy" src="hub://thumb/${cover.id}" /><div><b>${esc(lib.zoom === "years" ? k : monthLabel(k))}</b><span>${plural(list.length, "photo", "photos", "صورة")}</span></div></div>`;
-    }).join("");
+      return `<div class="zcard" data-key="z${esc(k)}" data-z="${esc(k)}"><img loading="lazy" src="hub://thumb/${cover.id}" /><div><b>${esc(lib.zoom === "years" ? k : monthLabel(k))}</b><span>${plural(list.length, "photo", "photos", "صورة")}</span></div></div>`;
+    }).join(""));
     $$(".zcard", grid).forEach((c) => (c.onclick = () => {
       const k = c.dataset.z;
       lib.zoom = lib.zoom === "years" ? "months" : "days";
@@ -634,16 +634,18 @@ function drawGrid() {
         last = k;
         const label = lib.zoom === "days" && k ? fmtDate(k) : monthLabel(k);
         const ev = lib.zoom === "days" ? [...new Set(lib.shown.filter((x) => dayKey(x) === k).map((x) => x.event_title).filter(Boolean))].slice(0, 3).join(" · ") : "";
-        out.push(`<div class="sechead" data-m="${esc(k.slice(0, 7))}"><b>${esc(label)}</b><span>${esc(ev)}</span></div>`);
+        out.push(`<div class="sechead" data-key="s${esc(k)}" data-m="${esc(k.slice(0, 7))}"><b>${esc(label)}</b><span>${esc(ev)}</span></div>`);
       }
     }
     out.push(tileHtml(p, i));
   });
   // A big grid is drawn in parts: the first screens at once, the rest just
-  // after, so the tab answers straight away (B-66).
+  // after, so the tab answers straight away (B-66). New photos arriving (or
+  // a filter changing) keep the tiles already on screen: no pop-in
+  // animation again, no thumbnails blinking (B-70).
   const gen = (lib.drawGen = (lib.drawGen ?? 0) + 1);
   const FIRST = 1200;
-  grid.innerHTML = out.slice(0, FIRST).join("");
+  morph(grid, out.slice(0, FIRST).join(""));
   const more = (from) => {
     if (gen !== lib.drawGen || from >= out.length || !grid.isConnected) return;
     grid.insertAdjacentHTML("beforeend", out.slice(from, from + 1500).join(""));
@@ -775,7 +777,9 @@ function drawSelbar() {
   if (!bar) return;
   const ids = selectedIds();
   if (!ids.length) return bar.replaceChildren();
-  bar.innerHTML = `<div class="selbar"><b style="padding: 0 6px">${plural(ids.length, "selected", "selected", "محددة")}</b>
+  // Changing the selection updates the bar in place; it slides in only when
+  // it appears (B-72).
+  morph(bar, `<div class="selbar"><b style="padding: 0 6px">${plural(ids.length, "selected", "selected", "محددة")}</b>
     <button class="btn small" data-a="pick" title="P">${icon("flag", 14)} ${L("Pick", "اختيار")}</button>
     <button class="btn small" data-a="reject" title="X">${icon("x", 14)}</button>
     <button class="btn small" data-a="rate" title="1-5">${icon("star", 14)}</button>
@@ -783,7 +787,7 @@ function drawSelbar() {
     <button class="btn small" data-a="move">${icon("folder-input", 14)} ${L("Move", "نقل")}</button>
     ${ids.length >= 2 && ids.length <= 4 ? `<button class="btn small" data-a="compare" title="C">${icon("columns-2", 14)} ${L("Compare", "مقارنة")}</button>` : ""}
     <button class="btn small" data-a="more">${icon("ellipsis", 14)}</button>
-    <button class="btn small primary" data-a="post">${icon("square-pen", 14)} ${L("New post", "منشور جديد")}</button></div>`;
+    <button class="btn small primary" data-a="post">${icon("square-pen", 14)} ${L("New post", "منشور جديد")}</button></div>`);
   $$("[data-a]", bar).forEach((b) => {
     b.onclick = (e) => {
       const a = b.dataset.a;

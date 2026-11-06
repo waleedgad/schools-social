@@ -1380,8 +1380,18 @@ function syncTheme() {
   nativeTheme.themeSource = settings.get().theme ?? "system";
 }
 
+// The window's look before it has asked for anything: language, light or
+// dark, text size. Without it the first frames were drawn light and
+// left-to-right, then switched (a white flash at start in dark mode, B-76).
+function firstLook() {
+  const s = settings.get();
+  const dark = s.theme === "dark" || (s.theme !== "light" && nativeTheme.shouldUseDarkColors);
+  return { language: s.language === "en" ? "en" : "ar", dark, textSize: s.textSize ?? "normal", motion: s.motion ?? "full", accent: /^#[0-9a-f]{3,8}$/i.test(s.accent ?? "") ? s.accent : "#2f6fdf", platform: process.platform };
+}
+
 function createWindow() {
   syncTheme();
+  const look = firstLook();
   win = new BrowserWindow({
     width: 1360,
     height: 860,
@@ -1395,9 +1405,9 @@ function createWindow() {
       ? { vibrancy: "sidebar" as const, visualEffectState: "followWindow" as const, backgroundColor: "#00000000" }
       : process.platform === "win32"
         ? { backgroundMaterial: "mica" as const, titleBarOverlay: { color: "#00000000", symbolColor: "#6b7180", height: 40 } }
-        : { backgroundColor: "#f5f6f8" }),
+        : { backgroundColor: look.dark ? "#1b1d22" : "#eef0f3" }),
     icon: path.join(__dirname, "renderer", "icon.png"),
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, webviewTag: false },
+    webPreferences: { additionalArguments: [`--hub-look=${encodeURIComponent(JSON.stringify(look))}`], preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, webviewTag: false },
   });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
   win.webContents.setWindowOpenHandler(({ url }) => {

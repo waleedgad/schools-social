@@ -79,23 +79,27 @@ App.views.faces = {
     const shown = list.filter((s) => (FC.kind !== "left" || s.left_on) && (!q || nameKey(`${s.name_en ?? ""} ${s.name_ar ?? ""} ${s.id}`).includes(q)));
     const toReview = shown.filter((s) => s.review);
     const kinds = [["student", L("Students", "الطلاب")], ["teacher", L("Teachers", "المعلمون")], ["staff", L("Staff", "العاملون")], ["parent", L("Parents", "أولياء الأمور")], ["visitor", L("Visitors", "الزوار")], ["left", L("Left or graduated", "غادروا أو تخرجوا")]];
-    box.innerHTML = `<div class="row"><input type="search" id="fc-q" placeholder="${L("Find someone (any spelling)…", "ابحث عن شخص (بأي تهجئة)…")}" value="${esc(FC.search)}" style="width: 240px" />
+    // Drawn again in place (B-73): changing the kind, class or search keeps
+    // the faces already on screen instead of loading every picture again.
+    morph(box, `<div class="row"><input type="search" id="fc-q" placeholder="${L("Find someone (any spelling)…", "ابحث عن شخص (بأي تهجئة)…")}" value="${esc(FC.search)}" style="width: 240px" />
         <div class="pills">${kinds.map(([k, l]) => `<button class="pill ${FC.kind === k ? "on" : ""}" data-kind="${k}">${l}</button>`).join("")}</div>
         ${FC.kind === "student" ? pillMenu("fc-c", L("Class", "الفصل"), [["", L("All classes", "كل الفصول")], ...classes.map((c) => [c, c])], FC.className) : ""}
         <span class="grow"></span>${toReview.length ? `<button class="btn primary" id="fc-go">${icon("play", 14)} ${(() => { const n = toReview.reduce((a, s) => a + s.review, 0); return L(`Review ${n} faces`, `مراجعة ${num(n)} وجه`); })()}</button>` : ""}
         ${FC.className ? `<button class="btn" id="fc-phone" title="${L("The class teacher answers “Is this …?” on the phone", "يجيب معلم الفصل على «هل هذا …؟» من الهاتف")}">${icon("smartphone", 14)} ${L("Ask the class teacher", "اسأل معلم الفصل")}</button>` : ""}</div>
-      ${shown.length ? `<div class="people">${shown.slice(0, 900).map((s) => `<div class="person ${s.can_post ? "" : "off"}" data-id="${esc(s.id)}">${faceImg(s, true)}<b class="small">${esc(name(s))}</b>
+      ${shown.length ? `<div class="people">${shown.slice(0, 900).map((s) => `<div class="person ${s.can_post ? "" : "off"}" data-key="${esc(s.id)}" data-id="${esc(s.id)}">${faceImg(s, true)}<b class="small">${esc(name(s))}</b>
         <span class="tiny muted">${esc(s.kind && s.kind !== "student" ? KINDS()[s.kind] : s.class_name ?? "")} · ${num(s.photos)}</span>${s.review ? `<span class="badge">${L(`${s.review} to review`, `${num(s.review)} للمراجعة`)}</span>` : ""}${s.can_post ? "" : `<span class="tag bad tiny">${L("Can't appear", "لا يظهر")}</span>`}</div>`).join("")}</div>`
-        : emptyState("users", FC.kind === "student" ? L("Nobody found", "لا أحد") : L(`No ${kinds.find((k) => k[0] === FC.kind)[1].toLowerCase()} yet`, `لا يوجد ${kinds.find((k) => k[0] === FC.kind)[1]} بعد`), FC.kind !== "student" && FC.kind !== "left" ? L("Name a face as a teacher, staff member, parent or visitor (“Add a new person…”) and they appear here.", "سمِّ وجهًا كمعلم أو موظف أو ولي أمر أو زائر («إضافة شخص جديد…») ليظهر هنا.") : "")}`;
+        : emptyState("users", FC.kind === "student" ? L("Nobody found", "لا أحد") : L(`No ${kinds.find((k) => k[0] === FC.kind)[1].toLowerCase()} yet`, `لا يوجد ${kinds.find((k) => k[0] === FC.kind)[1]} بعد`), FC.kind !== "student" && FC.kind !== "left" ? L("Name a face as a teacher, staff member, parent or visitor (“Add a new person…”) and they appear here.", "سمِّ وجهًا كمعلم أو موظف أو ولي أمر أو زائر («إضافة شخص جديد…») ليظهر هنا.") : "")}`);
     const q$ = $("#fc-q", box);
     q$.oninput = () => { FC.search = q$.value; clearTimeout(FC.qt); FC.qt = setTimeout(() => this.people(box).then(() => { const el = $("#fc-q"); el?.focus(); el?.setSelectionRange(99, 99); }), 250); };
     $$("[data-kind]", box).forEach((b) => (b.onclick = () => { FC.kind = b.dataset.kind; FC.className = ""; this.people(box); }));
     bindPillMenu(box, "fc-c", [["", L("All classes", "كل الفصول")], ...classes.map((c) => [c, c])], FC.className, (v) => { FC.className = v; this.people(box); });
-    $("#fc-go", box)?.addEventListener("click", () => { FC.only = toReview.map((s) => s.id); FC.tab = "review"; go("faces", { students: FC.only }); });
-    $("#fc-phone", box)?.addEventListener("click", async () => {
+    const go$ = $("#fc-go", box);
+    if (go$) go$.onclick = () => { FC.only = toReview.map((s) => s.id); FC.tab = "review"; go("faces", { students: FC.only }); };
+    const phone$ = $("#fc-phone", box);
+    if (phone$) phone$.onclick = async () => {
       const r = await call("sendFaceChecks", FC.className);
       toast(r?.sent ? L(`${r.sent} questions sent to the class teacher's phone`, `أُرسل ${num(r.sent)} سؤال إلى هاتف معلم الفصل`) : L("Nothing to ask: no face suggestions for this class yet. Signed in to the website?", "لا أسئلة: لا اقتراحات وجوه لهذا الفصل بعد. هل سجّلت الدخول إلى الموقع؟"));
-    });
+    };
     $$("[data-id]", box).forEach((el) => {
       el.onclick = () => go("student", { id: el.dataset.id });
       el.oncontextmenu = (e) => {

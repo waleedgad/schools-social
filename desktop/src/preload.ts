@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
+// How the window looks before the first state arrives (see firstLook in main).
+const lookArg = process.argv.find((a) => a.startsWith("--hub-look="));
+let look: unknown = null;
+try {
+  look = lookArg ? JSON.parse(decodeURIComponent(lookArg.slice("--hub-look=".length))) : null;
+} catch {}
+
 contextBridge.exposeInMainWorld("hub", {
+  look,
   call: (name: string, ...args: unknown[]) => ipcRenderer.invoke("call", name, ...args),
   onState: (fn: (state: unknown, changed: string[]) => void) => ipcRenderer.on("state", (_e, s, c) => fn(s, c)),
   onCommand: (fn: (command: string) => void) => ipcRenderer.on("command", (_e, c) => fn(c)),

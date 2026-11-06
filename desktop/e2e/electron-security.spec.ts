@@ -33,7 +33,8 @@ test("the app window is locked down (Electron security guidelines)", async () =>
   }));
   expect(page.require).toBe("undefined");
   expect(page.process).toBe("undefined");
-  expect(page.bridge).toEqual(["call", "on", "onCommand", "onProgress", "onState", "pathFor"]);
+  // "look" is plain data (language, light or dark) for the first frame, B-76.
+  expect(page.bridge).toEqual(["call", "look", "on", "onCommand", "onProgress", "onState", "pathFor"]);
   // 7: a content security policy with no eval and no outside scripts.
   expect(page.csp).toContain("script-src 'self'");
   expect(page.csp).not.toMatch(/unsafe-eval|script-src[^;]*https?:/);
