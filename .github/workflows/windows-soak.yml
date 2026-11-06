@@ -1,0 +1,37 @@
+# Release 0.7 (Windows version ready), item 2: the "nothing hangs" robot test
+# five times in a row on GitHub's Windows computer. Runs when that test or
+# this file changes, and by hand from the Actions tab.
+name: windows-soak
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - desktop/e2e/nothing-hangs.spec.ts
+      - desktop/src/core/busy.ts
+      - desktop/src/core/db.ts
+      - .github/workflows/windows-soak.yml
+jobs:
+  nothing-hangs:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done
+      - run: npm run build
+      - run: npx playwright test e2e/nothing-hangs.spec.ts --repeat-each=5 --retries=0
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-results
+          path: desktop/test-results
+          retention-days: 7
+          if-no-files-found: ignore
