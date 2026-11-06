@@ -413,6 +413,14 @@ export function importsApi(ctx: Ctx) {
     run("update imports set copied = ?, skipped = ?, folders = ?, report = ? where id = ?", copied, report.length, JSON.stringify(folders), JSON.stringify(report), job.import_id);
     if (spec.archive) for (const f of folders) run("insert into folders (path, archive) values (?, 1) on conflict (path) do update set archive = 1", f);
     if (!cancelled) run("update import_jobs set state = 'done' where id = ?", jobId);
+    // The folder watch can miss files copied while it was being set up (the
+    // library drive just came back): the app is told about each one itself.
+    const eng = ctx.engine();
+    if (eng)
+      for (const r of rows.filter((r) => r.state === "done" && r.dest)) {
+        const st = await stat(r.dest!).catch(() => null);
+        if (st) eng.seen(r.dest!, st.size, st.mtimeMs);
+      }
     // Erase only what is safely in the library (checked copies and photos
     // that were there already), never anything else on the card.
     let erased = 0;
