@@ -315,3 +315,40 @@ export function tx<T>(db: Db, fn: () => T): T {
 
 export const toBlob = (v: Float32Array) => new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
 export const fromBlob = (b: Uint8Array) => new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+
+// Windows (B-49): writing the database's journal back into the main file
+// ("checkpoint") waits for the disk, and during a big import that took 3 to
+// 5 seconds on Windows, with the whole app frozen. The app's own connection
+// no longer does it; a background thread with its own connection does it
+// every two seconds without holding anyone up. Closing the database stops
+// that thread first (the final write-back then happens on close, as before).
+export function checkpointInBackground(db: Db, file: string, everyMs = 2000) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Worker } = require("node:worker_threads") as typeof import("node:worker_threads");
+  db.exec("pragma wal_autocheckpoint = 0");
+  const worker = new Worker(
+    `const { workerData, parentPort } = require("node:worker_threads");
+     const { DatabaseSync } = require("node:sqlite");
+     const db = new DatabaseSync(workerData.file);
+     db.exec("pragma busy_timeout = 0");
+     const t = setInterval(() => {
+       try { db.exec("pragma wal_checkpoint(PASSIVE)"); } catch {}
+     }, workerData.everyMs);
+     parentPort.on("message", (m) => { if (m === "stop") { clearInterval(t); try { db.close(); } catch {} parentPort.postMessage("stopped"); } });`,
+    { eval: true, workerData: { file, everyMs } },
+  );
+  worker.unref();
+  worker.on("error", () => db.exec("pragma wal_autocheckpoint = 1000"));
+  const close = db.close.bind(db);
+  db.close = () => {
+    worker.postMessage("stop");
+    void worker.terminate().catch(() => {});
+    try {
+      db.exec("pragma wal_autocheckpoint = 1000");
+    } catch {
+      // already closed
+    }
+    close();
+  };
+  return worker;
+}
