@@ -94,6 +94,12 @@ async function analyse(file) {
     for (const kind of Object.keys(sessions)) {
       const aligned = F.align(rgb, info.width, info.height, f.landmarks, kind);
       const a = await describe(kind, aligned);
+      // The app's own AuraFace description already includes the mirror image.
+      if (kind === "aura" && found.recogniser === "aura") {
+        emb.aura = unit(a);
+        emb["aura+flip"] = f.embedding;
+        continue;
+      }
       const b = kind === "aura" ? await describe(kind, flipped(aligned)) : null;
       emb[kind] = unit(a);
       if (b) emb[`${kind}+flip`] = unit(Float32Array.from(a, (v, i) => v + b[i]));
