@@ -1,6 +1,6 @@
 import { _electron, expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statfsSync, utimesSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -165,7 +165,6 @@ test("copies go to the Bin safely: never the last copy, never a posted or named 
   await expect.poll(() => existsSync(orig3.path)).toBe(true);
 
   // Deleted in Finder (not through the app): the copy shows instead too.
-  const { rmSync } = await import("node:fs");
   all = rows(dbFile);
   rmSync(byName(all, "Sports day/IMG_0004.jpg").path);
   await expect.poll(() => shown(rows(dbFile)).map((x) => x.path), { timeout: 30_000 }).toContain(path.join(books, "IMG_0004.jpg"));
@@ -245,6 +244,14 @@ test("a RAW and its JPEG are one photo: counted once, moved and binned together,
 });
 
 const byId = (all: Row[], id: number) => all.find((r) => r.id === id)!;
+function walk(dir: string, out: string[] = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const f = path.join(dir, e.name);
+    if (e.isDirectory()) walk(f, out);
+    else out.push(f);
+  }
+  return out;
+}
 
 test("self-filing is off by default; switched on it files photos once, and switched off it stops", async () => {
   test.setTimeout(240_000);
@@ -313,6 +320,68 @@ test("self-filing is off by default; switched on it files photos once, and switc
   await expect.poll(() => existsSync(path.join(year, "2026-10-18 Ask", "IMG_0006.jpg")), { timeout: 30_000 }).toBe(true);
   expect(existsSync(path.join(lib, "Later", "IMG_0005.jpg")), "the one from while it was off stays").toBe(true);
   expect(check().length).toBe(8);
+  expect(errors).toEqual([]);
+  await app.close();
+});
+
+test("storage numbers match the disk, and the backup copy fills itself in and can put photos back", async () => {
+  test.setTimeout(240_000);
+  const { base, lib, volumes, userData, dbFile } = setup();
+  const backup = path.join(base, "Backup drive");
+  mkdirSync(backup);
+  const settingsFile = path.join(userData, "settings.json");
+  writeFileSync(settingsFile, JSON.stringify({ ...JSON.parse(readFileSync(settingsFile, "utf8")), backup }));
+  const event = path.join(lib, "2026-2027", "Term 1", "2026-10-12 Sports day");
+  const p = await Promise.all([1, 2, 3, 4, 5, 6, 7].map((i) => photo(i + 70)));
+  p.slice(0, 6).forEach((b, i) => put(path.join(event, `IMG_000${i}.jpg`), b));
+  const { app, win, errors } = await launch(userData, volumes);
+  await settled(win, dbFile, 6);
+  type Health = { connected: boolean; total: number; copied: number; canPutBack: number };
+  const health = async () => (await call(win, "backupHealth")) as Health;
+  // Each new photo gets its copy on the backup drive as it's read.
+  await expect.poll(async () => (await health()).copied, { timeout: 30_000 }).toBe(6);
+  const inBackup = () => walk(backup).filter((f) => f.endsWith(".jpg"));
+  expect(inBackup().length).toBe(6);
+  for (const f of inBackup()) expect(sha(readFileSync(f))).toBe(sha(readFileSync(path.join(lib, path.relative(backup, f)))));
+
+  // The Storage page's numbers are the disk's own.
+  await win.evaluate(() => (window as unknown as { go: (v: string, p: object) => void }).go("settings", { page: "storage" }));
+  const fs = statfsSync(lib);
+  const st = (await call(win, "state")) as { disk: { free: number; total: number } };
+  expect(st.disk.total).toBe(fs.blocks * fs.bsize);
+  expect(Math.abs(st.disk.free - fs.bavail * fs.bsize) / st.disk.total).toBeLessThan(0.01);
+  await expect(win.locator("[data-backup-copied]")).toHaveAttribute("data-backup-copied", "6");
+  await expect(win.locator("[data-backup-copied]")).toContainText("All 6 photos have a copy on the backup drive");
+
+  // The backup drive away while a photo comes in: it's copied once the
+  // drive is back ("Copy the rest now", or by itself later).
+  const away = path.join(base, "Backup away");
+  renameSync(backup, away);
+  put(path.join(event, "IMG_0006.jpg"), p[6]);
+  await settled(win, dbFile, 7);
+  renameSync(away, backup);
+  rmSync(path.join(backup, path.relative(lib, path.join(event, "IMG_0001.jpg")))); // and one copy lost
+  await win.evaluate(() => (window as unknown as { go: (v: string, p: object) => void }).go("settings", { page: "storage" }));
+  await expect(win.locator("[data-backup-copied]")).toHaveAttribute("data-backup-copied", "5");
+  await expect(win.locator("[data-backup-copied]")).toContainText("5 of 7 photos have a copy");
+  await win.screenshot({ path: test.info().outputPath("backup-health.png") });
+  await win.locator('[data-act="backupNow"]').click();
+  await expect(win.locator("[data-backup-copied]")).toHaveAttribute("data-backup-copied", "7", { timeout: 30_000 });
+  expect(inBackup().length).toBe(7);
+
+  // Two originals deleted from the library: put back from the backup, the
+  // same photos (same record, so names and picks stay).
+  const before = rows(dbFile);
+  rmSync(path.join(event, "IMG_0002.jpg"));
+  rmSync(path.join(event, "IMG_0003.jpg"));
+  await expect.poll(async () => (await health()).canPutBack, { timeout: 30_000 }).toBe(2);
+  await win.evaluate(() => (window as unknown as { go: (v: string, p: object) => void }).go("settings", { page: "storage" }));
+  await win.locator('[data-act="putBack"]').click();
+  await expect.poll(() => existsSync(path.join(event, "IMG_0002.jpg")) && existsSync(path.join(event, "IMG_0003.jpg")), { timeout: 30_000 }).toBe(true);
+  expect(sha(readFileSync(path.join(event, "IMG_0002.jpg")))).toBe(sha(p[2]));
+  await expect.poll(() => rows(dbFile).filter((r) => !r.missing).length, { timeout: 30_000 }).toBe(7);
+  const after = rows(dbFile);
+  for (const name of ["IMG_0002.jpg", "IMG_0003.jpg"]) expect(byName(after, `Sports day/${name}`).id).toBe(byName(before, `Sports day/${name}`).id);
   expect(errors).toEqual([]);
   await app.close();
 });

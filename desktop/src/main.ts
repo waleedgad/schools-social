@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync as statNow, statfsSync, writeFileSync } from "node:fs";
+import { copyVerified } from "./core/importer";
 import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
@@ -477,6 +478,86 @@ async function photoReady(id: number) {
       .catch(() => {});
   }
   if (!p.dup_of && !p.pair_of && !known && (s.sendMode === "all" || p.flag === 1) && !isArchived(p.path)) await sync?.enqueue(p.path);
+}
+
+// ---------- Backup copy ----------
+// Every original also lives on the backup drive, at the same place inside
+// it. The Storage page shows how many have their copy; the rest is copied
+// when the drive is there, and missing photos can be put back from it.
+
+function libraryPhotos() {
+  const s = settings.get();
+  if (!s.library) return [];
+  return all<{ id: number; path: string; size: number }>("select id, path, size from photos where missing = 0 and path not like ':%'").filter((r) => !path.relative(s.library!, r.path).startsWith(".."));
+}
+const backupOf = (file: string) => path.join(settings.get().backup!, path.relative(settings.get().library!, file));
+const hasBackup = (r: { path: string; size: number }) => statNow(backupOf(r.path), { throwIfNoEntry: false })?.size === r.size;
+
+function backupHealth() {
+  const s = settings.get();
+  if (!s.backup || !s.library) return null;
+  const connected = existsSync(s.backup);
+  const photos = libraryPhotos();
+  const without = connected ? photos.filter((r) => !hasBackup(r)) : [];
+  const missing = missingOriginals().filter((r) => !path.relative(s.library!, r.path).startsWith(".."));
+  return {
+    connected,
+    total: photos.length,
+    copied: connected ? photos.length - without.length : null,
+    toCopy: without.reduce((n, r) => n + r.size, 0),
+    canPutBack: connected ? missing.filter((r) => existsSync(backupOf(r.path))).length : 0,
+    last: s.lastBackup,
+    running: backingUp,
+  };
+}
+
+let backingUp = false;
+async function backupNow() {
+  const s = settings.get();
+  if (backingUp || !s.backup || !s.library || !existsSync(s.backup) || !existsSync(s.library)) return { copied: 0, problem: null as string | null };
+  backingUp = true;
+  let copied = 0;
+  let problem: string | null = null;
+  try {
+    for (const r of libraryPhotos()) {
+      if (!existsSync(s.backup) || !existsSync(r.path) || hasBackup(r)) continue;
+      try {
+        await mkdir(path.dirname(backupOf(r.path)), { recursive: true });
+        await rm(backupOf(r.path), { force: true });
+        await copyVerified(r.path, backupOf(r.path));
+        copied++;
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === "ENOSPC" || code === "EROFS" || code === "EACCES" || code === "EPERM" || !existsSync(s.backup)) {
+          problem = code === "ENOSPC" ? "backup-full" : existsSync(s.backup) ? "backup-read-only" : "backup-missing";
+          break;
+        }
+        log(`backup ${r.path}: ${e}`);
+      }
+    }
+    if (copied) settings.set({ lastBackup: Date.now() });
+  } finally {
+    backingUp = false;
+    push();
+  }
+  return { copied, problem };
+}
+
+// Photos whose original went missing in the library (deleted, drive
+// replaced) are copied back from the backup to where they were.
+async function putBackFromBackup() {
+  const s = settings.get();
+  if (!s.backup || !s.library || !existsSync(s.backup) || !existsSync(s.library)) return 0;
+  let n = 0;
+  for (const r of missingOriginals()) {
+    if (path.relative(s.library, r.path).startsWith("..") || existsSync(r.path) || !existsSync(backupOf(r.path))) continue;
+    await mkdir(path.dirname(r.path), { recursive: true });
+    await copyVerified(backupOf(r.path), r.path);
+    n++;
+  }
+  if (n) await engine?.scan();
+  push("photos");
+  return n;
 }
 
 function isArchived(file: string) {
@@ -1636,10 +1717,16 @@ app.whenReady().then(async () => {
     },
     chooseBackup: async () => {
       const dir = await chooseFolder("Backup folder (another drive)");
-      if (dir) settings.set({ backup: dir });
+      if (dir) {
+        settings.set({ backup: dir });
+        void backupNow().catch((e) => log(`backup: ${e}`));
+      }
       return dir;
     },
     clearBackup: () => settings.set({ backup: null }),
+    backupHealth: () => backupHealth(),
+    backupNow: () => backupNow(),
+    putBackFromBackup: () => putBackFromBackup(),
     set: (key: keyof Settings, value: never) => {
       if (!SETTABLE.includes(key)) throw new Error("bad-setting");
       settings.set({ [key]: value } as Partial<Settings>);
@@ -1901,6 +1988,9 @@ app.whenReady().then(async () => {
   timers.push(setInterval(() => push(), 3000));
   timers.push(setInterval(() => checkWebUploads(), 60_000));
   timers.push(setInterval(() => void sendErrors(), 10 * 60_000));
+  // Photos without their backup copy (the drive was away, or it was just
+  // chosen) are copied when it's there.
+  timers.push(setInterval(() => void backupNow().catch((e) => log(`backup: ${e}`)), 15 * 60_000));
   setTimeout(() => void sendErrors(), 20_000);
   setTimeout(() => checkWebUploads(), 8000);
 

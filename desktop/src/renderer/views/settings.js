@@ -114,6 +114,7 @@ function settingGroups(page, extra) {
             srow(L("Library drive", "قرص المكتبة"), d ? L(`${fmtBytes(d.free)} free of ${fmtBytes(d.total)}`, `${fmtBytes(d.free)} متاح من ${fmtBytes(d.total)}`) : L("Not connected", "غير موصول"), d ? `<div class="bar" style="width: 140px"><i style="width:${Math.round((1 - d.free / d.total) * 100)}%"></i></div>` : "", "space disk free"),
             srow(L("Backup drive", "قرص النسخ الاحتياطي"), L("A second copy of every new original on another drive.", "نسخة ثانية من كل أصل جديد على قرص آخر."),
               `${S.backup ? pathText(S.backup) + (S.backupDisk ? "" : ` <span class="tag bad">${L("Not connected", "غير موصول")}</span>`) : ""}${actBtn("chooseBackup", S.backup ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"))}${S.backup ? actBtn("clearBackup", L("Turn off", "إيقاف"), "ghost") : ""}`, "backup drive نسخ"),
+            ...(extra?.backupHealth?.connected ? [backupRow(extra.backupHealth)] : []),
             srow(L("Archive drive for old years", "قرص الأرشيف للسنوات القديمة"), L("Old school years move there; the app still shows them from small copies.", "تنتقل السنوات القديمة إليه، ويبقى التطبيق يعرضها من نسخ صغيرة."),
               `${S.archive ? pathText(S.archive) : ""}${actBtn("chooseArchive", S.archive ? L("Change…", "تغيير…") : L("Choose…", "اختيار…"))}${S.archive ? actBtn("moveOldYears", L("Move old years…", "نقل السنوات القديمة…")) : ""}`, "archive old years أرشيف"),
           ],
@@ -272,8 +273,8 @@ App.views.settings = {
     this.load();
   },
   async load() {
-    const [backups, school, account] = await Promise.all([quiet("updateBackups"), S.signedIn ? quiet("app", "school") : null, S.signedIn ? quiet("app", "account") : null]);
-    this.extra = { backups: backups ?? [], school: school && !school.error ? school : null, categories: school?.categories ?? [], account: account && !account.error ? account : null };
+    const [backups, school, account, backupHealth] = await Promise.all([quiet("updateBackups"), S.signedIn ? quiet("app", "school") : null, S.signedIn ? quiet("app", "account") : null, S.backup ? quiet("backupHealth") : null]);
+    this.extra = { backups: backups ?? [], school: school && !school.error ? school : null, categories: school?.categories ?? [], account: account && !account.error ? account : null, backupHealth };
     this.fill();
   },
   onState() {
@@ -396,6 +397,18 @@ App.views.settings = {
   async act(name, b) {
     const page = $("#spage");
     switch (name) {
+      case "backupNow": {
+        b.disabled = true;
+        toast(L("Copying to the backup drive…", "جارٍ النسخ إلى قرص النسخ الاحتياطي…"));
+        const r = await call("backupNow");
+        toast(r.problem ? BACKUP_PROBLEM()[r.problem] : L(`${num(r.copied)} photos copied to the backup drive`, `نُسخت ${num(r.copied)} صورة إلى قرص النسخ الاحتياطي`));
+        return this.load();
+      }
+      case "putBack": {
+        const n = await call("putBackFromBackup");
+        toast(L(`${num(n)} photos put back from the backup`, `أُعيدت ${num(n)} صورة من النسخة الاحتياطية`));
+        return this.load();
+      }
       case "accent0": return setSetting("accent", "#2f6fdf");
       case "connect": return call("connect", $("#srv", page).value).then(() => toast(L("Connected", "تم الاتصال")));
       case "signIn": return call("signIn", $("#em", page).value.trim(), $("#pw", page).value).then(() => { toast(L("Signed in", "تم تسجيل الدخول")); this.load(); });
@@ -544,4 +557,20 @@ async function tidyPlan() {
     closeOverlay();
     toast(L(`${r.moved} photos filed. ⌘Z undoes it.`, `رُتبت ${num(r.moved)} صورة. ⌘Z للتراجع.`), { ms: 7000 });
   };
+}
+
+// How much of the library has its copy on the backup drive.
+const BACKUP_PROBLEM = () => ({
+  "backup-full": L("The backup drive is full: free some space on it.", "قرص النسخ الاحتياطي ممتلئ: وفّر بعض المساحة عليه."),
+  "backup-read-only": L("The backup drive can't be written to (read-only or locked).", "لا يمكن الكتابة على قرص النسخ الاحتياطي (للقراءة فقط أو مقفل)."),
+  "backup-missing": L("The backup drive was disconnected.", "فُصل قرص النسخ الاحتياطي."),
+});
+function backupRow(h) {
+  const all = h.copied === h.total;
+  return srow(
+    L("Backup copy", "النسخة الاحتياطية"),
+    `<span data-backup-copied="${h.copied}" data-backup-total="${h.total}">${all ? L(`All ${num(h.total)} photos have a copy on the backup drive.`, `كل الصور (${num(h.total)}) لها نسخة على قرص النسخ الاحتياطي.`) : L(`${num(h.copied)} of ${num(h.total)} photos have a copy (${fmtBytes(h.toCopy)} still to copy).`, `${num(h.copied)} من ${num(h.total)} صورة لها نسخة (${fmtBytes(h.toCopy)} متبقية للنسخ).`)}</span>${h.last ? ` ${L(`Last copied ${fmtDate(new Date(h.last).toISOString())}.`, `آخر نسخ ${fmtDate(new Date(h.last).toISOString())}.`)}` : ""}`,
+    `${all ? `<span class="tag good">${icon("shield-check", 12)} ${L("Up to date", "محدّثة")}</span>` : actBtn("backupNow", L("Copy the rest now", "انسخ الباقي الآن"))}${h.canPutBack ? actBtn("putBack", L(`Put back ${num(h.canPutBack)} missing photos`, `أعد ${num(h.canPutBack)} صورة مفقودة`)) : ""}`,
+    "backup copy health restore",
+  );
 }
