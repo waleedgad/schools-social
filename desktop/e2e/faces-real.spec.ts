@@ -123,6 +123,7 @@ test("real faces: names stay, one name per photo, no tiny, blurred, adult or str
   for (const p of [...students, teacher]) {
     const picked = p.files.slice(0, 2).map((f) => biggest(`${p.name}-${f}`)).filter(Boolean);
     expect(picked.length, `faces found for ${p.name}`).toBe(2);
+    test.info().annotations.push({ type: "named by hand", description: `${p.name}: ${JSON.stringify(picked.map((f) => [f.photo, f.id, +f.w.toFixed(3)]))}` });
     await call(win, "confirmFaces", picked.map((f) => f.id), ids[p.name]);
   }
   await scanned();
@@ -154,7 +155,8 @@ test("real faces: names stay, one name per photo, no tiny, blurred, adult or str
       const teacherPhoto = f.photo.startsWith(`${teacher.name}-`);
       return (strangerPhoto && f.student_id) || (teacherPhoto && studentIds.has(who));
     });
-    expect(wrong.map((f) => `${f.photo}: ${f.student_id ?? f.suggest_id}`), `${when}: stranger or teacher named as a student`).toEqual([]);
+    const detail = [...new Set(wrong.map((f) => f.photo))].map((ph) => `${ph}: ${JSON.stringify(all.filter((x) => x.photo === ph).map((x) => [x.id, +x.w.toFixed(3), x.status, x.student_id, x.suggest_id, x.auto]))}`).join("\n");
+    expect(wrong.map((f) => `${f.photo}: ${f.student_id ?? f.suggest_id}`), `${when}: stranger or teacher named as a student\n${detail}`).toEqual([]);
   };
   check("after naming");
   // The names people gave by hand, by file name.
