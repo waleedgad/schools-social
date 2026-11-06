@@ -425,6 +425,25 @@ for (const [key, list] of Object.entries(raw)) {
   };
 }
 
+// ---- 5b. Settings to choose from: how many faces each "named by itself"
+// setting would name, and how many wrongly (named people and strangers).
+const grid = {};
+for (const key of Object.keys(raw).filter((k) => k.includes("|max|3"))) {
+  const list = raw[key];
+  const genuine = list.filter((x) => x.truth).length;
+  grid[key] = [];
+  for (const sure of [0.38, 0.4, 0.42, 0.45, 0.48, 0.5, 0.55, 0.6])
+    for (const gap of [0.04, 0.06, 0.08, 0.1, 0.14]) {
+      let right = 0, wrong = 0, stranger = 0;
+      for (const x of list) {
+        if (x.s1 < sure || x.s1 - x.s2 < gap) continue;
+        if (!x.truth) stranger++;
+        else x.top === x.truth ? right++ : wrong++;
+      }
+      grid[key].push({ sure, gap, right: pct(right, genuine), wrong, stranger });
+    }
+}
+
 // ---- 6. Report ---------------------------------------------------------------
 const L = [];
 L.push(`# Face test on stand-in photos`, "");
@@ -452,6 +471,10 @@ L.push(`|---|---|---|---|---|---|---|---|`);
 for (const [key, v] of Object.entries(results.sweep)) {
   const [kind, agg, k] = key.split("|");
   L.push(`| ${kind} | ${agg} | ${k} | ${v.rank1} | ${v.autoPct} | ${v.best ? `${v.best.sure}, ${v.best.gap}` : "–"} | ${v.genuine.join(" / ")} | ${v.stranger.join(" / ")} |`);
+}
+for (const [key, rows] of Object.entries(grid)) {
+  L.push("", `### Settings for ${key.split("|")[0]} (3 confirmed faces): raw score, lead -> named right / named wrong / strangers named`, "");
+  L.push(rows.map((x) => `${x.sure}/${x.gap}: ${x.right} ${x.wrong} ${x.stranger}`).join(" · "));
 }
 L.push("", `## Named by itself but WRONG (${KINDS.at(-1)}, 3 confirmed faces): check the photo`, "", ...mistakes.slice(0, 40).map((x) => `- ${x}`));
 L.push("", `Faces left out as not usable: ${Object.entries(whyCount).map(([k, v]) => `${k} ${v}`).join(", ")}.`);
