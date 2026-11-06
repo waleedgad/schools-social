@@ -248,7 +248,8 @@ table.list tr.click:hover td { background: var(--surface2); }
 /* Viewer */
 #overlay:empty { display: none; }
 #overlay { position: fixed; inset: 0; z-index: 50; }
-.viewer { position: absolute; inset: 0; background: #0d0f13; color: #eef0f4; display: flex; flex-direction: column; animation: zoomIn .22s var(--ease); }
+.viewer { position: absolute; inset: 0; background: #0d0f13; color: #eef0f4; display: flex; flex-direction: column; }
+.viewer.opening { animation: zoomIn .22s var(--ease); }
 .viewer .vtop { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 90px; -webkit-app-region: drag; }
 [dir="rtl"] .viewer .vtop { padding: 0 90px 0 16px; }
 .viewer .vtop > * { -webkit-app-region: no-drag; }

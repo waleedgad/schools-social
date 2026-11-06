@@ -7,7 +7,20 @@ function openViewer(ids, index, opts = {}) {
   V.opts = opts;
   V.before = false;
   App.overlayKeys = viewerKeys;
+  V.opening = true;
   drawViewer();
+}
+
+// Moving between photos must not flash or zoom (B-67): the window only
+// zooms in when the viewer opens, and the next picture is loaded before it
+// replaces the one on screen. The neighbours are loaded ahead.
+const viewerLoaded = new Set();
+function viewerPreload(src, wait = 400) {
+  if (viewerLoaded.has(src)) return Promise.resolve();
+  const im = new Image();
+  im.src = src;
+  const done = im.decode().then(() => viewerLoaded.add(src)).catch(() => {});
+  return Promise.race([done, new Promise((r) => setTimeout(r, wait))]);
 }
 
 function closeViewer() {
@@ -18,16 +31,21 @@ function closeViewer() {
 async function drawViewer() {
   const id = V.ids[V.i];
   const p = await call("photo", id);
+  const shown = V.before && p.original ? p.original.id : id;
+  await viewerPreload(`hub://preview/${shown}`);
+  // Moved on again while this one loaded: draw only the newest.
+  if (V.ids[V.i] !== id) return;
   V.photo = p;
   const overlay = $("#overlay");
-  const shown = V.before && p.original ? p.original.id : id;
+  const opening = V.opening;
+  V.opening = false;
   const faces = V.showFaces && !V.before ? p.faces : [];
   const keys = [
     ["← →", L("next", "التالي")], ["P", L("pick", "اختيار")], ["X", L("reject", "رفض")], ["1-5", L("stars", "نجوم")],
     ["T", L("tag", "وسم")], ["Y / N", L("yes / no to suggestions", "نعم / لا للاقتراحات")], ["B", L("before / after", "قبل / بعد")],
     ["C", L("compare", "مقارنة")], ["F", L("faces", "الوجوه")], ["Esc", L("close", "إغلاق")],
   ];
-  overlay.innerHTML = `<div class="viewer">
+  overlay.innerHTML = `<div class="viewer ${opening ? "opening" : ""}">
     <div class="vtop"><b>${esc(p.name)}</b><span class="muted small">${num(V.i + 1)} / ${num(V.ids.length)}</span>
       ${V.opts.cull ? `<span class="tag info">${L("Culling: P / X moves on", "الفرز: P / X ينتقل للتالي")}</span>` : ""}
       <span class="grow"></span>
@@ -45,6 +63,7 @@ async function drawViewer() {
     <div class="strip" id="v-strip"></div></div>`;
   drawSide(p);
   drawStrip();
+  for (const k of [V.i + 1, V.i - 1]) if (V.ids[k] !== undefined) void viewerPreload(`hub://preview/${V.ids[k]}`, 0);
   // Never a broken picture: the small copy and a clear note instead.
   const img = $("#v-img");
   img.onerror = () => {

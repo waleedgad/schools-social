@@ -385,3 +385,30 @@ test("storage numbers match the disk, and the backup copy fills itself in and ca
   expect(errors).toEqual([]);
   await app.close();
 });
+
+test("moving between photos in the big view doesn't zoom or flash (B-67)", async () => {
+  test.setTimeout(120_000);
+  const { lib, volumes, userData, dbFile } = setup();
+  const event = path.join(lib, "2026-2027", "Term 1", "2026-10-12 Sports day");
+  const p = await Promise.all([1, 2, 3, 4, 5].map((i) => photo(i + 90, 1600, 1200)));
+  p.forEach((b, i) => put(path.join(event, `IMG_000${i}.jpg`), b));
+  const { app, win, errors } = await launch(userData, volumes);
+  await settled(win, dbFile, 5);
+  await win.locator('button.nav[data-go="library"]').click();
+  await win.locator("#grid .tile").first().dblclick();
+  await expect(win.locator(".viewer #v-img")).toBeVisible();
+  await win.waitForTimeout(500);
+  for (let i = 0; i < 4; i++) {
+    const before = await win.locator("#v-img").getAttribute("src");
+    await win.keyboard.press("ArrowRight");
+    await expect(win.locator("#v-img")).not.toHaveAttribute("src", before!);
+    // Straight after the switch: nothing animating, and the picture already there.
+    const now = await win.evaluate(() => ({
+      animating: document.querySelector(".viewer")!.getAnimations({ subtree: false }).length,
+      complete: (document.querySelector("#v-img") as HTMLImageElement).complete,
+    }));
+    expect(now, `photo ${i + 2}`).toEqual({ animating: 0, complete: true });
+  }
+  expect(errors).toEqual([]);
+  await app.close();
+});
