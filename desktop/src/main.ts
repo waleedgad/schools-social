@@ -35,6 +35,7 @@ import { AuraDownload } from "./core/models";
 import { visionFaces } from "./core/vision";
 import { downloadPhoto, finishCheck, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 import { exclusive } from "./core/lock";
+import { noPostFace, noPostPhoto } from "./core/privacy";
 
 type Watched = { path: string; label: string };
 type Settings = {
@@ -797,8 +798,7 @@ function syncOptedOut(photoIds: number[]) {
   const sb = client();
   if (!sb || !settings.get().userId || !photoIds.length) return;
   const rows = all<{ id: number; path: string; remote_id: string; opted: number; web_blur: string | null; missing: number }>(
-    `select p.id, p.path, p.remote_id, p.web_blur, p.missing, exists (select 1 from faces f join students s on s.id = f.student_id
-       where f.photo_id = p.id and f.status in ('confirmed', 'manual') and s.can_post = 0) opted
+    `select p.id, p.path, p.remote_id, p.web_blur, p.missing, ${noPostPhoto("p")} opted
      from photos p where p.id in (${marks(photoIds.length)}) and p.remote_id is not null`,
     ...photoIds,
   );
@@ -811,7 +811,7 @@ function syncOptedOut(photoIds: number[]) {
   for (const r of rows.filter((r) => blur && !r.missing && (r.opted || r.web_blur))) {
     const boxes = r.opted
       ? all<{ x: number; y: number; w: number; h: number }>(
-          "select f.x, f.y, f.w, f.h from faces f join students s on s.id = f.student_id where f.photo_id = ? and f.status in ('confirmed', 'manual') and s.can_post = 0 and f.w > 0",
+          `select f.x, f.y, f.w, f.h from faces f where f.photo_id = ? and f.w > 0 and ${noPostFace("f")}`,
           r.id,
         ).map((b) => [b.x, b.y, b.w, b.h] as [number, number, number, number])
       : [];
@@ -1091,7 +1091,7 @@ async function checkWebUploads() {
       // Suggested matches count too: a likely match with a student who can't
       // appear blocks the photo until someone looks.
       const opted = one<{ n: number }>(
-        "select count(*) n from faces f join students st on st.id = coalesce(f.student_id, f.suggest_id) where f.photo_id = ? and f.status in ('confirmed', 'manual', 'suggested') and st.can_post = 0",
+        `select count(*) n from faces f where f.photo_id = ? and ${noPostFace("f")}`,
         p.id,
       );
       await finishCheck(sb, remoteId, (opted?.n ?? 0) > 0);
@@ -1763,7 +1763,7 @@ app.whenReady().then(async () => {
       const before = one<{ can_post: number }>("select can_post from students where id = ?", id);
       db.prepare("update students set can_post = ? where id = ?").run(value ? 1 : 0, id);
       remember("canPost", id, { kind: "canPost", id, value: before?.can_post ?? 1 });
-      const photoIds = all<{ photo_id: number }>("select distinct photo_id from faces where student_id = ? and status in ('confirmed', 'manual')", id).map((r) => r.photo_id);
+      const photoIds = all<{ photo_id: number }>("select distinct photo_id from faces where (student_id = ? and status in ('confirmed', 'manual')) or (suggest_id = ? and status = 'suggested')", id, id).map((r) => r.photo_id);
       syncOptedOut(photoIds);
       const sb = client();
       const s = settings.get();

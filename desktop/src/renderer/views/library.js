@@ -826,8 +826,10 @@ async function drawMissing() {
   const bar = $("#missingbar");
   if (!bar) return;
   const m = await call("missingSummary");
-  // The note and the sidebar's "Originals missing" album always agree.
-  if (m.n && lib.albums && !lib.albums.counts?.missing) App.views.library.loadTree();
+  // The note and the sidebar's "Originals missing" album always agree. A
+  // sidebar still loading may have asked before the photos went missing, so
+  // ask again then too (only the newest answer is drawn).
+  if (m.n && !lib.albums?.counts?.missing) App.views.library.loadTree();
   if (!m.n || m.n <= m.ack) return (bar.innerHTML = "");
   const where = m.folders.map((f) => `<b class="ltr">${esc(f.name)}</b> (${num(f.n)})`).join(", ") + (m.more ? L(` and ${m.more} more`, ` و${num(m.more)} غيرها`) : "");
   bar.innerHTML = `<div class="note warn missingbar" role="status">${icon("folder-x", 15)}
