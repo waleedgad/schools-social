@@ -44,6 +44,7 @@ async function seed(sb: SupabaseClient, school: string, userId: string) {
   const album = await one("shared_albums", { name: "Album", mac_id: 1 });
   const rows: Record<string, Record<string, unknown>> = {
     account_metrics: { day: "2026-01-01", platform: "facebook" },
+    alert_outbox: { kind: "approval", title: "secret", body: "secret", emails: ["lead@test.local"] },
     approval_cover: { to_user: userId, from_user: userId, starts_on: "2026-01-01", ends_on: "2026-01-02" },
     audit_log: { action: "test" },
     book_checks: { book_id: book.id, student_code: "S1" },
@@ -77,8 +78,9 @@ async function seed(sb: SupabaseClient, school: string, userId: string) {
   return made;
 }
 
-// Only the server reads these (sign-in tokens for Facebook/Instagram; error reports for the builder).
-const SERVER_ONLY = ["meta_connections", "error_reports"];
+// Only the server reads these (sign-in tokens for Facebook/Instagram; error
+// reports for the builder; alerts waiting to be emailed).
+const SERVER_ONLY = ["meta_connections", "error_reports", "alert_outbox"];
 let A: Awaited<ReturnType<typeof makeSchool>>;
 let B: Awaited<ReturnType<typeof makeSchool>>;
 let bRows: Record<string, Record<string, unknown>>;

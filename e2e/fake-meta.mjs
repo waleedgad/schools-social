@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 const port = Number(process.env.FAKE_META_PORT ?? 3998);
 const comments = new Map(); // object id -> [{ id, platform, text, author, at, hidden, replies, fail }]
 const calls = [];
+const emails = []; // what the website sent by email
 const containers = new Set(); // Instagram media waiting to be published
 let failRule = null; // { path, message }: the next calls whose path contains it are refused
 let n = 0;
@@ -55,6 +56,13 @@ createServer(async (req, res) => {
     return json(res, 200, calls.filter((c) => c.path.startsWith(prefix)));
   }
   if (url.pathname === "/__up") return json(res, 200, { ok: true });
+  // A stand-in for the email service (Resend): the website is started with
+  // RESEND_URL pointing here; tests read what was sent with GET /__emails.
+  if (url.pathname === "/resend/emails" && req.method === "POST") {
+    emails.push({ ...JSON.parse(body), at: new Date().toISOString() });
+    return json(res, 200, { id: newId("email") });
+  }
+  if (url.pathname === "/__emails") return json(res, 200, emails);
   if (url.pathname === "/__fail") {
     failRule = body ? JSON.parse(body) : null;
     return json(res, 200, { ok: true });

@@ -20,7 +20,7 @@ function englishOnArabic(text: string) {
 const pages = [
   "today", "library", "upload", "posts", "posts/new", "posts/new/announcement", "calendar",
   "inbox", "coverage", "students", "staff", "albums", "books", "shots", "categories",
-  "analytics", "reports", "activity", "accounts", "settings", "help", "setup", "check",
+  "analytics", "digest", "reports", "activity", "accounts", "settings", "help", "setup", "check",
 ];
 
 for (const locale of ["en", "ar"] as const) {

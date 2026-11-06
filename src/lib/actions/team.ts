@@ -45,7 +45,7 @@ export async function remindPost(formData: FormData) {
   const { data: post } = await supabase.from("posts").select("id, caption_ar, caption_en").eq("id", id).eq("school_id", membership.school.id).single();
   if (post) {
     await supabase.from("team_alerts").insert({ school_id: membership.school.id, kind: "remind", created_by: user.id, body: { post: id, from: membership.fullName, text: ((post.caption_ar || post.caption_en || "") as string).slice(0, 120) } });
-    await notify(membership.school.id, "remind", "Reminder: a post is waiting · تذكير: منشور ينتظر", `${membership.fullName}: ${((post.caption_ar || post.caption_en || "") as string).slice(0, 160)}`, `/posts/${id}`);
+    await notify(membership.school.id, "remind", "Reminder: a post is waiting · تذكير: منشور ينتظر", `${membership.fullName}: ${((post.caption_ar || post.caption_en || "") as string).slice(0, 160)}`, `/posts/${id}`, { postId: id, actorId: user.id, key: `remind:${id}:${new Intl.DateTimeFormat("en-CA", { timeZone: membership.school.timezone || "Africa/Cairo" }).format(new Date())}` });
     await supabase.from("post_comments").insert({ post_id: id, school_id: membership.school.id, user_id: user.id, author_name: membership.fullName, body: locale === "ar" ? "تذكير: هذا المنشور ينتظر الموافقة." : "Reminder: this post is waiting for approval." });
   }
   revalidatePath(`/${locale}/today`);

@@ -169,7 +169,12 @@ export async function runIntent(
   // Someone has to approve: tell them outside the app too (Slack, Teams, email).
   if ((after?.status === "in_review" || after?.status === "waiting_extra") && after.status !== post.status) {
     const text = ((merged.caption_ar || merged.caption_en || "") as string).slice(0, 200);
-    await notify(schoolId, "approval", after.status === "waiting_extra" ? `Waiting for your approval · بانتظار موافقتك` : `Post sent for approval · منشور للموافقة`, `${membership.fullName}: ${text}`, `/posts/${id}`);
+    await notify(schoolId, "approval", after.status === "waiting_extra" ? `Waiting for your approval · بانتظار موافقتك` : `Post sent for approval · منشور للموافقة`, `${membership.fullName}: ${text}`, `/posts/${id}`, {
+      postId: id,
+      actorId: userId,
+      // A double click (or the Mac and the website at once) sends it once.
+      key: `approval:${id}:${after.status}:${Math.floor(Date.now() / 120_000)}`,
+    });
   }
   return { ok: true, status: (after?.status as string | undefined) ?? status };
 }

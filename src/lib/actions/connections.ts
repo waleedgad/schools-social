@@ -56,6 +56,8 @@ export async function saveStages(formData: FormData) {
   back(locale, "approvals", { saved: "1" });
 }
 
+const time = (v: FormDataEntryValue | null) => (/^\d{2}:\d{2}$/.test(String(v ?? "")) ? String(v) : null);
+
 export async function saveConnections(formData: FormData) {
   const { locale, membership, supabase, schoolId, audit } = await admin(formData);
   if (!can(membership.role, "manageSettings", membership.school.permissions)) back(locale, "connections");
@@ -69,9 +71,12 @@ export async function saveConnections(formData: FormData) {
     slack_webhook: slack || null,
     teams_webhook: teams || null,
     email_alerts: formData.get("email") === "on",
-    alert_kinds: formData.getAll("kind").map(String).filter((k) => ["approval", "failed", "import", "comment", "remind", "book"].includes(k)),
+    alert_kinds: formData.getAll("kind").map(String).filter((k) => ["approval", "failed", "import", "comment", "remind", "book", "digest"].includes(k)),
     whatsapp_phone_id: /^\d{5,40}$/.test(phoneId) ? phoneId : null,
     whatsapp_event: /^[0-9a-f-]{36}$/.test(event) ? event : null,
+    // Quiet hours: alerts wait until they end. Both empty = no quiet hours.
+    quiet_from: time(formData.get("quietFrom")),
+    quiet_to: time(formData.get("quietTo")),
     updated_at: new Date().toISOString(),
   });
   if (error) back(locale, "connections", { error: "save" });
@@ -83,6 +88,6 @@ export async function saveConnections(formData: FormData) {
 export async function testAlert(formData: FormData) {
   const { locale, membership, schoolId } = await admin(formData);
   if (!can(membership.role, "manageSettings", membership.school.permissions)) back(locale, "connections");
-  await notify(schoolId, "approval", "Test alert · تنبيه تجريبي", `${membership.fullName}: this is how alerts from School Social Hub look.`, "/today");
+  await notify(schoolId, "approval", "Test alert · تنبيه تجريبي", `${membership.fullName}: this is how alerts from School Social Hub look.`, "/today", { now: true });
   back(locale, "connections", { tested: "1" });
 }

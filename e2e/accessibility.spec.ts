@@ -12,7 +12,7 @@ const signedOut = ["login", "signup", "forgot"];
 const signedIn = [
   "today", "library", "upload", "posts", "posts/new", "posts/new/announcement", "calendar",
   "inbox", "coverage", "students", "staff", "albums", "books", "shots", "categories",
-  "analytics", "reports", "activity", "accounts", "settings", "help", "setup", "check",
+  "analytics", "digest", "reports", "activity", "accounts", "settings", "help", "setup", "check",
 ];
 
 async function check(page: Page, where: string, found: string[]) {

@@ -334,6 +334,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
     ),
     numbers: (
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Link href="/digest" className="col-span-2 text-sm font-semibold text-accent-ink underline md:col-span-4">{t("digest.open")}</Link>
         <Stat label={t("analytics.reach")} value={sum("reach").toLocaleString()} />
         <Stat label={t("analytics.likes")} value={sum("likes").toLocaleString()} />
         <Stat label={t("analytics.comments")} value={sum("comments").toLocaleString()} />

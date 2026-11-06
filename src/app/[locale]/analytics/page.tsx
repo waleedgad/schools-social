@@ -129,6 +129,10 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
       <div className="flex flex-wrap items-center gap-2">
         <Pills items={[7, 30, 90].map((d) => ({ label: t("analytics.lastDays", { count: d }), href: { pathname: "/analytics", query: { days: String(d) } }, on: d === days }))} />
         <span className="grow" />
+        <Link href="/digest" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-semibold hover:bg-background print:hidden">
+          <Icon name="calendar" />
+          {t("digest.open")}
+        </Link>
         <a href={`/api/analytics?days=${days}`} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-semibold hover:bg-background print:hidden">
           <Icon name="download" />
           {t("more.analytics.csv")}

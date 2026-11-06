@@ -23,6 +23,7 @@ const PAGES: [string, Permission | "admin"][] = [
   ["/library", "viewLibrary"],
   ["/students", "manageConsent"],
   ["/analytics", "viewAnalytics"],
+  ["/digest", "viewAnalytics"],
   ["/activity", "viewActivity"],
   ["/settings", "manageSettings"],
   ["/staff", "admin"],
