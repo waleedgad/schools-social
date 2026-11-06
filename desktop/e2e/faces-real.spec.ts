@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import sharp from "sharp";
+import { noPostPhoto } from "../src/core/privacy";
 
 // Release 0.9: faces and people, on real faces. Uses the freely licensed
 // stand-in photos of the face test (bench/faces/fetch.mjs, kept in GitHub's
@@ -160,6 +161,20 @@ test("real faces: names stay, one name per photo, no tiny, blurred, adult or str
   const found = faces().filter((f) => f.student_id || (f.status === "suggested" && f.suggest_id)).length;
   test.info().annotations.push({ type: "faces", description: `named or suggested after naming 8: ${found}` });
   expect(found).toBeGreaterThan(8);
+
+  // Privacy (B-54): student C can't appear. Every photo of C where a face
+  // was found is kept off the website (named or a likely match), and the
+  // teacher's and strangers' photos are not.
+  await call(win, "setCanPost", ids[c.name], false);
+  const blocked = new Set(read<{ name: string }>(`select p.name from photos p where p.missing = 0 and ${noPostPhoto("p")}`).map((r) => r.name));
+  const withFace = new Set(faces().filter((f) => f.status !== "background").map((f) => f.photo));
+  const ofC = c.files.slice(0, 6).map((f) => `${c.name}-${f}`).filter((n) => withFace.has(n));
+  const caught = ofC.filter((n) => blocked.has(n));
+  test.info().annotations.push({ type: "privacy", description: `photos of a student who can't appear kept off the website: ${caught.length} of ${ofC.length}` });
+  // Kept off by mistake (a look-alike suggested as C): safe, but counted.
+  test.info().annotations.push({ type: "privacy", description: `other photos kept off too: ${[...blocked].filter((n) => !n.startsWith(`${c.name}-`)).length}` });
+  expect(caught.length, `photos of the student who can't appear that are caught (${caught.length}/${ofC.length})`).toBe(ofC.length);
+  await call(win, "setCanPost", ids[c.name], true);
 
   // B-07: the whole library is scanned for faces again (as when the new
   // recogniser arrives). Every name given by hand is still there.

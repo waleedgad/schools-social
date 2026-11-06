@@ -5,6 +5,7 @@ import { tx } from "../core/db";
 import { finderTags } from "../core/vision";
 import { schoolYear, term } from "../core/library";
 import { marks, q, type Api, type Ctx } from "./ctx";
+import { noPostFace, noPostPhoto } from "../core/privacy";
 
 // The Library's questions: which photos, which albums, which events. Albums
 // come in sections: smart, to do, my albums, categories, occasions, people,
@@ -38,7 +39,7 @@ export const PHOTO_COLUMNS = `p.id, p.name, p.path, p.width, p.height, p.rating,
   (select count(*) from faces f where f.photo_id = p.id and f.status in ('confirmed', 'manual')) as tagged,
   (select count(*) from faces f where f.photo_id = p.id and f.status = 'suggested') as suggested,
   (select count(*) from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested')) as unnamed,
-  (select count(*) from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed', 'manual') and s.can_post = 0) as no_post`;
+  (select count(*) from faces f where f.photo_id = p.id and ${noPostFace("f")}) as no_post`;
 
 // What each kind of event is, read from its name (Arabic or English) or
 // from the category chosen at import. Only names are read: no photo leaves
@@ -161,7 +162,7 @@ export function libraryApi(ctx: Ctx): Api {
       case "notsent": where.push("p.remote_id is null and p.flag = 1"); break;
       case "sent": where.push("p.remote_id is not null"); break;
       case "posted": where.push("p.posts > 0"); break;
-      case "nopost": where.push(`exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and ${named} and s.can_post = 0)`); break;
+      case "nopost": where.push(noPostPhoto("p")); break;
       case "noevent": where.push("p.event_key is null"); break;
       case "raw": where.push("(p.is_raw = 1 or exists (select 1 from photos r where r.pair_of = p.id))"); break;
       // Ready to post: picked, not in a post yet, original there.
