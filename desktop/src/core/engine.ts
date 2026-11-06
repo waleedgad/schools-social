@@ -187,6 +187,7 @@ export class Engine {
       tx(this.db, () => missing.forEach((p) => mark.run(p)));
       const back = this.db.prepare("update photos set missing = 0 where path = ? and missing = 1");
       tx(this.db, () => [...present].forEach((p) => back.run(p)));
+      this.heal();
     } finally {
       this.scanning = this.status.scanning = false;
       this.o.onChange("photos");
@@ -263,7 +264,57 @@ export class Engine {
 
   private gone(file: string) {
     this.db.prepare("update photos set missing = 1 where path = ?").run(file);
+    this.healSoon();
     this.o.onChange("photos");
+  }
+
+  private healTimer: NodeJS.Timeout | null = null;
+  private healSoon() {
+    if (this.healTimer) return;
+    this.healTimer = setTimeout(() => {
+      this.healTimer = null;
+      this.heal();
+    }, 400);
+  }
+
+  // A copy, RAW or edit is hidden behind its main photo. When the main photo
+  // goes (Bin, deleted in Finder, a skipped folder) what's left must show
+  // again, or the photo vanishes from the library although the file is
+  // there. When the main photo comes back, it's the main photo again.
+  heal() {
+    const promoted: number[] = [];
+    tx(this.db, () => {
+      const goneMain = (col: string) =>
+        this.db.prepare(`select distinct c.${col} as gone from photos c left join photos o on o.id = c.${col} where c.${col} is not null and c.missing = 0 and (o.id is null or o.missing = 1)`).all() as { gone: number }[];
+      // Exact copies: the oldest copy left becomes the photo.
+      for (const { gone } of goneMain("dup_of")) {
+        const live = this.db.prepare("select id from photos where dup_of = ? and missing = 0 order by id").all(gone) as { id: number }[];
+        if (!live.length) continue;
+        const head = live[0].id;
+        this.db.prepare("update photos set dup_of = null where id = ?").run(head);
+        this.db.prepare("update photos set dup_of = ? where dup_of = ? and missing = 0 and id != ?").run(head, gone, head);
+        promoted.push(head);
+      }
+      // Two photos with the same bytes both showing (a photo came back from
+      // the Bin after its copy took its place): the one with names stays,
+      // else the older one; the other is a copy again.
+      const twins = this.db.prepare("select hash from photos where missing = 0 and dup_of is null and hash is not null group by hash having count(*) > 1").all() as { hash: string }[];
+      for (const { hash } of twins) {
+        const rows = this.db
+          .prepare("select p.id, (select count(*) from faces f where f.photo_id = p.id and f.status in ('confirmed', 'manual')) named from photos p where p.hash = ? and p.missing = 0 and p.dup_of is null order by named desc, p.id")
+          .all(hash) as { id: number }[];
+        const keep = rows[0].id;
+        for (const r of rows.slice(1)) {
+          this.db.prepare("update photos set dup_of = ? where id = ?").run(keep, r.id);
+          this.db.prepare("update photos set dup_of = ? where dup_of = ?").run(keep, r.id);
+        }
+      }
+      // A RAW or edit whose main photo went shows by itself.
+      for (const col of ["pair_of", "edited_of"]) for (const { gone } of goneMain(col)) this.db.prepare(`update photos set ${col} = null where ${col} = ? and missing = 0`).run(gone);
+    });
+    if (this.o.faces()) this.faceWork.push(...promoted);
+    if (promoted.length) this.pump();
+    return promoted.length;
   }
 
   private pump() {
@@ -346,16 +397,26 @@ export class Engine {
       const dir = path.dirname(file);
       const base = path.basename(file, path.extname(file));
       let pairOf: number | null = null;
+      // Imports put RAW files in a "RAW" folder inside the event, so the JPEG
+      // can be one folder up (B-58).
       if (p.is_raw) {
-        const jpeg = this.db
-          .prepare("select id from photos where path like ? escape '\\' and is_raw = 0 and missing = 0 and lower(name) like lower(?) limit 1")
-          .get(like(dir + path.sep) , `${base}.%`) as Row | undefined;
-        if (jpeg) pairOf = jpeg.id as number;
+        const dirs = [dir, ...(/^raw$/i.test(path.basename(dir)) ? [path.dirname(dir)] : [])];
+        for (const d of dirs) {
+          const jpeg = this.db
+            .prepare("select id from photos where path like ? escape '\\' and path not like ? escape '\\' and is_raw = 0 and missing = 0 and lower(name) like lower(?) limit 1")
+            .get(like(d + path.sep), like(d + path.sep) + "%" + like(path.sep) + "%", `${base}.%`) as Row | undefined;
+          if (jpeg) {
+            pairOf = jpeg.id as number;
+            break;
+          }
+        }
       } else {
-        const raw = this.db
-          .prepare("select id from photos where is_raw = 1 and missing = 0 and path like ? escape '\\' and lower(name) like lower(?)")
-          .all(like(dir + path.sep), `${base}.%`) as Row[];
-        for (const r of raw) this.db.prepare("update photos set pair_of = ? where id = ?").run(id, r.id as number);
+        for (const d of [dir, ...["RAW", "raw", "Raw"].map((r) => path.join(dir, r))]) {
+          const raw = this.db
+            .prepare("select id from photos where is_raw = 1 and missing = 0 and path like ? escape '\\' and path not like ? escape '\\' and lower(name) like lower(?)")
+            .all(like(d + path.sep), like(d + path.sep) + "%" + like(path.sep) + "%", `${base}.%`) as Row[];
+          for (const r of raw) this.db.prepare("update photos set pair_of = ? where id = ?").run(id, r.id as number);
+        }
       }
       const m = EDIT.exec(base);
       let editedOf: number | null = null;
@@ -926,6 +987,7 @@ export class Engine {
     const { mkdir } = await import("node:fs/promises");
     await mkdir(dir, { recursive: true });
     const undo: { id: number; from: string }[] = [];
+    const rawSub = new Set<number>();
     // A photo's RAW twin, "-edit" copy and exact duplicates go with it when
     // they sit in the same folder; they are hidden behind it in the library.
     if (ids.length) {
@@ -934,13 +996,17 @@ export class Engine {
         .prepare(`select c.id, c.path, o.path as main from photos c join photos o on o.id = coalesce(c.pair_of, c.edited_of, c.dup_of) where (c.pair_of in (${m}) or c.edited_of in (${m}) or c.dup_of in (${m})) and c.missing = 0`)
         .all(...ids, ...ids, ...ids) as { id: number; path: string; main: string }[];
       const have = new Set(ids);
-      ids = [...ids, ...extra.filter((e) => !have.has(e.id) && path.dirname(e.path) === path.dirname(e.main)).map((e) => e.id)];
+      // A RAW in the event's "RAW" folder goes to the new event's "RAW" folder (B-58).
+      const inRaw = (e: { path: string; main: string }) => path.dirname(path.dirname(e.path)) === path.dirname(e.main) && /^raw$/i.test(path.basename(path.dirname(e.path)));
+      for (const e of extra) if (!have.has(e.id) && inRaw(e)) rawSub.add(e.id);
+      ids = [...ids, ...extra.filter((e) => !have.has(e.id) && (path.dirname(e.path) === path.dirname(e.main) || inRaw(e))).map((e) => e.id)];
     }
     for (const id of ids) {
       const p = this.db.prepare("select path from photos where id = ?").get(id) as Row | undefined;
       if (!p) continue;
       const from = p.path as string;
-      const to = await freeName(path.join(dir, path.basename(from)));
+      if (rawSub.has(id)) await mkdir(path.join(dir, path.basename(path.dirname(from))), { recursive: true });
+      const to = await freeName(path.join(rawSub.has(id) ? path.join(dir, path.basename(path.dirname(from))) : dir, path.basename(from)));
       if (from === to) continue;
       await moveFile(from, to);
       const place = placeFromPath(this.o.library, to);

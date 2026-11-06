@@ -24,7 +24,14 @@ function rank(p: CleanPhoto) {
 // kept too (and becomes the one kept if the best one isn't protected).
 export function protectedIds(db: Db) {
   const ids = new Set<number>(
-    (db.prepare("select id from photos where posts > 0 or flag = 1 or rating >= 4 or exists (select 1 from faces f where f.photo_id = photos.id and f.status in ('confirmed', 'manual'))").all() as { id: number }[]).map((r) => r.id),
+    (
+      db
+        .prepare(
+          // A JPEG with its RAW twin is one photo in two formats: always kept.
+          "select id from photos where posts > 0 or flag = 1 or rating >= 4 or exists (select 1 from faces f where f.photo_id = photos.id and f.status in ('confirmed', 'manual')) or exists (select 1 from photos r where r.pair_of = photos.id and r.missing = 0)",
+        )
+        .all() as { id: number }[]
+    ).map((r) => r.id),
   );
   for (const b of db.prepare("select spec, pages, locked from books").all() as { spec: string | null; pages: string | null; locked: string | null }[])
     for (const text of [b.spec, b.pages, b.locked]) {

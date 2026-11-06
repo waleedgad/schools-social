@@ -146,7 +146,7 @@ async function cleanReview(kind) {
       const g = groups[Number(b.dataset.binG)];
       const ids = g.all.filter((id) => ticked.has(id));
       if (!ids.length) return;
-      await call("bin", ids);
+      await call("cleanBin", [{ keep: g.all.find((id) => !ticked.has(id)) ?? null, ids }]);
       ids.forEach((id) => binned.add(id));
       g.done = true;
       toastAction(L(`${ids.length} moved to the Bin`, `نُقلت ${num(ids.length)} إلى السلة`), L("Undo", "تراجع"), () => doUndo());
@@ -168,7 +168,7 @@ async function cleanReview(kind) {
   $("#cr-all", m).onclick = async () => {
     const ids = [...ticked].filter((id) => !binned.has(id));
     if (!ids.length) return;
-    const n = await call("bin", ids);
+    const n = await call("cleanBin", groups ? groups.filter((g) => !g.done).map((g) => ({ keep: g.all.find((id) => !ticked.has(id)) ?? null, ids: g.all.filter((id) => ticked.has(id) && !binned.has(id)) })).filter((g) => g.ids.length) : [{ keep: null, ids }]);
     closeOverlay();
     toastAction(L(`${n} photos moved to the Bin`, `نُقلت ${num(n)} صورة إلى السلة`), L("Undo", "تراجع"), () => doUndo(), 8000);
     go("cleanup");

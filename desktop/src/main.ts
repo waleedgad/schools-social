@@ -10,7 +10,7 @@ import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
 import { checkpointInBackground, openDb, tx, type Db } from "./core/db";
-import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
+import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { SHOW_FROM, SURE } from "./core/faces";
 import { groupMoves, planFiling } from "./core/filing";
@@ -1748,6 +1748,18 @@ app.whenReady().then(async () => {
       await rm(path.join(data("cache"), "previews"), { recursive: true, force: true });
       push("photos");
       return { copies: ids.length, folders, freed: r.exact.size + r.cache };
+    },
+    // The Clean up tab's "Bin the ticked": checked again here, so a list on
+    // screen that's out of date can never bin the last copy of a photo or a
+    // posted, picked or named one.
+    cleanBin: async (groups: { keep: number | null; ids: number[] }[]) => {
+      const prot = protectedIds(db);
+      const ids: number[] = [];
+      for (const g of groups) {
+        if (g.keep != null && (g.ids.includes(g.keep) || !one("select id from photos where id = ? and missing = 0", g.keep))) continue;
+        ids.push(...g.ids.filter((id) => !prot.has(id)));
+      }
+      return ids.length ? binPhotos([...new Set(ids)]) : 0;
     },
     removeEmptyFolders: async () => {
       const s = settings.get();

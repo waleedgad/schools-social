@@ -23,6 +23,12 @@ export function manageApi(ctx: Ctx): Api {
   // so nothing leaves the drive for 30 days and every photo can come back.
   async function binPhotos(ids: number[], why = "bin") {
     const root = lib();
+    // A RAW and its JPEG are one photo: binning one bins both (B-58).
+    if (ids.length) {
+      const have = new Set(ids);
+      const twins = all<{ id: number }>(`select id from photos where missing = 0 and (pair_of in (${marks(ids.length)}) or id in (select pair_of from photos where id in (${marks(ids.length)}) and pair_of is not null))`, ...ids, ...ids);
+      ids = [...ids, ...twins.map((t) => t.id).filter((id) => !have.has(id))];
+    }
     const rows = all<{ id: number; path: string; hash: string | null; remote_id: string | null; missing: number }>(`select id, path, hash, remote_id, missing from photos where id in (${marks(ids.length)})`, ...ids);
     const day = new Date().toISOString().slice(0, 10);
     let n = 0;
@@ -41,6 +47,7 @@ export function manageApi(ctx: Ctx): Api {
       run("update photos set missing = 1 where id = ?", r.id);
       n++;
     }
+    ctx.engine()?.heal();
     ctx.removeWebCopiesOf(rows);
     ctx.remember("bin", `${n}`, { kind: "bin", ids: rows.map((r) => r.id) }, rows.map((r) => r.id));
     ctx.push("photos");
@@ -63,6 +70,7 @@ export function manageApi(ctx: Ctx): Api {
       }
       run("delete from bin where photo_id = ?", b.photo_id);
     }
+    ctx.engine()?.heal();
     ctx.remember("restore", `${n}`, null, ids);
     ctx.push("photos");
     return n;
