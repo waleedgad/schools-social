@@ -30,13 +30,12 @@ const MODELS = path.join(desktop, "models");
 
 const photos = path.resolve(process.argv[2] ?? "face-bench-photos");
 const auraFile = process.argv[3] && existsSync(process.argv[3]) ? path.resolve(process.argv[3]) : null;
-const KINDS = auraFile ? ["sface", "aura", "aura+flip"] : ["sface"];
+// "both" is what the app uses once AuraFace is there: AuraFace (with its
+// mirror image) and SFace together.
+const KINDS = auraFile ? ["sface", "aura", "aura+flip", "both"] : ["sface"];
 const base = (kind) => kind.split("+")[0];
 const GROUPS = Number(process.env.BENCH_GROUPS ?? 40);
 const DUP = Number(process.env.BENCH_DUP ?? 0.95);
-const ENS = Number(process.env.BENCH_ENS ?? 0.7);
-const ENS_SURE = Number(process.env.BENCH_ENS_SURE ?? 0.45);
-const ENS_GAP = Number(process.env.BENCH_ENS_GAP ?? 0.04);
 const MIN_PHOTOS = Number(process.env.BENCH_MIN ?? 7);
 
 // Same random choices every run.
@@ -97,10 +96,14 @@ async function analyse(file) {
     for (const kind of Object.keys(sessions)) {
       const aligned = F.align(rgb, info.width, info.height, f.landmarks, kind);
       const a = await describe(kind, aligned);
-      // The app's own AuraFace description already includes the mirror image.
-      if (kind === "aura" && found.recogniser === "aura") {
-        emb.aura = unit(a);
-        emb["aura+flip"] = f.embedding;
+      // The app's own description is AuraFace (with its mirror image) and
+      // SFace joined: 512 + 128 numbers, each part weighted.
+      if (found.recogniser === "both") {
+        emb.both = f.embedding;
+        if (kind === "aura") {
+          emb.aura = unit(a);
+          emb["aura+flip"] = unit(f.embedding.slice(0, 512));
+        } else emb.sface = unit(f.embedding.slice(512));
         continue;
       }
       const b = kind === "aura" ? await describe(kind, flipped(aligned)) : null;
@@ -170,10 +173,7 @@ for (const person of people) {
       crowded++;
       continue;
     }
-    const face = { ...usable[0], emb: { ...usable[0].emb } }; // (not saved in the cache)
-    // Both recognisers together: cosine of this = 0.7 x AuraFace + 0.3 x SFace.
-    if (face.emb["aura+flip"]) face.emb.ens = Float32Array.from([...face.emb["aura+flip"].map((v) => v * Math.sqrt(ENS)), ...face.emb.sface.map((v) => v * Math.sqrt(1 - ENS))]);
-    singles.push({ person, file, face, size: [a.width, a.height] });
+    singles.push({ person, file, face: usable[0], size: [a.width, a.height] });
   }
 }
 const scanSeconds = (Date.now() - t0) / 1000;
@@ -321,24 +321,18 @@ for (const kind of KINDS) {
 //          rounds. A name needs the hand-named faces to agree too (their own
 //          top pick, raw score >= handMin, lead >= handLead), and a face is
 //          only learned from when its raw score is >= addMin.
-//  event:  as "strict", then a face from the same event (photos whose file
-//          names differ only by a number, like one school event's photos) as
-//          a face already named, and very like it, gets that name too.
+//  app:    the app's own rules (faces.ts learnFrom and handAgrees), on the
+//          app's own recogniser ("both").
+//  (Same-event naming was tried on 6 Nov 2026: under 1% more on these photos.)
 const LEARN_HAND = Number(process.env.BENCH_LEARN_HAND ?? 0.3);
-const eventKey = (file) => {
-  let t = title(file).replace(/\.jpe?g$/i, "").toLowerCase();
-  for (let i = 0; i < 4; i++) t = t.replace(/[\s_.,-]*(\(\d+\)|\d+|img|dsc|dscf|dsc_)$/i, "").trim();
-  return t.length >= 6 ? t : null;
-};
 const WAYS = {
   plain: null,
   learn: { addMin: -1, handMin: LEARN_HAND, handLead: 0 },
   strict: { addMin: Number(process.env.BENCH_ADD_MIN ?? 0.55), handMin: Number(process.env.BENCH_HAND_MIN ?? 0.4), handLead: Number(process.env.BENCH_HAND_LEAD ?? 0.04) },
-  event: { addMin: Number(process.env.BENCH_ADD_MIN ?? 0.55), handMin: Number(process.env.BENCH_HAND_MIN ?? 0.4), handLead: Number(process.env.BENCH_HAND_LEAD ?? 0.04), event: { link: Number(process.env.BENCH_EV_LINK ?? 0.5), gap: Number(process.env.BENCH_EV_GAP ?? 0.1), handMin: Number(process.env.BENCH_EV_HAND ?? 0.3) } },
+  app: { app: true },
 };
 const classResults = {};
-const classKinds = [...KINDS.filter((k) => k !== "sface+flip"), ...(auraFile ? ["ens"] : [])];
-let eventShare = null;
+const classKinds = KINDS;
 function bestPer(e, known) {
   const best = new Map();
   for (const g of known) {
@@ -351,8 +345,8 @@ for (const kind of classKinds) {
   const rk = base(kind);
   for (const k of [3, 5]) {
     for (const [way, opt] of Object.entries(WAYS)) {
-      if (way !== "plain" && way !== "learn" && kind !== KINDS.at(-1) && kind !== "ens") continue;
-      if (kind === "ens" && way === "event") continue;
+      if (way === "strict" && !kind.startsWith("aura+flip") && kind !== "both") continue;
+      if (way === "app" && kind !== KINDS.at(-1)) continue;
       const t = { n: 0, right: 0, wrong: 0, strangers: 0, strangerNamed: 0, byEvent: 0, wrongList: [] };
       const cr = rng(1000 + k);
       for (let trial = 0; trial < 20; trial++) {
@@ -360,13 +354,8 @@ for (const kind of classKinds) {
         const hand = [];
         for (const p of cls) for (const x of byPerson.get(p).slice(0, k)) hand.push({ studentId: p, embedding: x.face.emb[kind] });
         const items = [];
-        for (const p of cls) for (const x of byPerson.get(p).slice(5, 35)) items.push({ truth: p, e: x.face.emb[kind], file: x.file, ev: eventKey(x.file) });
-        for (const p of strangers) for (const x of byPerson.get(p).slice(0, 15)) items.push({ truth: null, e: x.face.emb[kind], file: x.file, ev: eventKey(x.file) });
-        if (eventShare === null) {
-          const n = new Map();
-          for (const it of items) if (it.ev) n.set(it.ev, (n.get(it.ev) ?? 0) + 1);
-          eventShare = pct(items.filter((it) => it.ev && n.get(it.ev) > 1).length, items.length);
-        }
+        for (const p of cls) for (const x of byPerson.get(p).slice(5, 35)) items.push({ truth: p, e: x.face.emb[kind], file: x.file });
+        for (const p of strangers) for (const x of byPerson.get(p).slice(0, 15)) items.push({ truth: null, e: x.face.emb[kind], file: x.file });
         if (way === "plain")
           for (const it of items) {
             const sorted = bestPer(it.e, hand);
@@ -379,56 +368,26 @@ for (const kind of classKinds) {
           let added = 0;
           items.forEach((it, i) => {
             if (name.has(i)) return;
-            let m;
-            if (kind === "ens") {
-              // both recognisers together: plain raw-score rule
-              const b = bestPer(it.e, opt ? [...hand, ...learned] : hand);
-              if (!b.length || b[0][1] < ENS_SURE || b[0][1] - (b[1]?.[1] ?? -1) < ENS_GAP) return;
-              m = { studentId: b[0][0], raw: b[0][1] };
-            } else {
-              const list = F.ranked(it.e, opt ? [...hand, ...learned] : hand, rk);
-              m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
-              if (!m || !F.isSure(m, rk)) return;
-              m.raw = F.unscaled(m.score, rk);
-            }
-            if (opt) {
+            const list = F.ranked(it.e, opt ? [...hand, ...learned] : hand, rk);
+            const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
+            if (!m || !F.isSure(m, rk)) return;
+            m.raw = F.unscaled(m.score, rk);
+            if (opt?.app) {
+              if (!F.handAgrees(it.e, [...hand, ...learned], m.studentId, rk)) return;
+            } else if (opt) {
               const own = bestPer(it.e, hand);
               if (own[0]?.[0] !== m.studentId || own[0][1] < opt.handMin || own[0][1] - (own[1]?.[1] ?? -1) < opt.handLead) return;
             }
             name.set(i, m.studentId);
-            if (opt && m.raw >= opt.addMin) {
-              learned.push({ studentId: m.studentId, embedding: it.e });
+            if (opt && (opt.app ? F.learnFrom(m.raw) : m.raw >= opt.addMin)) {
+              learned.push({ studentId: m.studentId, embedding: it.e, learned: true });
               added++;
             }
           });
           if (!added) break;
         }
-        if (opt?.event) {
-          const ev = opt.event;
-          for (let round = 0; round < 4; round++) {
-            let more = 0;
-            items.forEach((it, i) => {
-              if (name.has(i) || !it.ev) return;
-              const near = new Map();
-              items.forEach((o, j) => {
-                if (j === i || o.ev !== it.ev || !name.has(j)) return;
-                const v = F.cosine(it.e, o.e), nm = name.get(j);
-                if (v > (near.get(nm) ?? -1)) near.set(nm, v);
-              });
-              const sorted = [...near.entries()].sort((x, y) => y[1] - x[1]);
-              if (!sorted.length || sorted[0][1] < ev.link || sorted[0][1] - (sorted[1]?.[1] ?? -1) < ev.gap) return;
-              const own = bestPer(it.e, hand);
-              if (own[0]?.[0] !== sorted[0][0] || own[0][1] < ev.handMin) return;
-              name.set(i, sorted[0][0]);
-              how.set(i, "event");
-              more++;
-            });
-            if (!more) break;
-          }
-        }
         items.forEach((it, i) => {
           const nm = name.get(i);
-          if (how.get(i) === "event" && nm === it.truth) t.byEvent++;
           if (it.truth) {
             t.n++;
             if (nm === it.truth) t.right++;
@@ -579,7 +538,7 @@ for (const [key, list] of Object.entries(raw)) {
 // ---- 5b. Settings to choose from: how many faces each "named by itself"
 // setting would name, and how many wrongly (named people and strangers).
 const grid = {};
-for (const key of Object.keys(raw).filter((k) => k.includes("|max|3") || (k.includes("|class|") && (k.startsWith(KINDS.at(-1)) || k.startsWith("ens"))))) {
+for (const key of Object.keys(raw).filter((k) => k.includes("|max|3") || (k.includes("|class|") && (k.startsWith(KINDS.at(-1)) || k.startsWith("aura+flip"))))) {
   const list = raw[key];
   const genuine = list.filter((x) => x.truth).length;
   grid[key] = [];
@@ -609,15 +568,15 @@ for (const kind of KINDS)
     L.push(`| ${kind} | ${k} | ${pct(t.rank1, t.n)} | ${pct(t.sureRight, t.n)} | ${pct(t.sureWrong, t.n)} | ${pct(t.sugRight, t.n)} | ${pct(t.sugWrong, t.n)} | ${pct(t.none, t.n)} | ${pct(t.strangerSure, t.strangers)} | ${pct(t.strangerSug, t.strangers)} |`);
   }
 L.push("", `## Class-sized (30 people, 20 classes)`, "");
-L.push(`plain = confirmed faces only; learn = also learns from its own sure names; strict = learns, with stricter rules; event = strict, plus faces from the same event (${eventShare} of test faces share an event with another).`, "");
-L.push(`| Recogniser | Confirmed faces | Way | Named by itself: right | of which by event | Named WRONG | Strangers named |`);
-L.push(`|---|---|---|---|---|---|---|`);
+L.push(`plain = confirmed faces only; learn = also learns from its own sure names; strict = learns, with stricter rules; app = the app's own learning rules. both = AuraFace and SFace together (what the app uses).`, "");
+L.push(`| Recogniser | Confirmed faces | Way | Named by itself: right | Named WRONG | Strangers named |`);
+L.push(`|---|---|---|---|---|---|`);
 for (const [key, t] of Object.entries(classResults)) {
   const [kind, k, way] = key.split("|");
-  L.push(`| ${kind} | ${k} | ${way} | ${pct(t.right, t.n)} | ${pct(t.byEvent, t.n)} | ${t.wrong} | ${t.strangerNamed} of ${t.strangers} |`);
+  L.push(`| ${kind} | ${k} | ${way} | ${pct(t.right, t.n)} | ${t.wrong} | ${t.strangerNamed} of ${t.strangers} |`);
 }
-const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith("ens")).flatMap(([, t]) => t.wrongList))];
-if (classWrong.length) L.push("", "Wrong in the class test (both recognisers together):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
+const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith(KINDS.at(-1))).flatMap(([, t]) => t.wrongList))];
+if (classWrong.length) L.push("", "Wrong in the class test (the app's recogniser):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
 L.push("", `## Group photos (3 confirmed faces each)`, "");
 L.push(`| Recogniser | Normal faces found | Named by itself: right | WRONG | Suggested: right | wrong | Strangers named | Tiny faces named | Blurred faces kept as usable | Blurred faces named | Not-real faces found / named | Photos with a name twice |`);
 L.push(`|---|---|---|---|---|---|---|---|---|---|---|---|`);

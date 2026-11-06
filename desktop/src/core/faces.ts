@@ -8,6 +8,8 @@ import sharp from "sharp";
 //            commercial use; downloaded on first run).
 //   SFace    the older, smaller recogniser (128 numbers), used until AuraFace
 //            is on this computer.
+// Once AuraFace is here, both look at every face and their descriptions are
+// joined ("both", 640 numbers): each catches mistakes the other makes.
 // All run with ONNX Runtime, the same on Mac and Windows, so names and face
 // data work across both.
 
@@ -18,7 +20,7 @@ export type Face = {
   box: [number, number, number, number]; // x, y, w, h as fractions of the photo
   score: number;
   landmarks: number[]; // 10 values in pixels of the analysed image
-  embedding: Float32Array; // 128 (SFace) or 512 (AuraFace), unit length
+  embedding: Float32Array; // 128 (SFace) or 640 (both), unit length
   // Too small, blurred, side-on or not really a face (a hand, a tambourine):
   // kept as "background" and never suggested as anyone.
   usable: boolean;
@@ -26,7 +28,7 @@ export type Face = {
   sharpness: number;
 };
 
-export type Recogniser = "sface" | "aura";
+export type Recogniser = "sface" | "aura" | "both";
 
 const SIZE = 640;
 const SCORE = 0.8;
@@ -38,9 +40,15 @@ const NMS = 0.3;
 // AuraFace's "sure" and its lead over the next student, raw (see isSure).
 const AURA_SURE = 0.47;
 const AURA_GAP = 0.08;
+// Both together (0.7 x AuraFace + 0.3 x SFace): face test, class of 30, no
+// names wrong at 0.45 with any lead from 0.04 up (6 Nov 2026).
+const BOTH_SURE = 0.45;
+const BOTH_GAP = 0.06;
+export const BOTH_AURA = 0.7;
 const SCALE: Record<Recogniser, { same: number; show: number; sure: number }> = {
   sface: { same: 0.363, show: 0.5, sure: 0.62 },
   aura: { same: 0.28, show: 0.38, sure: AURA_SURE },
+  both: { same: 0.27, show: 0.36, sure: BOTH_SURE },
 };
 // The raw score behind a shown score (the reverse of scaled).
 export function unscaled(shown: number, r: Recogniser) {
@@ -77,14 +85,16 @@ export const SURE_GAP = 0.12;
 export const TWIN_GAP = 0.2;
 // "Sure" is decided on each recogniser's own raw score: how close the face is
 // to the student's nearest confirmed face, and how far ahead of the next
-// student. AuraFace's values come from the face test on stand-in photos
-// (desktop/bench/faces, 6 Nov 2026): with 3 confirmed faces each, about 78%
-// of faces are named by themselves (was 63%) with none named wrongly; set a
-// little above the best value found, to keep strangers (parents, visitors)
-// from being named.
+// student. The values come from the face test on stand-in photos
+// (desktop/bench/faces, 6 Nov 2026), set a little above the best value found
+// to keep strangers (parents, visitors) from being named. Class of 30, 3
+// confirmed faces each, named by themselves with none wrong: AuraFace 78%,
+// both together 82%, both together and learning from their own sure names
+// (see learnFrom) 88% (91% with 5 confirmed faces).
 const SURE_RAW: Record<Recogniser, { sure: number; gap: number; twin: number }> = {
   sface: { sure: SURE, gap: SURE_GAP, twin: TWIN_GAP },
   aura: { sure: AURA_SURE, gap: AURA_GAP, twin: AURA_GAP + 0.08 },
+  both: { sure: BOTH_SURE, gap: BOTH_GAP, twin: BOTH_GAP + 0.1 },
 };
 export const isSure = (m: { score: number; runnerUp: number; twin?: boolean } | null, r: Recogniser = "sface") => {
   if (!m) return false;
@@ -105,7 +115,7 @@ const REFERENCE = [
 export const AURA_FILE = "auraface_glintr100.onnx";
 export const AURA_URL = "https://huggingface.co/fal/AuraFace-v1/resolve/main/glintr100.onnx";
 
-type Loaded = { ort: Ort; detector: Session; recognizer: Session; kind: Recogniser };
+type Loaded = { ort: Ort; detector: Session; recognizer: Session; sface?: Session; kind: Recogniser };
 const loaded = new Map<string, Promise<Loaded>>();
 
 // modelsDir holds YuNet and SFace (shipped with the app); auraFile, when
@@ -119,12 +129,12 @@ export function loadModels(modelsDir: string, auraFile?: string | null) {
         const ort: Ort = require("onnxruntime-node");
         const options = { logSeverityLevel: 3 as const, intraOpNumThreads: 2 };
         const detector = await ort.InferenceSession.create(path.join(modelsDir, "face_detection_yunet_2023mar.onnx"), options);
+        const sface = await ort.InferenceSession.create(path.join(modelsDir, "face_recognition_sface_2021dec.onnx"), options);
         if (auraFile) {
           const recognizer = await ort.InferenceSession.create(auraFile, options);
-          return { ort, detector, recognizer, kind: "aura" as const };
+          return { ort, detector, recognizer, sface, kind: "both" as const };
         }
-        const recognizer = await ort.InferenceSession.create(path.join(modelsDir, "face_recognition_sface_2021dec.onnx"), options);
-        return { ort, detector, recognizer, kind: "sface" as const };
+        return { ort, detector, recognizer: sface, kind: "sface" as const };
       })(),
     );
   }
@@ -209,7 +219,7 @@ export function align(rgb: Buffer, width: number, height: number, landmarks: num
         const value =
           at(x0, y0) * (1 - fx) * (1 - fy) + at(x0 + 1, y0) * fx * (1 - fy) + at(x0, y0 + 1) * (1 - fx) * fy + at(x0 + 1, y0 + 1) * fx * fy;
         // SFace takes RGB 0-255; AuraFace RGB scaled to -1..1.
-        out[ch * plane + v * 112 + u] = kind === "aura" ? (value - 127.5) / 127.5 : value;
+        out[ch * plane + v * 112 + u] = kind === "sface" ? value : (value - 127.5) / 127.5;
       }
     }
   }
@@ -222,6 +232,17 @@ export function mirror(t: Float32Array) {
   for (let c = 0; c < 3; c++)
     for (let y = 0; y < 112; y++) for (let x = 0; x < 112; x++) o[c * 12544 + y * 112 + x] = t[c * 12544 + y * 112 + 111 - x];
   return o;
+}
+
+// AuraFace's and SFace's descriptions of one face, joined so that the
+// cosine of two joined descriptions is 0.7 x AuraFace's + 0.3 x SFace's.
+export function combine(aura: Float32Array, sface: Float32Array) {
+  const a = unit(aura), b = unit(sface);
+  const out = new Float32Array(a.length + b.length);
+  const wa = Math.sqrt(BOTH_AURA), wb = Math.sqrt(1 - BOTH_AURA);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] * wa;
+  for (let i = 0; i < b.length; i++) out[a.length + i] = b[i] * wb;
+  return out;
 }
 
 function unit(v: Float32Array) {
@@ -242,7 +263,7 @@ export type FindOptions = { aura?: string | null; vision?: (jpeg: Buffer) => Pro
 export type VisionFace = { box: [number, number, number, number]; quality: number };
 
 export async function findFaces(modelsDir: string, file: string | Buffer, o: FindOptions = {}): Promise<Face[] & { recogniser?: Recogniser }> {
-  const { ort, detector, recognizer, kind } = await loadModels(modelsDir, o.aura);
+  const { ort, detector, recognizer, sface, kind } = await loadModels(modelsDir, o.aura);
   // Analyse at up to 2000 px: big enough for small faces in a class photo.
   const { data: rgb, info } = await sharp(file, { failOn: "none" })
     .rotate()
@@ -309,20 +330,19 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
   }
 
   const result: Face[] = [];
-  const inputName = recognizer.inputNames[0];
   for (const f of faces) {
     const aligned = align(rgb, width, height, f.landmarks, kind);
-    const describe = async (t: Float32Array) =>
-      Float32Array.from((await recognizer.run({ [inputName]: new ort.Tensor("float32", t, [1, 3, 112, 112]) }))[recognizer.outputNames[0]].data as Float32Array);
+    const describe = async (t: Float32Array, s: Session = recognizer) =>
+      Float32Array.from((await s.run({ [s.inputNames[0]]: new ort.Tensor("float32", t, [1, 3, 112, 112]) }))[s.outputNames[0]].data as Float32Array);
     let raw = await describe(aligned);
     // AuraFace also looks at the mirror image of the face and adds the two:
     // steadier descriptions, so more faces are named by themselves (face test:
     // 63% -> 70% with 3 confirmed faces each, still none wrong).
-    if (kind === "aura") {
+    if (kind !== "sface") {
       const m = await describe(mirror(aligned));
       raw = raw.map((v, i) => v + m[i]);
     }
-    const embedding = unit(raw);
+    const embedding = kind === "both" && sface ? combine(raw, await describe(align(rgb, width, height, f.landmarks, "sface"), sface)) : unit(raw);
     const [x, y, w, h] = f.box;
     const box: Face["box"] = [clamp(x / width), clamp(y / height), clamp(w / width), clamp(h / height)];
     const sharpness = faceSharpness(aligned, kind);
@@ -344,7 +364,7 @@ export function faceSharpness(aligned: Float32Array, kind: Recogniser = "sface")
   const grey = new Float32Array(plane);
   for (let i = 0; i < plane; i++) {
     const v = (aligned[i] + aligned[plane + i] + aligned[2 * plane + i]) / 3;
-    grey[i] = kind === "aura" ? v * 127.5 + 127.5 : v;
+    grey[i] = kind === "sface" ? v : v * 127.5 + 127.5;
   }
   let sum = 0, sum2 = 0, n = 0;
   for (let y = 20; y < 100; y++) {
@@ -387,7 +407,7 @@ function inside(a: number[], b: number[]) {
   return cx > b[0] && cx < b[0] + b[2] && cy > b[1] && cy < b[1] + b[3];
 }
 
-export type Known = { studentId: string; embedding: Float32Array; className?: string | null; kind?: string | null; gender?: string | null; at?: string | null; penalty?: number };
+export type Known = { studentId: string; embedding: Float32Array; className?: string | null; kind?: string | null; gender?: string | null; at?: string | null; penalty?: number; learned?: boolean; photoId?: number };
 export type Match = { studentId: string; score: number; runnerUp: number; twin?: boolean };
 
 // Every candidate for one face, best first: the closest known face of each
@@ -401,6 +421,27 @@ export function ranked(embedding: Float32Array, known: Known[], r: Recogniser = 
     if (s > (best.get(k.studentId) ?? -1)) best.set(k.studentId, s);
   }
   return [...best.entries()].map(([studentId, raw]) => ({ studentId, score: scaled(raw, r) })).sort((a, b) => b.score - a.score);
+}
+
+// Learning from its own sure names: a face the app named by itself, very
+// close to that student (raw score >= LEARN_ADD), becomes an extra example of
+// them ("learned", kept apart from the faces people named). A name that
+// rests on learned examples is only given when the faces people named agree
+// on their own: same student first, raw score >= LEARN_HAND, a small lead.
+// Face test, class of 30: 82% -> 88% named by themselves with 3 confirmed
+// faces each (88% -> 91% with 5), none wrong (6 Nov 2026).
+export const LEARN_ADD = 0.5;
+export const LEARN_HAND = 0.35;
+export const LEARN_LEAD = 0.02;
+export function learnFrom(raw: number) {
+  return raw >= LEARN_ADD;
+}
+export function handAgrees(embedding: Float32Array, known: Known[], studentId: string, r: Recogniser = "sface") {
+  if (!known.some((k) => k.learned)) return true;
+  const own = ranked(embedding, known.filter((k) => !k.learned), r);
+  if (!own.length || own[0].studentId !== studentId) return false;
+  const top = unscaled(own[0].score, r), next = own[1] ? unscaled(own[1].score, r) : -1;
+  return top >= LEARN_HAND - 1e-9 && top - next >= LEARN_LEAD - 1e-9;
 }
 
 // The person whose known faces are closest, if close enough.

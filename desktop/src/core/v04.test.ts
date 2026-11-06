@@ -7,7 +7,7 @@ import { test } from "node:test";
 import sharp from "sharp";
 import { openDb } from "./db";
 import { Engine, importPhotos } from "./engine";
-import { assignPhoto, faceProblem, guessTraits, isSure, mirror, scaled, traitCentres, unscaled } from "./faces";
+import { assignPhoto, combine, cosine, faceProblem, guessTraits, handAgrees, isSure, learnFrom, mirror, scaled, traitCentres, unscaled } from "./faces";
 
 const temp = () => mkdtempSync(path.join(tmpdir(), "hub04-"));
 const unit = (v: number[]) => {
@@ -171,6 +171,35 @@ test("AuraFace names by itself on its own raw scores (face test settings)", () =
   // SFace keeps its settings
   assert.equal(isSure({ score: 0.63, runnerUp: 0.5 }), true);
   assert.equal(isSure({ score: 0.6, runnerUp: 0.3 }), false);
+});
+
+test("both recognisers together: 0.7 x AuraFace + 0.3 x SFace", () => {
+  const a1 = unit([1, 0, 0, 0]), a2 = unit([0.6, 0.8, 0, 0]);
+  const s1 = unit([1, 0]), s2 = unit([0, 1]);
+  const c = cosine(combine(a1, s1), combine(a2, s2));
+  assert.ok(Math.abs(c - (0.7 * 0.6 + 0.3 * 0)) < 1e-6);
+  assert.ok(Math.abs(cosine(combine(a1, s1), combine(a1, s1)) - 1) < 1e-6);
+  const at = (raw: number, next: number) => isSure({ score: scaled(raw, "both"), runnerUp: scaled(next, "both") }, "both");
+  assert.equal(at(0.46, 0.3), true);
+  assert.equal(at(0.44, 0.2), false);
+  assert.equal(at(0.5, 0.46), false);
+  for (const v of [0.1, 0.3, 0.4, 0.45, 0.7]) assert.ok(Math.abs(unscaled(scaled(v, "both"), "both") - v) < 1e-9);
+});
+
+test("a name resting on learned faces needs the hand-named faces to agree", () => {
+  const e = unit([1, 0.2, 0, 0]);
+  const hand = [
+    { studentId: "a", embedding: unit([1, 0.9, 0, 0]) }, // raw ~0.83
+    { studentId: "b", embedding: unit([0, 0, 1, 0]) },
+  ];
+  const learned = [{ studentId: "a", embedding: e, learned: true }];
+  assert.equal(handAgrees(e, [...hand, ...learned], "a", "both"), true);
+  assert.equal(handAgrees(e, [...hand, ...learned], "b", "both"), false); // hand-named faces point to someone else
+  const far = [{ studentId: "a", embedding: unit([0, 0, 0, 1]) }, { studentId: "b", embedding: unit([0, 0, 1, 0]) }, { studentId: "a", embedding: e, learned: true }];
+  assert.equal(handAgrees(e, far, "a", "both"), false); // only the learned face is close
+  assert.equal(handAgrees(e, hand, "b", "both"), true); // nothing learned yet: the usual rules alone
+  assert.equal(learnFrom(0.55), true);
+  assert.equal(learnFrom(0.45), false);
 });
 
 test("a face's mirror image swaps left and right only", () => {

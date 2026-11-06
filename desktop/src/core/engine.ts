@@ -7,7 +7,7 @@ import { watchTree, type TreeWatcher } from "./tree-watch";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { assignPhoto, cosine, findFaces, guessTraits, isSure, ranked, SAME_PERSON, scaled, SHOW_FROM, traitCentres, type Recogniser, type VisionFace } from "./faces";
+import { assignPhoto, cosine, findFaces, guessTraits, handAgrees, isSure, learnFrom, ranked, SAME_PERSON, scaled, SHOW_FROM, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -113,6 +113,7 @@ export class Engine {
 
   async start() {
     this.backfillProblems();
+    this.upgradeRecogniser();
     const fixed = this.dedupePeople();
     if (fixed) this.o.log?.(`one person per photo: ${fixed} faces freed`);
     this.timer = setInterval(() => this.pump(), 400);
@@ -425,8 +426,9 @@ export class Engine {
       const keptIds = new Set([...kept.values()].map((r) => r.id as number));
       const lost = old.filter((r) => (r.w as number) > 0 && r.student_id && ["confirmed", "manual"].includes(r.status as string) && !(r.status === "confirmed" && r.auto) && !keptIds.has(r.id as number)).map((r) => r.id as number);
       for (const r of old) if (lost.includes(r.id as number)) named.add(r.student_id as string);
-      const known = this.knownFor(p.class_name as string | null, p.at as string | null, this.knownFaces(model));
-      const traits = traitCentres(known, found[0]?.embedding.length ?? 0);
+      // (never learning from this photo's own earlier names)
+      const known = this.knownFor(p.class_name as string | null, p.at as string | null, this.knownFaces(model, true).filter((k) => !(k.learned && k.photoId === id)));
+      const traits = traitCentres(known.filter((k) => !k.learned), found[0]?.embedding.length ?? 0);
       const people = this.peopleInfo();
       const fits = (i: number, sid: string) => {
         const f = found[i];
@@ -463,7 +465,7 @@ export class Engine {
           }
           const m = matches[i];
           const twin = m ? this.isTwin(m.studentId) : false;
-          const sure = isSure(m ? { ...m, twin } : null, model) && this.o.autoName?.() !== false;
+          const sure = isSure(m ? { ...m, twin } : null, model) && handAgrees(f.embedding, known, m!.studentId, model) && this.o.autoName?.() !== false;
           insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, sure ? "confirmed" : m && m.score >= SHOW_FROM - 0.1 ? "suggested" : "unknown", sure ? m!.studentId : null, m?.studentId ?? null, m?.score ?? null, sure ? 1 : 0, (k?.rejected as string) ?? "", model, null, sure ? "auto" : null);
         });
         const usable = found.filter((f) => f.usable);
@@ -500,8 +502,29 @@ export class Engine {
     this.queueFaceScan();
   }
 
-  get faceModel(): "sface" | "aura" {
-    return this.o.aura?.() ? "aura" : "sface";
+  // AuraFace and SFace together ("both") once AuraFace is on this computer.
+  get faceModel(): Recogniser {
+    return this.o.aura?.() ? "both" : "sface";
+  }
+
+  // A library described with AuraFace alone (0.9 and before): its photos and
+  // portraits are described again with both recognisers, in the background.
+  // Names, "not this person" and "not a face" carry over.
+  private upgradeRecogniser() {
+    if (this.faceModel !== "both") return;
+    const old = this.db
+      .prepare(
+        `update photos set faces_scanned = 0 where missing = 0 and faces_scanned = 1
+           and id in (select photo_id from faces where model = 'aura' and portrait = 0)
+           and id not in (select photo_id from faces where model = 'both' and portrait = 0)`,
+      )
+      .run().changes;
+    const portraits = this.db.prepare("select 1 from faces where portrait = 1 and model = 'aura' limit 1").get() && !this.db.prepare("select 1 from faces where portrait = 1 and model = 'both' limit 1").get();
+    if (old) this.o.log?.(`faces: ${old} photos described again with both recognisers`);
+    if (portraits)
+      void this.reembedPortraits()
+        .then(() => this.rematchSoon())
+        .catch((e) => this.o.log?.(`portraits: ${e instanceof Error ? e.message : e}`));
   }
 
   private peopleCache: { at: number; map: Map<string, { gender: string | null; kind: string; joined: string | null; left: string | null }> } | null = null;
@@ -523,15 +546,19 @@ export class Engine {
 
   // Every face a person has confirmed, plus portraits: what suggestions are
   // matched against. Only faces made by the same recogniser can be compared.
-  knownFaces(model = this.faceModel) {
+  // With learned = true, faces the app named by itself very surely are added
+  // as "learned" examples (see learnFrom and handAgrees in faces.ts).
+  knownFaces(model: Recogniser = this.faceModel, learned = false) {
     const rows = this.db
       .prepare(
-        `select f.student_id, f.embedding, s.class_name, s.kind, s.gender, coalesce(p.taken_at, p.event_date) at from faces f left join students s on s.id = f.student_id left join photos p on p.id = f.photo_id
-         where f.student_id is not null and f.status in ('confirmed', 'portrait') and f.auto = 0 and f.embedding is not null and f.model = ?`,
+        `select f.student_id, f.embedding, f.photo_id, f.auto, f.suggest_score, s.class_name, s.kind, s.gender, coalesce(p.taken_at, p.event_date) at from faces f left join students s on s.id = f.student_id left join photos p on p.id = f.photo_id
+         where f.student_id is not null and f.status in ('confirmed', 'portrait') and (f.auto = 0 ${learned ? "or (f.status = 'confirmed' and f.named_by = 'auto')" : ""}) and f.embedding is not null and f.model = ? and (f.auto = 0 or p.missing = 0)`,
       )
-      .all(model) as { student_id: string; embedding: Uint8Array; class_name: string | null; kind: string | null; gender: string | null; at: string | null }[];
+      .all(model) as { student_id: string; embedding: Uint8Array; photo_id: number; auto: number; suggest_score: number | null; class_name: string | null; kind: string | null; gender: string | null; at: string | null }[];
     const info = this.peopleInfo();
-    return rows.map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding), className: r.class_name, kind: r.kind ?? "student", gender: info.get(r.student_id)?.gender ?? null, at: r.at }));
+    return rows
+      .filter((r) => !r.auto || learnFrom(unscaled(r.suggest_score ?? 0, model)))
+      .map((r) => ({ studentId: r.student_id, embedding: fromBlob(r.embedding), className: r.class_name, kind: r.kind ?? "student", gender: info.get(r.student_id)?.gender ?? null, at: r.at, learned: !!r.auto, photoId: r.photo_id }));
   }
 
   // A class photo is matched against that class (and the adults) first;
@@ -623,9 +650,9 @@ export class Engine {
     }, 1200);
   }
 
-  rematch(studentIds?: string[]) {
+  rematch(studentIds?: string[], round = 0): number {
     const model = this.faceModel;
-    const all = this.knownFaces(model);
+    const all = this.knownFaces(model, true);
     if (!all.length) return 0;
     const rows = this.db
       .prepare(
@@ -636,7 +663,7 @@ export class Engine {
     const update = this.db.prepare("update faces set status = ?, suggest_id = ?, suggest_score = ? where id = ?");
     const name = this.db.prepare("update faces set status = 'confirmed', student_id = ?, suggest_id = ?, suggest_score = ?, auto = 1, named_by = 'auto' where id = ?");
     const namedIn = this.db.prepare("select student_id from faces where photo_id = ? and status in ('confirmed', 'manual') and student_id is not null");
-    const traits = traitCentres(all, all[0]?.embedding.length ?? 0);
+    const traits = traitCentres(all.filter((k) => !k.learned), all[0]?.embedding.length ?? 0);
     const info = this.peopleInfo();
     const named: number[] = [];
     let changed = 0;
@@ -659,7 +686,7 @@ export class Engine {
         faces.forEach((r, i) => {
           const m = matches[i];
           if (studentIds && m && !studentIds.includes(m.studentId) && r.suggest_id === m.studentId) return;
-          if (m && isSure({ ...m, twin: this.isTwin(m.studentId) }, model as Recogniser) && this.o.autoName?.() !== false) {
+          if (m && isSure({ ...m, twin: this.isTwin(m.studentId) }, model) && handAgrees(embs[i], known, m.studentId, model) && this.o.autoName?.() !== false) {
             name.run(m.studentId, m.studentId, m.score, r.id);
             named.push(r.id);
             changed++;
@@ -678,6 +705,8 @@ export class Engine {
       const photos = this.db.prepare(`select distinct photo_id from faces where id in (${named.map(() => "?").join(",")})`).all(...named) as { photo_id: number }[];
       this.o.onNamed?.(photos.map((p) => p.photo_id));
     }
+    // New sure names are new learned examples: look once more (a few rounds).
+    if (named.length && round < 3) changed += this.rematch(studentIds, round + 1);
     return changed;
   }
 
