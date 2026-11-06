@@ -69,6 +69,13 @@ for (const language of ["en", "ar"] as const) {
     const sheet = await win.locator("#overlay").innerText();
     if (wrong.test(sheet)) problems.push(`shortcut list: ${sheet.match(wrong)![0]}`);
     expect(sheet).toContain(mac ? "⌘" : "Ctrl+");
+    // Thin scroll bars on Windows and Linux (no classic grey bar with arrows).
+    if (!mac) {
+      const widest = await win.evaluate(() =>
+        Math.max(0, ...[...document.querySelectorAll<HTMLElement>("*")].filter((el) => el.scrollHeight > el.clientHeight + 1 && ["auto", "scroll"].includes(getComputedStyle(el).overflowY)).map((el) => el.offsetWidth - el.clientWidth - parseFloat(getComputedStyle(el).borderLeftWidth) - parseFloat(getComputedStyle(el).borderRightWidth))),
+      );
+      expect(widest, "scroll bar width").toBeLessThanOrEqual(10);
+    }
     expect(problems).toEqual([]);
     await app.close();
   });
