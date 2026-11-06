@@ -110,7 +110,9 @@ async function analyse(file) {
       emb[kind] = unit(a);
       if (b) emb[`${kind}+flip`] = unit(Float32Array.from(a, (v, i) => v + b[i]));
     }
-    out.push({ box: f.box, score: f.score, usable: f.usable, why: f.why, sharpness: f.sharpness, emb });
+    // pixel box and landmarks too, so the quality filter can be tried with
+    // other settings without finding the faces again
+    out.push({ box: f.box, score: f.score, usable: f.usable, why: f.why, sharpness: f.sharpness, landmarks: f.landmarks, emb });
   }
   return { faces: out, width: info.width, height: info.height };
 }
@@ -460,6 +462,17 @@ const iou = (a, b) => {
   const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
   return inter / (a[2] * a[3] + b[2] * b[3] - inter);
 };
+// "Unsure" faces (the face finder's confidence below F.UNSURE_SCORE) that
+// pass every other check: would they be safe to name, with a stricter rule?
+const softItems = [];
+const softOk = (f, a, minScore) =>
+  f.why === "unsure" && f.landmarks && F.faceProblem({ box: [f.box[0] * a.width, f.box[1] * a.height, f.box[2] * a.width, f.box[3] * a.height], score: f.score, landmarks: f.landmarks }, f.sharpness, a.width, a.height, { minScore }) === null;
+function softItem(where, truth, f, known, kind) {
+  const list = F.ranked(f.emb[kind], known, base(kind));
+  if (!list.length) return;
+  const m = { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 };
+  softItems.push({ where, truth, score: f.score, sure: F.isSure(m, base(kind)), raw: F.unscaled(m.score, base(kind)), pick: m.studentId });
+}
 for (const kind of KINDS) {
   const known = gallery(kind, 3);
   const g = { normal: tally(), found: 0, faces: 0, tinyNamed: 0, tiny: 0, blurNamed: 0, blurred: 0, blurUsable: 0, extra: 0, extraNamed: 0, twice: 0 };
@@ -481,10 +494,12 @@ for (const kind of KINDS) {
       if (best < 0.3) {
         g.extra++;
         if (decisions[i].pick) g.extraNamed++;
+        if (kind === KINDS.at(-1) && softOk(f, a, 0.5)) softItem("group photos", "extra", f, known, kind);
         return;
       }
       usedTruth.add(bi);
       const t = truth[bi];
+      if (kind === KINDS.at(-1) && softOk(f, a, 0.5)) softItem("group photos", t.look !== "normal" ? t.look : t.stranger ? null : t.person, f, known, kind);
       if (t.look === "tiny") {
         if (decisions[i].pick) g.tinyNamed++;
       } else if (t.look === "blurred") {
@@ -594,6 +609,7 @@ if (HARD.length) {
       if (p.truth) t.found++;
       if (!best.usable) {
         t.why[best.why] = (t.why[best.why] ?? 0) + 1;
+        if (softOk(best, a, 0.5)) softItem(how, p.truth, best, known, hardKind);
         continue;
       }
       if (p.truth) t.usable++;
@@ -699,6 +715,25 @@ if (Object.keys(hardResults).length) {
   L.push(`|---|---|---|---|---|---|---|---|`);
   for (const [how, t] of Object.entries(hardResults))
     L.push(`| ${how} | ${pct(t.found, t.n)} | ${pct(t.usable, t.n)} | ${pct(t.right, t.n)} | ${t.wrong} | ${pct(t.suggestRight, t.n)} | ${t.strangerNamed} of ${t.strangers} | ${Object.entries(t.why).map(([k, v]) => `${k} ${v}`).join(", ")} |`);
+  if (softItems.length) {
+    L.push("", `### "Unsure" faces that pass every other check: named right / named WRONG (wrong = another person, a stranger, or a tiny, blurred or not-real face), by lowest finder confidence allowed and extra raw score needed`, "");
+    const wheres = [...new Set(softItems.map((x) => x.where))];
+    L.push(`| Lowest confidence | Extra score | ${wheres.join(" | ")} |`);
+    L.push(`|---|---|${wheres.map(() => "---").join("|")}|`);
+    for (const minScore of [0.5, 0.6, 0.7, 0.8])
+      for (const extra of [0, 0.05, 0.1]) {
+        const cells = wheres.map((w) => {
+          let right = 0, wrong = 0;
+          for (const x of softItems) {
+            if (x.where !== w || x.score < minScore || !x.sure || x.raw < 0.45 + extra) continue;
+            x.truth && x.truth === x.pick ? right++ : wrong++;
+          }
+          const n = w === "group photos" ? null : hardResults[w]?.n;
+          return `${n ? pct(right, n) : right} / ${wrong}`;
+        });
+        L.push(`| ${minScore} | ${extra} | ${cells.join(" | ")} |`);
+      }
+  }
   const hw = Object.values(hardResults).flatMap((t) => t.wrongList);
   if (hw.length) L.push("", ...hw.slice(0, 30).map((x) => `- ${x}`));
 }

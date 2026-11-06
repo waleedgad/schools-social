@@ -381,12 +381,14 @@ export function faceSharpness(aligned: Float32Array, kind: Recogniser = "sface")
 
 // Why a detection shouldn't be suggested as anyone, or null when it's fine.
 // Hands and objects rarely have eyes above a nose above a mouth.
-export function faceProblem(f: { box: number[]; score: number; landmarks: number[] }, sharpness: number, width: number, height: number): string | null {
+// The face finder's own confidence below which a face is "unsure".
+export const UNSURE_SCORE = 0.86;
+export function faceProblem(f: { box: number[]; score: number; landmarks: number[] }, sharpness: number, width: number, height: number, o: { minScore?: number } = {}): string | null {
   const [x, y, w, h] = f.box;
   const lm = f.landmarks;
   const longSide = Math.max(width, height);
   if (w < 40 || h < 40 || w / longSide < 0.018) return "too-small";
-  if (f.score < 0.86) return "unsure";
+  if (f.score < (o.minScore ?? UNSURE_SCORE)) return "unsure";
   const ratio = w / h;
   if (ratio < 0.55 || ratio > 1.45) return "not-a-face";
   const [lx, ly, rx, ry, nx, ny, mlx, mly, mrx, mry] = lm;
