@@ -545,20 +545,32 @@ function classMenuItems() {
 }
 
 // ---------- The photos ----------
+// Badge icons on tiles are one small element each, drawn from a mask, not a
+// whole SVG: a big library has tens of thousands of them (B-66).
+const TILE_ICONS = ["check", "x", "send", "image-off", "shield", "user", "pen-line", "triangle-alert"];
+function tileIconStyles() {
+  if (document.getElementById("tile-icons")) return;
+  const css = TILE_ICONS.map((n) => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] ?? ICONS.circle}</svg>`;
+    return `.bi-${n} { --m: url("data:image/svg+xml,${encodeURIComponent(svg)}"); }`;
+  }).join("\n");
+  document.head.insertAdjacentHTML("beforeend", `<style id="tile-icons">${css}</style>`);
+}
+const ti = (n) => `<i class="bi bi-${n}" aria-hidden="true"></i>`;
 function tileHtml(p, i) {
   const b = [];
   const stack = lib.stackOf.get(p.id);
-  if (p.flag === 1) b.push(`<span class="b pick">${icon("check", 11)}</span>`);
-  if (p.flag === -1) b.push(`<span class="b no">${icon("x", 11)}</span>`);
-  if (p.posts) b.push(`<span class="b post" title="${L("Used in a post", "استُخدمت في منشور")}">${icon("send", 10)}</span>`);
-  if (p.offline) b.push(`<span class="b miss" title="${L("Original missing", "الأصل مفقود")}">${icon("image-off", 10)} ${L("Missing", "مفقود")}</span>`);
-  if (p.no_post) b.push(`<span class="b no" title="${L("Someone who can't appear in posts", "شخص لا يظهر في المنشورات")}">${icon("shield", 10)}</span>`);
-  if (p.face_count) b.push(`<span class="b">${icon("user", 10)} ${p.tagged}/${p.face_count}</span>`);
-  else if (p.tagged) b.push(`<span class="b">${icon("user", 10)} ${p.tagged}</span>`);
+  if (p.flag === 1) b.push(`<span class="b pick">${ti("check")}</span>`);
+  if (p.flag === -1) b.push(`<span class="b no">${ti("x")}</span>`);
+  if (p.posts) b.push(`<span class="b post" title="${L("Used in a post", "استُخدمت في منشور")}">${ti("send")}</span>`);
+  if (p.offline) b.push(`<span class="b miss" title="${L("Original missing", "الأصل مفقود")}">${ti("image-off")} ${L("Missing", "مفقود")}</span>`);
+  if (p.no_post) b.push(`<span class="b no" title="${L("Someone who can't appear in posts", "شخص لا يظهر في المنشورات")}">${ti("shield")}</span>`);
+  if (p.face_count) b.push(`<span class="b">${ti("user")} ${p.tagged}/${p.face_count}</span>`);
+  else if (p.tagged) b.push(`<span class="b">${ti("user")} ${p.tagged}</span>`);
   if (p.suggested) b.push(`<span class="b sug">? ${p.suggested}</span>`);
   if (p.is_raw || p.has_raw) b.push(`<span class="b">RAW</span>`);
-  if (p.edits) b.push(`<span class="b">${icon("pen-line", 10)}</span>`);
-  if (p.problems) b.push(`<span class="b" title="${esc(p.problems.split(",").map((x) => PROBLEMS()[x] ?? x).join(", "))}">${icon("triangle-alert", 10)}</span>`);
+  if (p.edits) b.push(`<span class="b">${ti("pen-line")}</span>`);
+  if (p.problems) b.push(`<span class="b" title="${esc(p.problems.split(",").map((x) => PROBLEMS()[x] ?? x).join(", "))}">${ti("triangle-alert")}</span>`);
   return `<div class="tile ${lib.sel.has(p.id) ? "sel" : ""} ${p.flag === -1 ? "rejected" : ""} ${p.hidden ? "hiddenp" : ""} ${stack ? "stack" : ""}" data-i="${i}" draggable="true">
     ${p.thumb === 1 ? `<img loading="lazy" src="hub://thumb/${p.id}" alt="${esc(p.name ?? "")}" />` : p.thumb === -1 ? `<div class="empty small" style="position:absolute;inset:0;padding:10px">${icon("image-off", 20)}<span>${L("Can't read", "تعذّرت القراءة")}</span></div>` : `<div class="skel" style="position:absolute;inset:0"></div>`}
     ${p.rating ? `<span class="stars">${"★".repeat(p.rating)}</span>` : ""}${p.label ? `<span class="lab ${esc(p.label)}"></span>` : ""}${stack ? `<span class="stackn" data-stack="${p.id}" title="${L("Burst: click to open the stack", "لقطات متتابعة: انقر لفتح المجموعة")}">${icon("layers", 10)} ${stack.length}</span>` : ""}<div class="badges">${b.join("")}</div></div>`;
@@ -572,6 +584,10 @@ function drawGrid() {
   const grid = $("#grid");
   if (!grid) return;
   grid.classList.toggle("cols", !!lib.cols);
+  // Thousands of tiles: no pop-in animation (each animating tile is its own
+  // layer to draw, which made a big library slow to open, B-66).
+  grid.classList.toggle("many", lib.shown.length > 400);
+  tileIconStyles();
   grid.style.setProperty("--tile", `${lib.tile}px`);
   if (lib.cols) grid.style.setProperty("--cols", lib.cols);
   const scrub = $("#scrub");

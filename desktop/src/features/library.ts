@@ -424,14 +424,19 @@ type AlbumRule = {
   minRating?: number; picked?: boolean; className?: string; event?: string; student?: string; from?: string; to?: string;
   people?: "none" | "some" | "group"; sent?: boolean; label?: string; category?: string; photographer?: string; posted?: boolean; kind?: string;
 };
+const LOCAL_DAY = "(case when p.taken_at is null then p.event_date else date(p.taken_at, 'localtime') end)";
 export function ruleWhere(r: AlbumRule, where: string[], args: unknown[]) {
   if (r.minRating) (where.push("p.rating >= ?"), args.push(r.minRating));
   if (r.picked) where.push("p.flag = 1");
-  if (r.className) (where.push("p.class_name = ?"), args.push(r.className));
+  // A class: photos filed in its folder, or with one of its students named
+  // (the same as the Class filter, B-65).
+  if (r.className) (where.push("(p.class_name = ? or exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed','manual') and s.class_name = ?))"), args.push(r.className, r.className));
   if (r.event) (where.push("p.event_title like ?"), args.push(`%${r.event}%`));
   if (r.student) (where.push("exists (select 1 from faces f where f.photo_id = p.id and f.student_id = ? and f.status in ('confirmed', 'manual'))"), args.push(r.student));
-  if (r.from) (where.push("coalesce(p.taken_at, p.event_date) >= ?"), args.push(r.from));
-  if (r.to) (where.push("coalesce(p.taken_at, p.event_date) <= ?"), args.push(`${r.to}T23:59:59`));
+  // Dates are the school's own days: a photo taken at 00:30 on 12 October
+  // is on the 12th, though it's still the 11th in UTC (B-65).
+  if (r.from) (where.push(`${LOCAL_DAY} >= ?`), args.push(r.from));
+  if (r.to) (where.push(`${LOCAL_DAY} <= ?`), args.push(r.to));
   if (r.people === "none") where.push("p.faces_scanned = 1 and p.face_count = 0");
   if (r.people === "some") where.push("p.face_count between 1 and 4");
   if (r.people === "group") where.push("p.face_count >= 5");
