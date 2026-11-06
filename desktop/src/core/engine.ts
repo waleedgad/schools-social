@@ -365,7 +365,7 @@ export class Engine {
           );
         });
         await this.clearCache(id);
-        await rm(this.previewPath(lostId), { force: true });
+        await rm(this.previewPath(lostId), { force: true }).catch(() => {}); // Windows: may be open; it's only a cache
         if (!existsSync(this.thumbPath(lostId))) await makeThumb(await source(file), this.thumbPath(lostId), THUMB);
         this.o.log?.(`relinked ${path.basename(file)}`);
         this.o.onPhotoReady?.(lostId);
@@ -1020,7 +1020,7 @@ export class Engine {
         .prepare("update photos set path = ?, year = ?, term = ?, event_key = ?, event_title = ?, event_date = ?, class_name = ?, missing = 0 where id = ?")
         .run(to, place.year, place.term, place.event?.key ?? null, place.event?.title ?? null, place.event?.date ?? null, place.className, id);
       // The big picture is made again from the file in its new place.
-      await rm(this.previewPath(id), { force: true });
+      await rm(this.previewPath(id), { force: true }).catch(() => {}); // Windows: may be open; it's only a cache
       undo.push({ id, from });
     }
     this.o.onChange("photos");
@@ -1036,7 +1036,7 @@ export class Engine {
       await mkdir(path.dirname(it.from), { recursive: true });
       const to = await freeName(it.from);
       await moveFile(p.path as string, to);
-      await rm(this.previewPath(it.id), { force: true });
+      await rm(this.previewPath(it.id), { force: true }).catch(() => {}); // Windows: may be open; it's only a cache
       const place = placeFromPath(this.o.library, to);
       this.db
         .prepare("update photos set path = ?, year = ?, term = ?, event_key = ?, event_title = ?, event_date = ?, class_name = ? where id = ?")
@@ -1067,7 +1067,7 @@ export class Engine {
 
   async clearCache(id: number) {
     await rm(this.thumbPath(id), { force: true });
-    await rm(this.previewPath(id), { force: true });
+    await rm(this.previewPath(id), { force: true }).catch(() => {}); // Windows: may be open; it's only a cache
   }
 }
 

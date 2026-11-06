@@ -639,7 +639,17 @@ function drawGrid() {
     }
     out.push(tileHtml(p, i));
   });
-  grid.innerHTML = out.join("");
+  // A big grid is drawn in parts: the first screens at once, the rest just
+  // after, so the tab answers straight away (B-66).
+  const gen = (lib.drawGen = (lib.drawGen ?? 0) + 1);
+  const FIRST = 1200;
+  grid.innerHTML = out.slice(0, FIRST).join("");
+  const more = (from) => {
+    if (gen !== lib.drawGen || from >= out.length || !grid.isConnected) return;
+    grid.insertAdjacentHTML("beforeend", out.slice(from, from + 1500).join(""));
+    setTimeout(() => more(from + 1500), 0);
+  };
+  if (out.length > FIRST) setTimeout(() => more(FIRST), 0);
   // Month scrubber down the side.
   if (scrub) {
     const months = [...new Set(lib.shown.map(monthKey))];
