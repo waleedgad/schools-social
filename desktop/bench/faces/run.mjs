@@ -305,6 +305,86 @@ for (const kind of KINDS) {
   }
 }
 
+// ---- 3b. Class-sized test: the app matches a class photo against that
+// class (about 30 students), not the whole school. 20 random "classes" of 30
+// named people; every stranger's face is tried against every class.
+// "learn": faces the app named by itself with a clear lead become extra
+// known faces (kept apart from hand-named ones), and the rest are matched
+// again, up to 3 rounds. A name that rests on a learned face alone needs the
+// hand-named faces to agree too (raw score >= LEARN_HAND).
+const LEARN_HAND = Number(process.env.BENCH_LEARN_HAND ?? 0.3);
+const classResults = {};
+const classKinds = KINDS.filter((k) => k !== "sface+flip");
+for (const kind of classKinds) {
+  const rk = base(kind);
+  for (const k of [3, 5]) {
+    for (const learn of [false, true]) {
+      const t = { n: 0, right: 0, wrong: 0, strangers: 0, strangerNamed: 0, wrongList: [] };
+      const cr = rng(1000 + k);
+      for (let trial = 0; trial < 20; trial++) {
+        const cls = shuffle(named, cr).slice(0, 30);
+        const hand = [];
+        for (const p of cls) for (const x of byPerson.get(p).slice(0, k)) hand.push({ studentId: p, embedding: x.face.emb[kind] });
+        const items = [];
+        for (const p of cls) for (const x of byPerson.get(p).slice(5, 35)) items.push({ truth: p, e: x.face.emb[kind], file: x.file });
+        for (const p of strangers) for (const x of byPerson.get(p).slice(0, 15)) items.push({ truth: null, e: x.face.emb[kind], file: x.file });
+        const learned = [];
+        const named2 = new Map(); // item index -> name
+        if (!learn) {
+          for (const it of items) {
+            const best = new Map();
+            for (const g of hand) {
+              const v = F.cosine(it.e, g.embedding);
+              if (v > (best.get(g.studentId) ?? -1)) best.set(g.studentId, v);
+            }
+            const sorted = [...best.entries()].sort((x, y) => y[1] - x[1]);
+            (raw[`${kind}|class|${k}`] ??= []).push({ truth: it.truth, top: sorted[0][0], s1: sorted[0][1], s2: sorted[1]?.[1] ?? -1 });
+          }
+        }
+        for (let round = 0; round < (learn ? 4 : 1); round++) {
+          let added = 0;
+          items.forEach((it, i) => {
+            if (named2.has(i)) return;
+            const list = F.ranked(it.e, learn ? [...hand, ...learned] : hand, rk);
+            const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
+            if (!m || !F.isSure(m, rk)) return;
+            if (learn) {
+              // the hand-named faces must agree on their own
+              const own = F.ranked(it.e, hand, rk);
+              const top = own.find((c) => c.studentId === m.studentId);
+              if (!top || F.unscaled(top.score, rk) < LEARN_HAND || own[0].studentId !== m.studentId) return;
+            }
+            named2.set(i, m.studentId);
+            if (learn) {
+              learned.push({ studentId: m.studentId, embedding: it.e });
+              added++;
+            }
+          });
+          if (!added) break;
+        }
+        items.forEach((it, i) => {
+          const name = named2.get(i);
+          if (it.truth) {
+            t.n++;
+            if (name === it.truth) t.right++;
+            else if (name) {
+              t.wrong++;
+              t.wrongList.push(`${it.truth}: "${title(it.file)}" named as ${name}`);
+            }
+          } else {
+            t.strangers++;
+            if (name) {
+              t.strangerNamed++;
+              t.wrongList.push(`stranger ${title(it.file)} named as ${name}`);
+            }
+          }
+        });
+      }
+      classResults[`${kind}|${k}|${learn ? "learn" : "plain"}`] = t;
+    }
+  }
+}
+
 // ---- 4. Made-up group photos ------------------------------------------------
 const gdir = path.join(photos, "groups");
 await mkdir(gdir, { recursive: true });
@@ -434,7 +514,7 @@ for (const [key, list] of Object.entries(raw)) {
 // ---- 5b. Settings to choose from: how many faces each "named by itself"
 // setting would name, and how many wrongly (named people and strangers).
 const grid = {};
-for (const key of Object.keys(raw).filter((k) => k.includes("|max|3"))) {
+for (const key of Object.keys(raw).filter((k) => k.includes("|max|3") || (k.includes("|class|") && k.startsWith(KINDS.at(-1))))) {
   const list = raw[key];
   const genuine = list.filter((x) => x.truth).length;
   grid[key] = [];
@@ -463,6 +543,15 @@ for (const kind of KINDS)
     const t = results.singles[kind][k];
     L.push(`| ${kind} | ${k} | ${pct(t.rank1, t.n)} | ${pct(t.sureRight, t.n)} | ${pct(t.sureWrong, t.n)} | ${pct(t.sugRight, t.n)} | ${pct(t.sugWrong, t.n)} | ${pct(t.none, t.n)} | ${pct(t.strangerSure, t.strangers)} | ${pct(t.strangerSug, t.strangers)} |`);
   }
+L.push("", `## Class-sized (30 people, 20 classes)`, "");
+L.push(`| Recogniser | Confirmed faces | Learns from its own sure names | Named by itself: right | Named WRONG | Strangers named |`);
+L.push(`|---|---|---|---|---|---|`);
+for (const [key, t] of Object.entries(classResults)) {
+  const [kind, k, learn] = key.split("|");
+  L.push(`| ${kind} | ${k} | ${learn === "learn" ? "yes" : "no"} | ${pct(t.right, t.n)} | ${t.wrong} | ${t.strangerNamed} of ${t.strangers} |`);
+}
+const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith(KINDS.at(-1))).flatMap(([, t]) => t.wrongList))];
+if (classWrong.length) L.push("", "Wrong in the class test (newest recogniser):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
 L.push("", `## Group photos (3 confirmed faces each)`, "");
 L.push(`| Recogniser | Normal faces found | Named by itself: right | WRONG | Suggested: right | wrong | Strangers named | Tiny faces named | Blurred faces kept as usable | Blurred faces named | Not-real faces found / named | Photos with a name twice |`);
 L.push(`|---|---|---|---|---|---|---|---|---|---|---|---|`);
@@ -479,7 +568,7 @@ for (const [key, v] of Object.entries(results.sweep)) {
   L.push(`| ${kind} | ${agg} | ${k} | ${v.rank1} | ${v.autoPct} | ${v.best ? `${v.best.sure}, ${v.best.gap}` : "–"} | ${v.genuine.join(" / ")} | ${v.stranger.join(" / ")} |`);
 }
 for (const [key, rows] of Object.entries(grid)) {
-  L.push("", `### Settings for ${key.split("|")[0]} (3 confirmed faces): raw score, lead -> named right / named wrong / strangers named`, "");
+  L.push("", `### Settings for ${key.split("|")[0]} (${key.includes("class") ? `class of 30, ${key.split("|")[2]}` : "whole set, 3"} confirmed faces): raw score, lead -> named right / named wrong / strangers named`, "");
   L.push(rows.map((x) => `${x.sure}/${x.gap}: ${x.right} ${x.wrong} ${x.stranger}`).join(" · "));
 }
 L.push("", `## Named by itself but WRONG (${KINDS.at(-1)}, 3 confirmed faces): check the photo`, "", ...mistakes.slice(0, 40).map((x) => `- ${x}`));
