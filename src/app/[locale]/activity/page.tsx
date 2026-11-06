@@ -19,7 +19,7 @@ export default async function ActivityPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const { membership, workspaces } = await requireMembership(locale);
-  if (!can(membership.role, "viewActivity")) redirect({ href: "/today", locale });
+  if (!can(membership.role, "viewActivity", membership.school.permissions)) redirect({ href: "/today", locale });
 
   const page = Math.max(0, Number((await searchParams).page ?? 0) || 0);
   const size = 100;

@@ -44,7 +44,7 @@ export default async function StudentsPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const { membership, workspaces } = await requireMembership(locale);
-  if (!can(membership.role, "manageConsent")) redirect({ href: "/today", locale });
+  if (!can(membership.role, "manageConsent", membership.school.permissions)) redirect({ href: "/today", locale });
 
   const { class: classFilter, error, imported, kind = "student", stage, grade, q = "", left } = await searchParams;
   const t = await getTranslations();
