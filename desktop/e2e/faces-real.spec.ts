@@ -125,6 +125,9 @@ test("real faces: names stay, one name per photo, no tiny, blurred, adult or str
     expect(picked.length, `faces found for ${p.name}`).toBe(2);
     test.info().annotations.push({ type: "named by hand", description: `${p.name}: ${JSON.stringify(picked.map((f) => [f.photo, f.id, +f.w.toFixed(3)]))}` });
     await call(win, "confirmFaces", picked.map((f) => f.id), ids[p.name]);
+    const after = faces().filter((f) => picked.some((x) => x.id === f.id));
+    console.log(`named by hand ${p.name}: ${JSON.stringify(picked.map((f) => [f.photo, f.id, f.status, f.student_id]))} -> ${JSON.stringify(after.map((f) => [f.id, f.status, f.student_id, f.auto]))}`);
+    expect(after.every((f) => f.student_id === ids[p.name] && f.auto === 0), `hand names for ${p.name} kept`).toBe(true);
   }
   await scanned();
 
