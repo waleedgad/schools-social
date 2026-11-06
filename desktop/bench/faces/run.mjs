@@ -35,6 +35,8 @@ const base = (kind) => kind.split("+")[0];
 const GROUPS = Number(process.env.BENCH_GROUPS ?? 40);
 const DUP = Number(process.env.BENCH_DUP ?? 0.95);
 const ENS = Number(process.env.BENCH_ENS ?? 0.7);
+const ENS_SURE = Number(process.env.BENCH_ENS_SURE ?? 0.45);
+const ENS_GAP = Number(process.env.BENCH_ENS_GAP ?? 0.04);
 const MIN_PHOTOS = Number(process.env.BENCH_MIN ?? 7);
 
 // Same random choices every run.
@@ -349,8 +351,8 @@ for (const kind of classKinds) {
   const rk = base(kind);
   for (const k of [3, 5]) {
     for (const [way, opt] of Object.entries(WAYS)) {
-      if (way !== "plain" && way !== "learn" && kind !== KINDS.at(-1)) continue;
-      if (kind === "ens" && way !== "plain") continue;
+      if (way !== "plain" && way !== "learn" && kind !== KINDS.at(-1) && kind !== "ens") continue;
+      if (kind === "ens" && way === "event") continue;
       const t = { n: 0, right: 0, wrong: 0, strangers: 0, strangerNamed: 0, byEvent: 0, wrongList: [] };
       const cr = rng(1000 + k);
       for (let trial = 0; trial < 20; trial++) {
@@ -370,7 +372,6 @@ for (const kind of classKinds) {
             const sorted = bestPer(it.e, hand);
             (raw[`${kind}|class|${k}`] ??= []).push({ truth: it.truth, top: sorted[0][0], s1: sorted[0][1], s2: sorted[1]?.[1] ?? -1 });
           }
-        if (kind === "ens") continue; // only its settings grid
         const learned = [];
         const name = new Map(); // item index -> name
         const how = new Map();
@@ -378,15 +379,24 @@ for (const kind of classKinds) {
           let added = 0;
           items.forEach((it, i) => {
             if (name.has(i)) return;
-            const list = F.ranked(it.e, opt ? [...hand, ...learned] : hand, rk);
-            const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
-            if (!m || !F.isSure(m, rk)) return;
+            let m;
+            if (kind === "ens") {
+              // both recognisers together: plain raw-score rule
+              const b = bestPer(it.e, opt ? [...hand, ...learned] : hand);
+              if (!b.length || b[0][1] < ENS_SURE || b[0][1] - (b[1]?.[1] ?? -1) < ENS_GAP) return;
+              m = { studentId: b[0][0], raw: b[0][1] };
+            } else {
+              const list = F.ranked(it.e, opt ? [...hand, ...learned] : hand, rk);
+              m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
+              if (!m || !F.isSure(m, rk)) return;
+              m.raw = F.unscaled(m.score, rk);
+            }
             if (opt) {
               const own = bestPer(it.e, hand);
               if (own[0]?.[0] !== m.studentId || own[0][1] < opt.handMin || own[0][1] - (own[1]?.[1] ?? -1) < opt.handLead) return;
             }
             name.set(i, m.studentId);
-            if (opt && F.unscaled(m.score, rk) >= opt.addMin) {
+            if (opt && m.raw >= opt.addMin) {
               learned.push({ studentId: m.studentId, embedding: it.e });
               added++;
             }
@@ -435,7 +445,7 @@ for (const kind of classKinds) {
           }
         });
       }
-      if (kind !== "ens") classResults[`${kind}|${k}|${way}`] = t;
+      classResults[`${kind}|${k}|${way}`] = t;
     }
   }
 }
@@ -606,8 +616,8 @@ for (const [key, t] of Object.entries(classResults)) {
   const [kind, k, way] = key.split("|");
   L.push(`| ${kind} | ${k} | ${way} | ${pct(t.right, t.n)} | ${pct(t.byEvent, t.n)} | ${t.wrong} | ${t.strangerNamed} of ${t.strangers} |`);
 }
-const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith(KINDS.at(-1))).flatMap(([, t]) => t.wrongList))];
-if (classWrong.length) L.push("", "Wrong in the class test (newest recogniser):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
+const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith("ens")).flatMap(([, t]) => t.wrongList))];
+if (classWrong.length) L.push("", "Wrong in the class test (both recognisers together):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
 L.push("", `## Group photos (3 confirmed faces each)`, "");
 L.push(`| Recogniser | Normal faces found | Named by itself: right | WRONG | Suggested: right | wrong | Strangers named | Tiny faces named | Blurred faces kept as usable | Blurred faces named | Not-real faces found / named | Photos with a name twice |`);
 L.push(`|---|---|---|---|---|---|---|---|---|---|---|---|`);
