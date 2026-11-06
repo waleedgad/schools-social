@@ -34,6 +34,7 @@ const KINDS = auraFile ? ["sface", "aura", "aura+flip"] : ["sface"];
 const base = (kind) => kind.split("+")[0];
 const GROUPS = Number(process.env.BENCH_GROUPS ?? 40);
 const DUP = Number(process.env.BENCH_DUP ?? 0.95);
+const ENS = Number(process.env.BENCH_ENS ?? 0.7);
 const MIN_PHOTOS = Number(process.env.BENCH_MIN ?? 7);
 
 // Same random choices every run.
@@ -167,7 +168,10 @@ for (const person of people) {
       crowded++;
       continue;
     }
-    singles.push({ person, file, face: usable[0], size: [a.width, a.height] });
+    const face = { ...usable[0], emb: { ...usable[0].emb } }; // (not saved in the cache)
+    // Both recognisers together: cosine of this = 0.7 x AuraFace + 0.3 x SFace.
+    if (face.emb["aura+flip"]) face.emb.ens = Float32Array.from([...face.emb["aura+flip"].map((v) => v * Math.sqrt(ENS)), ...face.emb.sface.map((v) => v * Math.sqrt(1 - ENS))]);
+    singles.push({ person, file, face, size: [a.width, a.height] });
   }
 }
 const scanSeconds = (Date.now() - t0) / 1000;
@@ -331,7 +335,7 @@ const WAYS = {
   event: { addMin: Number(process.env.BENCH_ADD_MIN ?? 0.55), handMin: Number(process.env.BENCH_HAND_MIN ?? 0.4), handLead: Number(process.env.BENCH_HAND_LEAD ?? 0.04), event: { link: Number(process.env.BENCH_EV_LINK ?? 0.5), gap: Number(process.env.BENCH_EV_GAP ?? 0.1), handMin: Number(process.env.BENCH_EV_HAND ?? 0.3) } },
 };
 const classResults = {};
-const classKinds = KINDS.filter((k) => k !== "sface+flip");
+const classKinds = [...KINDS.filter((k) => k !== "sface+flip"), ...(auraFile ? ["ens"] : [])];
 let eventShare = null;
 function bestPer(e, known) {
   const best = new Map();
@@ -346,6 +350,7 @@ for (const kind of classKinds) {
   for (const k of [3, 5]) {
     for (const [way, opt] of Object.entries(WAYS)) {
       if (way !== "plain" && way !== "learn" && kind !== KINDS.at(-1)) continue;
+      if (kind === "ens" && way !== "plain") continue;
       const t = { n: 0, right: 0, wrong: 0, strangers: 0, strangerNamed: 0, byEvent: 0, wrongList: [] };
       const cr = rng(1000 + k);
       for (let trial = 0; trial < 20; trial++) {
@@ -365,6 +370,7 @@ for (const kind of classKinds) {
             const sorted = bestPer(it.e, hand);
             (raw[`${kind}|class|${k}`] ??= []).push({ truth: it.truth, top: sorted[0][0], s1: sorted[0][1], s2: sorted[1]?.[1] ?? -1 });
           }
+        if (kind === "ens") continue; // only its settings grid
         const learned = [];
         const name = new Map(); // item index -> name
         const how = new Map();
@@ -429,7 +435,7 @@ for (const kind of classKinds) {
           }
         });
       }
-      classResults[`${kind}|${k}|${way}`] = t;
+      if (kind !== "ens") classResults[`${kind}|${k}|${way}`] = t;
     }
   }
 }
@@ -563,7 +569,7 @@ for (const [key, list] of Object.entries(raw)) {
 // ---- 5b. Settings to choose from: how many faces each "named by itself"
 // setting would name, and how many wrongly (named people and strangers).
 const grid = {};
-for (const key of Object.keys(raw).filter((k) => k.includes("|max|3") || (k.includes("|class|") && k.startsWith(KINDS.at(-1))))) {
+for (const key of Object.keys(raw).filter((k) => k.includes("|max|3") || (k.includes("|class|") && (k.startsWith(KINDS.at(-1)) || k.startsWith("ens"))))) {
   const list = raw[key];
   const genuine = list.filter((x) => x.truth).length;
   grid[key] = [];
