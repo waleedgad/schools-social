@@ -64,10 +64,10 @@ test("real faces: names stay, one name per photo, no tiny, blurred, adult or str
   for (let i = 0; i < 3; i++) {
     const src = path.join(photos!, a.name, a.files[6 + i]);
     // A crowd shot from far away: the face is a few pixels across.
-    const small = await sharp(src).rotate().resize(70).toBuffer();
+    const small = await sharp(src).rotate().resize(70, 70, { fit: "inside" }).toBuffer();
     await sharp({ create: { width: 1600, height: 1000, channels: 3, background: bg } }).composite([{ input: small, left: 700 + i * 40, top: 300 }]).jpeg().toFile(path.join(event, `tiny-${i}.jpg`));
     // Out of focus.
-    const soft = await sharp(src).rotate().resize(900).blur(14).toBuffer();
+    const soft = await sharp(src).rotate().resize(900, 900, { fit: "inside" }).blur(14).toBuffer();
     await sharp({ create: { width: 1600, height: 1200, channels: 3, background: bg } }).composite([{ input: soft, left: 350, top: 100 }]).jpeg().toFile(path.join(event, `blur-${i}.jpg`));
   }
   const total = readdirSync(event).length;
