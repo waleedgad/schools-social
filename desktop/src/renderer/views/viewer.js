@@ -53,7 +53,7 @@ async function drawViewer() {
       <button class="btn small ${p.flag === -1 ? "on" : ""}" id="v-rej">${icon("x", 14)} ${L("Reject", "رفض")}</button>
       <span id="v-stars">${[1, 2, 3, 4, 5].map((n) => `<button class="btn small ghost" data-star="${n}" style="color: ${n <= p.rating ? "#ffd257" : "#59606d"}; padding: 4px 3px">★</button>`).join("")}</span>
       <button class="btn small" id="v-info" title="I">${icon("info", 14)}</button><button class="btn small" id="v-close">${icon("x", 14)} ${L("Close", "إغلاق")}</button></div>
-    <div class="vbody"><div class="stage"><div class="imgbox"><img id="v-img" src="hub://preview/${shown}" />
+    <div class="vbody"><div class="stage"><div class="imgbox"><img id="v-img" src="hub://preview/${shown}" style="background: center / contain no-repeat url('hub://thumb/${shown}')" />
       <div class="vmissing hide" id="v-miss">${icon("image-off", 16)} <span>${L("The original isn't on this computer now (moved, renamed, or on a drive that isn't connected). This is its small copy.", "الأصل ليس على هذا الجهاز الآن (نُقل أو أُعيدت تسميته أو على قرص غير موصول). هذه نسخته الصغيرة.")}</span>
         <button class="btn small" id="v-mfind">${L("Find missing…", "البحث عن المفقودة…")}</button><button class="btn small" id="v-mshow">${S.platform === "win32" ? L("Show in Explorer", "إظهار في المستكشف") : L("Show in Finder", "إظهار في Finder")}</button></div>
       ${faces.map((f) => (f.w ? `<div class="facebox ${f.status} ${f.status !== "suggested" && f.can_post === 0 ? "nopost" : ""}" data-face="${f.id}" style="left: ${f.x * 100}%; top: ${f.y * 100}%; width: ${f.w * 100}%; height: ${f.h * 100}%"><span class="nm">${esc(faceLabel(f))}</span></div>` : "")).join("")}

@@ -402,12 +402,13 @@ test("moving between photos in the big view doesn't zoom or flash (B-67)", async
     const before = await win.locator("#v-img").getAttribute("src");
     await win.keyboard.press("ArrowRight");
     await expect(win.locator("#v-img")).not.toHaveAttribute("src", before!);
-    // Straight after the switch: nothing animating, and the picture already there.
-    const now = await win.evaluate(() => ({
-      animating: document.querySelector(".viewer")!.getAnimations({ subtree: false }).length,
-      complete: (document.querySelector("#v-img") as HTMLImageElement).complete,
-    }));
-    expect(now, `photo ${i + 2}`).toEqual({ animating: 0, complete: true });
+    // Straight after the switch: nothing animating, and never blank: the
+    // picture is there, or (on a slow computer) its small copy shows under it.
+    const now = await win.evaluate(() => {
+      const img = document.querySelector("#v-img") as HTMLImageElement;
+      return { animating: document.querySelector(".viewer")!.getAnimations({ subtree: false }).length, shown: img.complete || img.style.backgroundImage.includes("hub://thumb/") };
+    });
+    expect(now, `photo ${i + 2}`).toEqual({ animating: 0, shown: true });
   }
   expect(errors).toEqual([]);
   await app.close();

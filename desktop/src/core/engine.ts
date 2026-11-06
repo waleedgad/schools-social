@@ -131,10 +131,15 @@ export class Engine {
     this.watcher.on("error", (e) => this.o.log?.(`watch: ${String(e)}`));
     await this.scan();
     this.queueUnfinished();
+    // Files that arrived while the folder watch was still being set up (an
+    // import copying as the drive came back) are found by a second look.
+    this.again = setTimeout(() => void this.scan().then(() => this.queueUnfinished()), 15_000);
   }
+  private again: NodeJS.Timeout | null = null;
 
   async stop() {
     if (this.timer) clearInterval(this.timer);
+    if (this.again) clearTimeout(this.again);
     await this.watcher?.close();
     this.watcher = null;
   }
