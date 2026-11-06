@@ -145,7 +145,22 @@ const settings = JSON.parse(readFileSync(path.join(userData, "settings.json"), "
 if (settings.schoolName !== "Update Test School" || !settings.library) fail("settings were lost in the update");
 killAll();
 server.close();
-console.log(`update test passed: ${pkg.version} -> ${next}, safety copy made, settings kept (server sent: ${[...new Set(served)].join(", ")})`);
+
+// 7. Uninstalling removes the app but never the school's library, names or faces.
+await wait(2000);
+const appData = path.join(process.env.APPDATA ?? "", name);
+mkdirSync(appData, { recursive: true });
+const keep = path.join(appData, "uninstall-test-keep.txt");
+writeFileSync(keep, "the library lives here");
+const uninstaller = readdirSync(installDir).find((f) => /^Uninstall .*\.exe$/i.test(f));
+if (!uninstaller) fail("no uninstaller was installed");
+execFileSync(path.join(installDir, uninstaller), ["/S"], { stdio: "inherit" });
+await until("the app to be uninstalled", () => !existsSync(exe), 120_000);
+if (!existsSync(keep)) fail("uninstalling deleted the app's data folder (library, names, faces)");
+if (!existsSync(path.join(userData, "library.db"))) fail("uninstalling deleted the library");
+rmSync(keep, { force: true });
+console.log("uninstalled; the library and the app's data folder are still there");
+console.log(`update test passed: ${pkg.version} -> ${next}, safety copy made, settings kept, uninstall keeps the library (server sent: ${[...new Set(served)].join(", ")})`);
 // Keep the build folders out of the way of later steps.
 for (const d of [oldDir, newDir]) renameSync(d, `${d}-done-${Date.now()}`);
 process.exit(0);
