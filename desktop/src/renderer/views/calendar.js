@@ -296,6 +296,9 @@ App.views.calendar = {
         const slot = e.target.closest("[data-slot]");
         const time = slot?.dataset.time ?? (cell.dataset.hour ? `${cell.dataset.hour}:00` : undefined);
         if (id) {
+          // A day off or a holiday: ask first, so a post isn't put there by mistake.
+          const off = this.offDay(cell.dataset.day);
+          if (off && !(await confirmBox(L(`This day is marked “${off}”. Put the post here anyway?`, `هذا اليوم مُعلَّم «${off}». هل تضع المنشور فيه على أي حال؟`), L("Put it here", "ضعه هنا")))) return;
           await quiet("app", "move", { id, day: cell.dataset.day, time });
           return this.load();
         }
@@ -348,7 +351,7 @@ App.views.calendar = {
 
 const hijriDay = (k) => {
   try {
-    return new Intl.DateTimeFormat(S.language === "en" ? "en-u-ca-islamic-umalqura" : "ar-u-ca-islamic-umalqura", { day: "numeric" }).format(fromKey(k));
+    return new Intl.DateTimeFormat(S.language === "en" ? "en-u-ca-islamic-umalqura" : "ar-EG-u-ca-islamic-umalqura", { day: "numeric" }).format(fromKey(k));
   } catch {
     return "";
   }

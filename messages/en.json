@@ -329,7 +329,8 @@
     "eventHint": "Make a post from this event",
     "freeSlot": "free slot",
     "noPostDay": "No posting",
-    "lastYear": "Last year"
+    "lastYear": "Last year",
+    "dropOnDayOff": "This day is marked “{name}”. Put the post here anyway?"
   },
   "settings": {
     "title": "School settings",

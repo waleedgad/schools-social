@@ -69,8 +69,11 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
             onDrop={(e) => {
               setOver(null);
               const id = e.dataTransfer.getData("text/post");
+              // A day off or a holiday: ask first, so a post isn't put there by mistake.
+              if (id && d.noPost && !window.confirm(t("dropOnDayOff", { name: d.holiday ?? t("noPostDay") }))) return;
               if (id) drop(d.key, id);
             }}
+            data-day={d.key}
             className={`group flex flex-col gap-1 p-1.5 ${view === "day" ? "min-h-96 p-3" : view === "week" ? "min-h-72" : "min-h-28"} ${d.inMonth ? (d.noPost ? "bg-[repeating-linear-gradient(135deg,var(--surface),var(--surface)_6px,var(--surface-2)_6px,var(--surface-2)_12px)]" : "bg-surface") : "bg-surface-2 text-faint"} ${over === d.key ? "!bg-accent-bg" : ""} ${!d.inMonth && view === "month" ? "hidden md:flex" : ""}`}
           >
             <div className="flex items-center justify-between">
