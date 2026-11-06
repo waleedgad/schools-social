@@ -7,11 +7,11 @@
 name: Windows release
 on:
   workflow_dispatch:
-  # A tag like desktop-v0.7.0 also builds it and keeps the installer in a
-  # DRAFT release (only people with access to the code can see a draft), so
-  # it can be put in the Versions folder.
+  # Pushing a branch named desktop-release/<version> also builds it and keeps
+  # the installer in a DRAFT release (only people with access to the code
+  # can see a draft), so it can be put in the Versions folder.
   push:
-    tags: ["desktop-v*"]
+    branches: ["desktop-release/**"]
 permissions:
   contents: write
 jobs:
@@ -74,9 +74,10 @@ jobs:
             desktop/release/latest.yml
           retention-days: 30
       - name: Keep the installer in a draft release (tags only)
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        if: startsWith(github.ref, 'refs/heads/desktop-release/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
-          gh release create "$GITHUB_REF_NAME" release/*.exe release/*.blockmap release/latest.yml --draft --title "School Social Hub Library $GITHUB_REF_NAME (Windows, draft)" --notes "Draft: Windows installer for the Versions folder. Not published."
+          TAG="desktop-v${GITHUB_REF_NAME#desktop-release/}"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" release/*.exe release/*.blockmap release/latest.yml --draft --target "$GITHUB_SHA" --title "School Social Hub Library $TAG (Windows, draft)" --notes "Draft: Windows installer for the Versions folder. Not published."
