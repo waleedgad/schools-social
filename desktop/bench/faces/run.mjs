@@ -19,6 +19,7 @@ import { readdir, readFile, writeFile, mkdir, appendFile } from "node:fs/promise
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -29,7 +30,7 @@ const MODELS = path.join(desktop, "models");
 
 const photos = path.resolve(process.argv[2] ?? "face-bench-photos");
 const auraFile = process.argv[3] && existsSync(process.argv[3]) ? path.resolve(process.argv[3]) : null;
-const KINDS = auraFile ? ["sface", "sface+flip", "aura", "aura+flip"] : ["sface", "sface+flip"];
+const KINDS = auraFile ? ["sface", "aura", "aura+flip"] : ["sface"];
 const base = (kind) => kind.split("+")[0];
 const GROUPS = Number(process.env.BENCH_GROUPS ?? 40);
 const DUP = Number(process.env.BENCH_DUP ?? 0.95);
@@ -93,15 +94,46 @@ async function analyse(file) {
     for (const kind of Object.keys(sessions)) {
       const aligned = F.align(rgb, info.width, info.height, f.landmarks, kind);
       const a = await describe(kind, aligned);
-      const b = await describe(kind, flipped(aligned));
+      const b = kind === "aura" ? await describe(kind, flipped(aligned)) : null;
       emb[kind] = unit(a);
-      emb[`${kind}+flip`] = unit(Float32Array.from(a, (v, i) => v + b[i]));
+      if (b) emb[`${kind}+flip`] = unit(Float32Array.from(a, (v, i) => v + b[i]));
     }
-    if (f.why) whyCount[f.why] = (whyCount[f.why] ?? 0) + 1;
     out.push({ box: f.box, score: f.score, usable: f.usable, why: f.why, sharpness: f.sharpness, emb });
   }
   return { faces: out, width: info.width, height: info.height };
 }
+
+// Faces found in each photo are kept in a cache file between runs (it only
+// changes when the face code changes), so trying new settings takes minutes.
+const cacheFile = process.env.BENCH_CACHE;
+const cache = new Map();
+// The cache is only used while the face finding and describing code is the
+// same (matching settings can change freely).
+const fingerprint = createHash("sha1")
+  .update([F.findFaces, F.align, F.faceProblem, F.faceSharpness, F.decode, F.loadModels].map(String).join("\n") + KINDS.join() + analyse.toString())
+  .digest("hex");
+const stored = cacheFile && existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : null;
+if (stored?.fingerprint === fingerprint) {
+  for (const [k, v] of Object.entries(stored.photos)) {
+    for (const f of v.faces) for (const e of Object.keys(f.emb)) f.emb[e] = new Float32Array(new Uint8Array(Buffer.from(f.emb[e], "base64")).buffer);
+    cache.set(k, v);
+  }
+}
+async function analyseCached(file) {
+  const key = path.relative(photos, file);
+  if (!cache.has(key)) cache.set(key, await analyse(file));
+  const a = cache.get(key);
+  for (const f of a.faces) if (f.why) whyCount[f.why] = (whyCount[f.why] ?? 0) + 1;
+  return a;
+}
+async function saveCache() {
+  if (!cacheFile) return;
+  const o = {};
+  for (const [k, v] of cache) o[k] = { ...v, faces: v.faces.map((f) => ({ ...f, emb: Object.fromEntries(Object.entries(f.emb).map(([e, x]) => [e, Buffer.from(x.buffer, x.byteOffset, x.byteLength).toString("base64")])) })) };
+  await writeFile(cacheFile, JSON.stringify({ fingerprint, photos: o }));
+}
+const credits = existsSync(path.join(photos, "credits.json")) ? new Map(JSON.parse(await readFile(path.join(photos, "credits.json"), "utf8")).map((c) => [c.file, c])) : new Map();
+const title = (file) => credits.get(path.relative(photos, file))?.title?.replace(/^File:/, "") ?? path.relative(photos, file);
 
 const people = (await readdir(photos, { withFileTypes: true })).filter((d) => d.isDirectory() && d.name !== "groups").map((d) => d.name).sort();
 const singles = []; // { person, file, face }
@@ -113,7 +145,7 @@ for (const person of people) {
     const file = path.join(photos, person, name);
     let a;
     try {
-      a = await analyse(file);
+      a = await analyseCached(file);
     } catch {
       continue;
     }
@@ -133,6 +165,7 @@ for (const person of people) {
   }
 }
 const scanSeconds = (Date.now() - t0) / 1000;
+await saveCache();
 
 // ---- 2. Clean the labels -----------------------------------------------------
 // A photo filed under someone sometimes shows somebody else (a team mate, an
@@ -156,6 +189,31 @@ for (const [person, list] of byPerson) {
   for (const s of keep) if (out.every((o) => F.cosine(o.face.emb[cleanKind], s.face.emb[cleanKind]) < DUP)) out.push(s);
   dropped += list.length - out.length;
   byPerson.set(person, out);
+}
+// Then a face that looks more like another person's average face than its own,
+// with either recogniser, is taken to be filed under the wrong person.
+const cleanKinds = auraFile ? ["sface", "aura"] : ["sface"];
+const centres = {};
+for (const kind of cleanKinds) {
+  centres[kind] = new Map();
+  for (const [p, list] of byPerson) {
+    if (!list.length) continue;
+    const c = new Float32Array(list[0].face.emb[kind].length);
+    for (const s of list) s.face.emb[kind].forEach((v, i) => (c[i] += v));
+    centres[kind].set(p, unit(c));
+  }
+}
+let misfiled = 0;
+for (const [p, list] of byPerson) {
+  const keep = list.filter((s) =>
+    cleanKinds.every((kind) => {
+      const own = F.cosine(s.face.emb[kind], centres[kind].get(p));
+      for (const [q, c] of centres[kind]) if (q !== p && F.cosine(s.face.emb[kind], c) > own) return false;
+      return true;
+    }),
+  );
+  misfiled += list.length - keep.length;
+  byPerson.set(p, keep);
 }
 const usablePeople = [...byPerson.entries()].filter(([, l]) => l.length >= MIN_PHOTOS).map(([p]) => p);
 
@@ -199,6 +257,7 @@ function count(t, truth, d, top) {
 }
 
 const results = { singles: {}, groups: {}, sweep: {} };
+const mistakes = [];
 const raw = {}; // for the threshold sweep: top1/top2 raw cosine per probe
 for (const kind of KINDS) {
   results.singles[kind] = {};
@@ -208,7 +267,9 @@ for (const kind of KINDS) {
     for (const p of probes) {
       const list = F.ranked(p.s.face.emb[kind], known, base(kind));
       const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
-      count(t, p.truth, decide(m), list[0]?.studentId);
+      const d = decide(m);
+      count(t, p.truth, d, list[0]?.studentId);
+      if (k === 3 && d.how === "sure" && d.pick !== p.truth && kind === KINDS.at(-1)) mistakes.push(`${p.truth ? "named person" : "stranger"} ${p.s.person}: "${title(p.s.file)}" named as ${d.pick} (${m.score.toFixed(2)}, next ${m.runnerUp.toFixed(2)})`);
       if (k === 3 || k === 5) {
         // Raw cosine of the best and second-best person, three ways of
         // comparing with a person's confirmed faces: the closest one (what
@@ -367,7 +428,7 @@ for (const [key, list] of Object.entries(raw)) {
 // ---- 6. Report ---------------------------------------------------------------
 const L = [];
 L.push(`# Face test on stand-in photos`, "");
-L.push(`${scanned} photos of ${people.length} people read in ${scanSeconds.toFixed(0)} s. ${noFace} had no usable face, ${crowded} were crowds (left out), ${dropped} dropped as wrongly filed or near-copies.`);
+L.push(`${scanned} photos of ${people.length} people read in ${scanSeconds.toFixed(0)} s. ${noFace} had no usable face, ${crowded} were crowds (left out), ${dropped} dropped as far from the person's other photos or near-copies, ${misfiled} more because they look more like someone else.`);
 L.push(`${usablePeople.length} people with enough photos: ${named.length} named (like students), ${strangers.size} never named (like parents and visitors). ${probes.length} test faces. Group photos: ${groupTruth.length}.`, "");
 L.push(`## Single photos`, "");
 L.push(`| Recogniser | Confirmed faces each | Right first guess | Named by itself: right | Named by itself: WRONG | Suggested: right | Suggested: wrong | Nothing | Strangers named by itself | Strangers suggested |`);
@@ -392,6 +453,7 @@ for (const [key, v] of Object.entries(results.sweep)) {
   const [kind, agg, k] = key.split("|");
   L.push(`| ${kind} | ${agg} | ${k} | ${v.rank1} | ${v.autoPct} | ${v.best ? `${v.best.sure}, ${v.best.gap}` : "–"} | ${v.genuine.join(" / ")} | ${v.stranger.join(" / ")} |`);
 }
+L.push("", `## Named by itself but WRONG (${KINDS.at(-1)}, 3 confirmed faces): check the photo`, "", ...mistakes.slice(0, 40).map((x) => `- ${x}`));
 L.push("", `Faces left out as not usable: ${Object.entries(whyCount).map(([k, v]) => `${k} ${v}`).join(", ")}.`);
 L.push("", "Photos: Wikimedia Commons, free licences (CC0 / public domain / CC BY / CC BY-SA); authors and licences in credits.json.");
 const report = L.join("\n");

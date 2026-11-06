@@ -41,6 +41,13 @@ jobs:
         with:
           path: ~/face-models
           key: auraface-v1
+      # Faces found in each photo, from the last run (reused only while the
+      # face finding code is unchanged), so trying new settings is quick.
+      - uses: actions/cache@v4
+        with:
+          path: ~/face-bench-cache
+          key: face-bench-analysis-${{ github.run_id }}
+          restore-keys: face-bench-analysis-
       - name: Download the stand-in photos
         run: node bench/faces/fetch.mjs ~/face-bench-photos 50
       - name: Download AuraFace (Apache 2.0)
@@ -51,7 +58,8 @@ jobs:
       - name: Score the face engine
         run: |
           rm -rf ~/face-bench-photos/groups
-          node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
+          mkdir -p ~/face-bench-cache
+          BENCH_CACHE=~/face-bench-cache/analysis.json node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
       - uses: actions/upload-artifact@v4
         if: always()
         with:
