@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (!code) return done("cancelled");
 
   const { user, membership } = await getSession();
-  if (!user || !membership || !can(membership.role, "manageSettings")) return done("error");
+  if (!user || !membership || !can(membership.role, "manageSettings", membership.school.permissions)) return done("error");
 
   try {
     const pages = await pagesFromCode(code, new URL("/api/meta/callback", request.url).toString());

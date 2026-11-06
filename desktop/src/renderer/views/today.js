@@ -34,7 +34,7 @@ const defaultLayout = (role) => (TODAY_DEFAULTS[role] ?? TODAY_DEFAULTS.comms).m
 
 function hijriLabel(d) {
   try {
-    return new Intl.DateTimeFormat(S.language === "en" ? "en-u-ca-islamic-umalqura" : "ar-u-ca-islamic-umalqura", { day: "numeric", month: "long" }).format(d);
+    return new Intl.DateTimeFormat(S.language === "en" ? "en-u-ca-islamic-umalqura" : "ar-EG-u-ca-islamic-umalqura", { day: "numeric", month: "long" }).format(d);
   } catch {
     return "";
   }

@@ -9,7 +9,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, ne
 import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
-import { openDb, tx, type Db } from "./core/db";
+import { checkpointInBackground, openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { SHOW_FROM, SURE } from "./core/faces";
@@ -1542,6 +1542,7 @@ app.whenReady().then(async () => {
     rmSync(data("start-new-library"), { force: true });
   }
   db = openDb(data("library.db"));
+  checkpointInBackground(db, data("library.db"));
 
   // hub://thumb/12, hub://preview/12, hub://face/40, hub://portrait/S24001
   protocol.handle("hub", async (req) => {

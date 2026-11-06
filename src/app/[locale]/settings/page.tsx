@@ -64,7 +64,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
   const nameOf = (id: string) => (everyone ?? []).find((m) => m.user_id === id)?.full_name ?? "—";
   const [{ data: links }, { data: recentEvents }] = tab === "connections"
     ? await Promise.all([
-        supabase.from("school_integrations").select("slack_webhook, teams_webhook, email_alerts, alert_kinds, whatsapp_phone_id, whatsapp_event").eq("school_id", schoolId).maybeSingle(),
+        supabase.from("school_integrations").select("slack_webhook, teams_webhook, email_alerts, alert_kinds, whatsapp_phone_id, whatsapp_event, quiet_from, quiet_to").eq("school_id", schoolId).maybeSingle(),
         supabase.from("events").select("id, title, event_date").eq("school_id", schoolId).order("event_date", { ascending: false }).limit(40),
       ])
     : [{ data: null }, { data: [] }];
@@ -331,10 +331,14 @@ export default async function SettingsPage({ params, searchParams }: { params: P
               <Field label={t("more.connections.teams")} name="teams" dir="ltr" defaultValue={(links?.teams_webhook as string) ?? ""} placeholder="https://….webhook.office.com/…" hint={t("more.connections.teamsHint")} />
               <fieldset className="flex flex-wrap gap-3 text-sm">
                 <legend className="mb-1 font-semibold">{t("more.connections.which")}</legend>
-                {["approval", "failed", "import", "remind", "book"].map((k) => (
+                {["approval", "failed", "import", "remind", "book", "digest"].map((k) => (
                   <label key={k} className="flex items-center gap-1"><input type="checkbox" name="kind" value={k} defaultChecked={((links?.alert_kinds as string[] | undefined) ?? ["approval", "failed", "import", "comment"]).includes(k)} />{t(`more.connections.kinds.${k}`)}</label>
                 ))}
               </fieldset>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field type="time" label={t("more.connections.quietFrom")} name="quietFrom" dir="ltr" defaultValue={links ? ((links.quiet_from as string | null) ?? "").slice(0, 5) : "21:00"} />
+                <Field type="time" label={t("more.connections.quietTo")} name="quietTo" dir="ltr" defaultValue={links ? ((links.quiet_to as string | null) ?? "").slice(0, 5) : "07:00"} hint={t("more.connections.quietHint")} />
+              </div>
               <fieldset className="space-y-3 border-t border-border pt-4">
                 <legend className="font-semibold">{t("more.connections.whatsapp")}</legend>
                 <p className="text-sm text-muted">{t(process.env.WHATSAPP_TOKEN ? "more.connections.whatsappHint" : "more.connections.whatsappMissing")}</p>

@@ -44,7 +44,7 @@ export default async function LibraryPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const { membership, workspaces } = await requireMembership(locale);
-  if (!can(membership.role, "viewLibrary")) redirect({ href: "/upload", locale });
+  if (!can(membership.role, "viewLibrary", membership.school.permissions)) redirect({ href: "/upload", locale });
 
   const { event, error, sort, ai, checked } = await searchParams;
   const t = await getTranslations();

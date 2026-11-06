@@ -189,7 +189,7 @@ function eventName(title, date) {
 // Hijri date next to the normal one.
 function hijri(d) {
   try {
-    return new Date(d.length === 10 ? `${d}T12:00:00` : d).toLocaleDateString(S.language === "en" ? "en-u-ca-islamic-umalqura" : "ar-u-ca-islamic-umalqura", { day: "numeric", month: "long", year: "numeric" });
+    return new Date(d.length === 10 ? `${d}T12:00:00` : d).toLocaleDateString(S.language === "en" ? "en-u-ca-islamic-umalqura" : "ar-EG-u-ca-islamic-umalqura", { day: "numeric", month: "long", year: "numeric" });
   } catch {
     return "";
   }

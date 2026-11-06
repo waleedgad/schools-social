@@ -329,7 +329,8 @@
     "eventHint": "Make a post from this event",
     "freeSlot": "free slot",
     "noPostDay": "No posting",
-    "lastYear": "Last year"
+    "lastYear": "Last year",
+    "dropOnDayOff": "This day is marked “{name}”. Put the post here anyway?"
   },
   "settings": {
     "title": "School settings",
@@ -1628,7 +1629,8 @@
         "failed": "posts that didn't go out",
         "import": "new photos from the Mac",
         "remind": "reminders",
-        "book": "yearbooks to check"
+        "book": "yearbooks to check",
+        "digest": "the principal's weekly digest (Sunday morning)"
       },
       "whatsapp": "WhatsApp photo intake",
       "whatsappHint": "Staff send photos to the school's WhatsApp Business number; they arrive as uploads and wait for the Mac check. Only numbers saved on the People page are accepted.",
@@ -1653,7 +1655,10 @@
         "failed": "Couldn't read the class lists. Try again."
       },
       "forMac": "The Mac app keeps the class lists: download them as a file and open it in the Mac's Students tab.",
-      "download": "Download for the Mac"
+      "download": "Download for the Mac",
+      "quietFrom": "Quiet hours from",
+      "quietTo": "Quiet hours until",
+      "quietHint": "No alerts go out between these times (school time). They are sent when the quiet hours end. Leave both empty for none."
     },
     "staffImport": {
       "title": "Invite your staff from a spreadsheet",
@@ -1709,5 +1714,22 @@
     "saveError": "Couldn't save the password. Open the link from the email again.",
     "saved": "Your new password is saved.",
     "change": "Change password"
+  },
+  "digest": {
+    "title": "Weekly digest",
+    "subtitle": "The last 7 days, {from} to {to}",
+    "posted": "Posted",
+    "failed": "Didn't go out",
+    "waitingComms": "Waiting for the comms team",
+    "waitingExtra": "Waiting for your approval",
+    "scheduled": "Scheduled for next week",
+    "notSeen": "Students not in any photo yet",
+    "ofStudents": "of {count} students",
+    "byClass": "Classes with the most students not seen yet",
+    "noClass": "No class",
+    "allSeen": "Every student is in at least one photo.",
+    "noStudents": "No class lists yet.",
+    "email": "This page is also sent by email every Sunday morning when the school turns on the weekly digest in Settings.",
+    "open": "Weekly digest"
   }
 }

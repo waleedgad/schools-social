@@ -7,8 +7,14 @@
 name: Windows release
 on:
   workflow_dispatch:
+  # When the app changes on the working branch, it is also
+  # built and the installer kept in a DRAFT release (only people with access
+  # to the code can see a draft), so it can be put in the Versions folder.
+  push:
+    branches: ["claude/project-thread-syqjmv"]
+    paths: ["desktop/package.json", "desktop/src/**", ".github/workflows/windows-release.yml"]
 permissions:
-  contents: read
+  contents: write
 jobs:
   windows:
     runs-on: windows-latest
@@ -68,3 +74,17 @@ jobs:
             desktop/release/*.blockmap
             desktop/release/latest.yml
           retention-days: 30
+      - name: Screenshots of every tab on Windows, English and Arabic
+        if: github.event_name == 'push'
+        run: |
+          npx playwright test e2e/every-tab.spec.ts --retries=1
+          mkdir -p release/screens && find test-results -name "*.png" -exec cp {} release/screens/ \;
+          (cd release/screens && 7z a ../windows-screenshots.zip *.png >/dev/null)
+      - name: Keep the installer in a draft release (pushes only)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="desktop-v$(node -p "require('./package.json').version")"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" release/*.exe release/*.blockmap release/latest.yml $(ls release/windows-screenshots.zip 2>/dev/null) --draft --target "$GITHUB_SHA" --title "School Social Hub Library $TAG (Windows, draft)" --notes "Draft: Windows installer for the Versions folder. Not published."

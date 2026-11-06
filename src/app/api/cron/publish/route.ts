@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { flushAlerts } from "@/lib/alerts";
+import { sendDigests } from "@/lib/digest";
 import { refreshMetrics } from "@/lib/metrics";
 import { publishDue } from "@/lib/publish";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
@@ -17,9 +19,13 @@ async function run(request: NextRequest) {
   if (!isAdminConfigured) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY missing" }, { status: 500 });
   const admin = createAdminClient();
   const published = await publishDue(admin);
+  // Alerts kept back during the school's quiet hours.
+  // Sunday morning: the principal's weekly digest (once a week).
+  const digests = await sendDigests(admin).catch(() => 0);
+  const alerts = await flushAlerts(admin).catch(() => 0);
   // Results for the analytics page; never let it stop publishing.
   await refreshMetrics(admin).catch(() => null);
-  return NextResponse.json({ published });
+  return NextResponse.json({ published, alerts, digests });
 }
 
 export const GET = run;
