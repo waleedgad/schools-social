@@ -6,85 +6,85 @@
 # the same publisher.
 name: Windows release
 on:
- When the app.s version number changes on the working branch, it is alsoworkflow_dispatch:
- When the app.s version number changes on the working branch, it is also# When the app's version number changes on the working branch, it is also
- When the app.s version number changes on the working branch, it is also# built and the installer kept in a DRAFT release (only people with access
- When the app.s version number changes on the working branch, it is also# to the code can see a draft), so it can be put in the Versions folder.
- When the app.s version number changes on the working branch, it is alsopush:
- When the app.s version number changes on the working branch, it is also  branches: ["claude/project-thread-syqjmv"]
- When the app.s version number changes on the working branch, it is also  paths: ["desktop/package.json", "desktop/src/**", ".github/workflows/windows-release.yml"]
+  workflow_dispatch:
+  # When the app changes on the working branch, it is also
+  # built and the installer kept in a DRAFT release (only people with access
+  # to the code can see a draft), so it can be put in the Versions folder.
+  push:
+    branches: ["claude/project-thread-syqjmv"]
+    paths: ["desktop/package.json", "desktop/src/**", ".github/workflows/windows-release.yml"]
 permissions:
- When the app.s version number changes on the working branch, it is alsocontents: write
+  contents: write
 jobs:
- When the app.s version number changes on the working branch, it is alsowindows:
- When the app.s version number changes on the working branch, it is also  runs-on: windows-latest
- When the app.s version number changes on the working branch, it is also  defaults:
- When the app.s version number changes on the working branch, it is also    run:
- When the app.s version number changes on the working branch, it is also      working-directory: desktop
- When the app.s version number changes on the working branch, it is also      shell: bash
- When the app.s version number changes on the working branch, it is also  env:
- When the app.s version number changes on the working branch, it is also    # Route 1: Azure Trusted Signing (a monthly service).
- When the app.s version number changes on the working branch, it is also    AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
- When the app.s version number changes on the working branch, it is also    AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
- When the app.s version number changes on the working branch, it is also    AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
- When the app.s version number changes on the working branch, it is also    AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT }}
- When the app.s version number changes on the working branch, it is also    AZURE_SIGN_ACCOUNT: ${{ secrets.AZURE_SIGN_ACCOUNT }}
- When the app.s version number changes on the working branch, it is also    AZURE_SIGN_PROFILE: ${{ secrets.AZURE_SIGN_PROFILE }}
- When the app.s version number changes on the working branch, it is also    WIN_PUBLISHER_NAME: ${{ secrets.WIN_PUBLISHER_NAME }}
- When the app.s version number changes on the working branch, it is also    # Route 2: a certificate file (.pfx) from a certificate company.
- When the app.s version number changes on the working branch, it is also    WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX_BASE64 }}
- When the app.s version number changes on the working branch, it is also    WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
- When the app.s version number changes on the working branch, it is also  steps:
- When the app.s version number changes on the working branch, it is also    - uses: actions/checkout@v4
- When the app.s version number changes on the working branch, it is also    - uses: actions/setup-node@v4
- When the app.s version number changes on the working branch, it is also      with:
- When the app.s version number changes on the working branch, it is also        node-version: 22
- When the app.s version number changes on the working branch, it is also        cache: npm
- When the app.s version number changes on the working branch, it is also        cache-dependency-path: desktop/package-lock.json
- When the app.s version number changes on the working branch, it is also    - run: npm ci
- When the app.s version number changes on the working branch, it is also    - name: Build (signed when the secrets are there)
- When the app.s version number changes on the working branch, it is also      run: |
- When the app.s version number changes on the working branch, it is also        EXTRA=()
- When the app.s version number changes on the working branch, it is also        if [ -n "$AZURE_SIGN_ENDPOINT" ]; then
- When the app.s version number changes on the working branch, it is also          echo "Signing with Azure Trusted Signing"
- When the app.s version number changes on the working branch, it is also          EXTRA=(-c.win.azureSignOptions.endpoint="$AZURE_SIGN_ENDPOINT" -c.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGN_ACCOUNT" -c.win.azureSignOptions.certificateProfileName="$AZURE_SIGN_PROFILE" -c.win.azureSignOptions.publisherName="$WIN_PUBLISHER_NAME")
- When the app.s version number changes on the working branch, it is also        elif [ -n "$WIN_CSC_LINK" ]; then
- When the app.s version number changes on the working branch, it is also          echo "Signing with the certificate file"
- When the app.s version number changes on the working branch, it is also        else
- When the app.s version number changes on the working branch, it is also          export CSC_IDENTITY_AUTO_DISCOVERY=false
- When the app.s version number changes on the working branch, it is also          echo "No certificate yet: building unsigned"
- When the app.s version number changes on the working branch, it is also        fi
- When the app.s version number changes on the working branch, it is also        npm run build && npx electron-builder --win nsis --publish never "${EXTRA[@]}"
- When the app.s version number changes on the working branch, it is also    - name: Check the signature
- When the app.s version number changes on the working branch, it is also      if: env.AZURE_SIGN_ENDPOINT != '' || env.WIN_CSC_LINK != ''
- When the app.s version number changes on the working branch, it is also      shell: pwsh
- When the app.s version number changes on the working branch, it is also      run: |
- When the app.s version number changes on the working branch, it is also        foreach ($f in @("release/win-unpacked/School Social Hub Library.exe") + (Get-ChildItem release/*.exe).FullName) {
- When the app.s version number changes on the working branch, it is also          $s = Get-AuthenticodeSignature $f
- When the app.s version number changes on the working branch, it is also          Write-Output "$f : $($s.Status) $($s.SignerCertificate.Subject)"
- When the app.s version number changes on the working branch, it is also          if ($s.Status -ne "Valid") { throw "not signed: $f" }
- When the app.s version number changes on the working branch, it is also        }
- When the app.s version number changes on the working branch, it is also    - name: The built app starts, reads photos and finds faces
- When the app.s version number changes on the working branch, it is also      run: PACKAGED_APP="$PWD/release/win-unpacked/School Social Hub Library.exe" npx playwright test e2e/packaged.spec.ts
- When the app.s version number changes on the working branch, it is also    - uses: actions/upload-artifact@v4
- When the app.s version number changes on the working branch, it is also      with:
- When the app.s version number changes on the working branch, it is also        name: windows-release
- When the app.s version number changes on the working branch, it is also        path: |
- When the app.s version number changes on the working branch, it is also          desktop/release/*.exe
- When the app.s version number changes on the working branch, it is also          desktop/release/*.blockmap
- When the app.s version number changes on the working branch, it is also          desktop/release/latest.yml
- When the app.s version number changes on the working branch, it is also        retention-days: 30
- When the app.s version number changes on the working branch, it is also    - name: Screenshots of every tab on Windows, English and Arabic
- When the app.s version number changes on the working branch, it is also      if: github.event_name == 'push'
- When the app.s version number changes on the working branch, it is also      run: |
- When the app.s version number changes on the working branch, it is also        npx playwright test e2e/every-tab.spec.ts --retries=1
- When the app.s version number changes on the working branch, it is also        mkdir -p release/screens && find test-results -name "*.png" -exec cp {} release/screens/ \;
- When the app.s version number changes on the working branch, it is also        (cd release/screens && 7z a ../windows-screenshots.zip *.png >/dev/null)
- When the app.s version number changes on the working branch, it is also    - name: Keep the installer in a draft release (pushes only)
- When the app.s version number changes on the working branch, it is also      if: github.event_name == 'push'
- When the app.s version number changes on the working branch, it is also      env:
- When the app.s version number changes on the working branch, it is also        GH_TOKEN: ${{ github.token }}
- When the app.s version number changes on the working branch, it is also      run: |
- When the app.s version number changes on the working branch, it is also        TAG="desktop-v$(node -p "require('./package.json').version")"
- When the app.s version number changes on the working branch, it is also        gh release delete "$TAG" --yes 2>/dev/null || true
- When the app.s version number changes on the working branch, it is also        gh release create "$TAG" release/*.exe release/*.blockmap release/latest.yml $(ls release/windows-screenshots.zip 2>/dev/null) --draft --target "$GITHUB_SHA" --title "School Social Hub Library $TAG (Windows, draft)" --notes "Draft: Windows installer for the Versions folder. Not published."
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    env:
+      # Route 1: Azure Trusted Signing (a monthly service).
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT }}
+      AZURE_SIGN_ACCOUNT: ${{ secrets.AZURE_SIGN_ACCOUNT }}
+      AZURE_SIGN_PROFILE: ${{ secrets.AZURE_SIGN_PROFILE }}
+      WIN_PUBLISHER_NAME: ${{ secrets.WIN_PUBLISHER_NAME }}
+      # Route 2: a certificate file (.pfx) from a certificate company.
+      WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX_BASE64 }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - name: Build (signed when the secrets are there)
+        run: |
+          EXTRA=()
+          if [ -n "$AZURE_SIGN_ENDPOINT" ]; then
+            echo "Signing with Azure Trusted Signing"
+            EXTRA=(-c.win.azureSignOptions.endpoint="$AZURE_SIGN_ENDPOINT" -c.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGN_ACCOUNT" -c.win.azureSignOptions.certificateProfileName="$AZURE_SIGN_PROFILE" -c.win.azureSignOptions.publisherName="$WIN_PUBLISHER_NAME")
+          elif [ -n "$WIN_CSC_LINK" ]; then
+            echo "Signing with the certificate file"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "No certificate yet: building unsigned"
+          fi
+          npm run build && npx electron-builder --win nsis --publish never "${EXTRA[@]}"
+      - name: Check the signature
+        if: env.AZURE_SIGN_ENDPOINT != '' || env.WIN_CSC_LINK != ''
+        shell: pwsh
+        run: |
+          foreach ($f in @("release/win-unpacked/School Social Hub Library.exe") + (Get-ChildItem release/*.exe).FullName) {
+            $s = Get-AuthenticodeSignature $f
+            Write-Output "$f : $($s.Status) $($s.SignerCertificate.Subject)"
+            if ($s.Status -ne "Valid") { throw "not signed: $f" }
+          }
+      - name: The built app starts, reads photos and finds faces
+        run: PACKAGED_APP="$PWD/release/win-unpacked/School Social Hub Library.exe" npx playwright test e2e/packaged.spec.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest.yml
+          retention-days: 30
+      - name: Screenshots of every tab on Windows, English and Arabic
+        if: github.event_name == 'push'
+        run: |
+          npx playwright test e2e/every-tab.spec.ts --retries=1
+          mkdir -p release/screens && find test-results -name "*.png" -exec cp {} release/screens/ \;
+          (cd release/screens && 7z a ../windows-screenshots.zip *.png >/dev/null)
+      - name: Keep the installer in a draft release (pushes only)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="desktop-v$(node -p "require('./package.json').version")"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" release/*.exe release/*.blockmap release/latest.yml $(ls release/windows-screenshots.zip 2>/dev/null) --draft --target "$GITHUB_SHA" --title "School Social Hub Library $TAG (Windows, draft)" --notes "Draft: Windows installer for the Versions folder. Not published."
