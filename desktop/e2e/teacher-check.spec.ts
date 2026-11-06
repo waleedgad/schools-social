@@ -113,7 +113,16 @@ test("a teacher confirms a face from a photo that isn't on the website", async (
   await expect.poll(files, { timeout: 15_000 }).toEqual([]);
 
   // The Mac collects the answer and names the face.
-  expect(((await call("pullFaceChecks")).value as { yes: number }).yes).toBe(1);
+  // (When it fails, say why: what the website answered and what the face is now.)
+  const why = async () => {
+    const d = new DatabaseSync(path.join(userData, "library.db"), { readOnly: true });
+    const face = d.prepare("select id, status, student_id, suggest_id, w from faces where photo_id = ?").all(photoId);
+    d.close();
+    const answers = (await admin.from("face_checks").select("mac_id, student_code, answer").eq("school_id", schoolId)).data;
+    return JSON.stringify({ faceId, face, answers });
+  };
+  const pulled = (await call("pullFaceChecks")).value as { yes: number };
+  expect(pulled.yes, await why()).toBe(1);
   await expect
     .poll(async () => {
       const d = new DatabaseSync(path.join(userData, "library.db"));
