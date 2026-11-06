@@ -142,7 +142,8 @@ export class Engine {
   // Walks the whole library once. Files that haven't changed are skipped.
   async scan() {
     busy.set("reading the library folder");
-    if (this.scanning) return;
+    // The library drive isn't there: that's not every photo deleted.
+    if (this.scanning || !existsSync(this.o.library)) return;
     this.scanning = this.status.scanning = true;
     this.o.onChange("status");
     const known = new Map<string, { size: number; mtime: number }>();

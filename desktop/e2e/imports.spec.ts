@@ -274,6 +274,12 @@ test("the library drive unplugged mid-import: a clear note, nothing copied anywh
   await move(away, lib);
   await expect.poll(async () => (await jobOf(win, job))?.state, { timeout: 90_000 }).toBe("done");
   expect(checkLibrary(lib, card)).toBe(250);
+  // The app watches the drive again: a photo added now is noticed.
+  await expect.poll(async () => (await call(win, "countPhotos", {})) as number, { timeout: 60_000 }).toBe(250);
+  const extra = path.join(lib, "2026-2027", "Term 1", "2026-10-13 Trip", "IMG_9000.jpg");
+  mkdirSync(path.dirname(extra), { recursive: true });
+  writeFileSync(extra, await sharp({ create: { width: 320, height: 240, channels: 3, background: "#3a8" } }).jpeg().toBuffer());
+  await expect.poll(async () => (await call(win, "countPhotos", {})) as number, { timeout: 30_000 }).toBe(251);
   expect(errors).toEqual([]);
   await app.close();
 });

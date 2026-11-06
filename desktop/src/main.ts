@@ -1988,6 +1988,18 @@ app.whenReady().then(async () => {
   timers.push(setInterval(() => push(), 3000));
   timers.push(setInterval(() => checkWebUploads(), 60_000));
   timers.push(setInterval(() => void sendErrors(), 10 * 60_000));
+  // The library drive unplugged and plugged back in: start reading it again,
+  // so its photos are back and new ones are noticed (B-63).
+  let libThere = !!settings.get().library && existsSync(settings.get().library!);
+  timers.push(
+    setInterval(() => {
+      const there = !!settings.get().library && existsSync(settings.get().library!);
+      if (there === libThere) return;
+      libThere = there;
+      log(`library drive ${there ? "back" : "gone"}`);
+      void restart().then(() => push("all"));
+    }, 4000),
+  );
   // Photos without their backup copy (the drive was away, or it was just
   // chosen) are copied when it's there.
   timers.push(setInterval(() => void backupNow().catch((e) => log(`backup: ${e}`)), 15 * 60_000));
