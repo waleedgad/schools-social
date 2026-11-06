@@ -463,7 +463,7 @@ export class Engine {
           }
           const m = matches[i];
           const twin = m ? this.isTwin(m.studentId) : false;
-          const sure = isSure(m ? { ...m, twin } : null) && this.o.autoName?.() !== false;
+          const sure = isSure(m ? { ...m, twin } : null, model) && this.o.autoName?.() !== false;
           insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, sure ? "confirmed" : m && m.score >= SHOW_FROM - 0.1 ? "suggested" : "unknown", sure ? m!.studentId : null, m?.studentId ?? null, m?.score ?? null, sure ? 1 : 0, (k?.rejected as string) ?? "", model, null, sure ? "auto" : null);
         });
         const usable = found.filter((f) => f.usable);
@@ -659,7 +659,7 @@ export class Engine {
         faces.forEach((r, i) => {
           const m = matches[i];
           if (studentIds && m && !studentIds.includes(m.studentId) && r.suggest_id === m.studentId) return;
-          if (m && isSure({ ...m, twin: this.isTwin(m.studentId) }) && this.o.autoName?.() !== false) {
+          if (m && isSure({ ...m, twin: this.isTwin(m.studentId) }, model as Recogniser) && this.o.autoName?.() !== false) {
             name.run(m.studentId, m.studentId, m.score, r.id);
             named.push(r.id);
             changed++;

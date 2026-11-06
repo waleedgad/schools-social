@@ -35,10 +35,26 @@ const NMS = 0.3;
 // "possibly", 0.62 "sure". Each recogniser's raw cosine is mapped onto it.
 //   SFace's published "same person" cosine is 0.363.
 //   AuraFace (ArcFace-class): same person is usually above 0.3, sure above 0.5.
+// AuraFace's "sure" and its lead over the next student, raw (see isSure).
+const AURA_SURE = 0.47;
+const AURA_GAP = 0.08;
 const SCALE: Record<Recogniser, { same: number; show: number; sure: number }> = {
   sface: { same: 0.363, show: 0.5, sure: 0.62 },
-  aura: { same: 0.28, show: 0.38, sure: 0.52 },
+  aura: { same: 0.28, show: 0.38, sure: AURA_SURE },
 };
+// The raw score behind a shown score (the reverse of scaled).
+export function unscaled(shown: number, r: Recogniser) {
+  if (r === "sface") return shown;
+  const k = SCALE[r];
+  const pts: [number, number][] = [[0, 0], [0.363, k.same], [0.5, k.show], [0.62, k.sure], [1, 1]];
+  if (shown <= 0) return shown;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    if (shown <= x1) return y0 + ((shown - x0) / (x1 - x0)) * (y1 - y0);
+  }
+  return 1;
+}
+
 export function scaled(raw: number, r: Recogniser) {
   const k = SCALE[r];
   if (r === "sface") return raw;
@@ -59,8 +75,23 @@ export const SURE = 0.62;
 export const SURE_GAP = 0.12;
 // Twins and look-alike siblings need a much clearer lead before a name is given.
 export const TWIN_GAP = 0.2;
-export const isSure = (m: { score: number; runnerUp: number; twin?: boolean } | null) =>
-  !!m && m.score >= SURE && m.score - m.runnerUp >= (m.twin ? TWIN_GAP : SURE_GAP);
+// "Sure" is decided on each recogniser's own raw score: how close the face is
+// to the student's nearest confirmed face, and how far ahead of the next
+// student. AuraFace's values come from the face test on stand-in photos
+// (desktop/bench/faces, 6 Nov 2026): with 3 confirmed faces each, about 78%
+// of faces are named by themselves (was 63%) with none named wrongly; set a
+// little above the best value found, to keep strangers (parents, visitors)
+// from being named.
+const SURE_RAW: Record<Recogniser, { sure: number; gap: number; twin: number }> = {
+  sface: { sure: SURE, gap: SURE_GAP, twin: TWIN_GAP },
+  aura: { sure: AURA_SURE, gap: AURA_GAP, twin: AURA_GAP + 0.08 },
+};
+export const isSure = (m: { score: number; runnerUp: number; twin?: boolean } | null, r: Recogniser = "sface") => {
+  if (!m) return false;
+  const k = SURE_RAW[r];
+  const top = unscaled(m.score, r), next = unscaled(m.runnerUp, r);
+  return top >= k.sure - 1e-9 && top - next >= (m.twin ? k.twin : k.gap) - 1e-9;
+};
 
 // Where SFace expects the landmarks in its 112×112 input.
 const REFERENCE = [
@@ -185,6 +216,14 @@ export function align(rgb: Buffer, width: number, height: number, landmarks: num
   return out;
 }
 
+// The 112×112 face, left and right swapped.
+export function mirror(t: Float32Array) {
+  const o = new Float32Array(t.length);
+  for (let c = 0; c < 3; c++)
+    for (let y = 0; y < 112; y++) for (let x = 0; x < 112; x++) o[c * 12544 + y * 112 + x] = t[c * 12544 + y * 112 + 111 - x];
+  return o;
+}
+
 function unit(v: Float32Array) {
   let s = 0;
   for (const x of v) s += x * x;
@@ -273,8 +312,17 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
   const inputName = recognizer.inputNames[0];
   for (const f of faces) {
     const aligned = align(rgb, width, height, f.landmarks, kind);
-    const out = await recognizer.run({ [inputName]: new ort.Tensor("float32", aligned, [1, 3, 112, 112]) });
-    const embedding = unit(Float32Array.from(out[recognizer.outputNames[0]].data as Float32Array));
+    const describe = async (t: Float32Array) =>
+      Float32Array.from((await recognizer.run({ [inputName]: new ort.Tensor("float32", t, [1, 3, 112, 112]) }))[recognizer.outputNames[0]].data as Float32Array);
+    let raw = await describe(aligned);
+    // AuraFace also looks at the mirror image of the face and adds the two:
+    // steadier descriptions, so more faces are named by themselves (face test:
+    // 63% -> 70% with 3 confirmed faces each, still none wrong).
+    if (kind === "aura") {
+      const m = await describe(mirror(aligned));
+      raw = raw.map((v, i) => v + m[i]);
+    }
+    const embedding = unit(raw);
     const [x, y, w, h] = f.box;
     const box: Face["box"] = [clamp(x / width), clamp(y / height), clamp(w / width), clamp(h / height)];
     const sharpness = faceSharpness(aligned, kind);

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import sharp from "sharp";
 import { openDb } from "./db";
 import { Engine, importPhotos } from "./engine";
-import { assignPhoto, faceProblem, guessTraits, scaled, traitCentres } from "./faces";
+import { assignPhoto, faceProblem, guessTraits, isSure, mirror, scaled, traitCentres, unscaled } from "./faces";
 
 const temp = () => mkdtempSync(path.join(tmpdir(), "hub04-"));
 const unit = (v: number[]) => {
@@ -156,8 +156,31 @@ test("boy or girl, student or adult, learned from the school's own named faces",
 test("AuraFace scores are shown on the same scale", () => {
   assert.equal(scaled(0.5, "sface"), 0.5);
   assert.ok(Math.abs(scaled(0.38, "aura") - 0.5) < 1e-9);
-  assert.ok(Math.abs(scaled(0.52, "aura") - 0.62) < 1e-9);
+  assert.ok(Math.abs(scaled(0.47, "aura") - 0.62) < 1e-9);
   assert.ok(scaled(0.2, "aura") < 0.363);
+  for (const v of [0.1, 0.3, 0.4, 0.45, 0.7]) assert.ok(Math.abs(unscaled(scaled(v, "aura"), "aura") - v) < 1e-9);
+});
+
+test("AuraFace names by itself on its own raw scores (face test settings)", () => {
+  const at = (raw: number, next: number, twin = false) => isSure({ score: scaled(raw, "aura"), runnerUp: scaled(next, "aura"), twin }, "aura");
+  assert.equal(at(0.5, 0.3), true);
+  assert.equal(at(0.46, 0.2), false); // not close enough
+  assert.equal(at(0.5, 0.45), false); // another student almost as close
+  assert.equal(at(0.5, 0.4, true), false); // twins need a clearer lead
+  assert.equal(at(0.6, 0.4, true), true);
+  // SFace keeps its settings
+  assert.equal(isSure({ score: 0.63, runnerUp: 0.5 }), true);
+  assert.equal(isSure({ score: 0.6, runnerUp: 0.3 }), false);
+});
+
+test("a face's mirror image swaps left and right only", () => {
+  const t = new Float32Array(3 * 112 * 112);
+  t[5] = 1; // top row, x = 5, first colour
+  t[2 * 12544 + 50 * 112 + 100] = 2;
+  const m = mirror(t);
+  assert.equal(m[106], 1);
+  assert.equal(m[2 * 12544 + 50 * 112 + 11], 2);
+  assert.deepEqual(mirror(m), t);
 });
 
 test("a 0.3 library opens in 0.4 and keeps everything", () => {

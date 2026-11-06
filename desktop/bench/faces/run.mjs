@@ -233,9 +233,9 @@ const probes = [];
 for (const p of usablePeople) for (const s of byPerson.get(p).slice(strangers.has(p) ? 0 : 5, strangers.has(p) ? 15 : 35)) probes.push({ truth: strangers.has(p) ? null : p, s });
 
 // The app's decision for one face: named by itself ("sure"), suggested, or nothing.
-function decide(m) {
+function decide(m, kind) {
   if (!m) return { pick: null, how: "none" };
-  if (F.isSure(m)) return { pick: m.studentId, how: "sure" };
+  if (F.isSure(m, base(kind))) return { pick: m.studentId, how: "sure" };
   if (m.score >= F.SHOW_FROM - 0.1) return { pick: m.studentId, how: "suggest" };
   return { pick: null, how: "none" };
 }
@@ -267,7 +267,7 @@ for (const kind of KINDS) {
     for (const p of probes) {
       const list = F.ranked(p.s.face.emb[kind], known, base(kind));
       const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
-      const d = decide(m);
+      const d = decide(m, kind);
       count(t, p.truth, d, list[0]?.studentId);
       if (k === 3 && d.how === "sure" && d.pick !== p.truth && kind === KINDS.at(-1)) mistakes.push(`${p.truth ? "named person" : "stranger"} ${p.s.person}: "${title(p.s.file)}" named as ${d.pick} (${m.score.toFixed(2)}, next ${m.runnerUp.toFixed(2)})`);
       if (k === 3 || k === 5) {
@@ -358,7 +358,7 @@ for (const kind of KINDS) {
     groupTruth.cache.set(file, a);
     const free = a.faces.map((f) => (f.usable ? f.emb[kind] : null));
     const matches = F.assignPhoto(free, known, base(kind));
-    const decisions = matches.map((m) => decide(m));
+    const decisions = matches.map((m) => decide(m, kind));
     const usedTruth = new Set();
     const names = decisions.filter((d) => d.pick).map((d) => d.pick);
     if (new Set(names).size !== names.length) g.twice++;
