@@ -55,7 +55,9 @@ type JobSpec = {
   temp: string | null;
 };
 
-const VOLUMES = process.platform === "darwin" ? "/Volumes" : process.platform === "linux" ? `/media/${process.env.USER ?? ""}` : null;
+// Robot tests stand a folder in for the computer's list of plugged-in cards.
+const TEST_VOLUMES = process.env.HUB_TEST === "1" ? process.env.HUB_VOLUMES || null : null;
+const VOLUMES = TEST_VOLUMES ?? (process.platform === "darwin" ? "/Volumes" : process.platform === "linux" ? `/media/${process.env.USER ?? ""}` : null);
 
 export function importsApi(ctx: Ctx) {
   const { one, all, run } = q(ctx);
@@ -248,7 +250,8 @@ export function importsApi(ctx: Ctx) {
   }
 
   async function tick() {
-    if (running) return;
+    // Paused (the library's Pause button): nothing is copied until Resume.
+    if (running || s().paused) return;
     const next = all<{ id: number; spec: string }>("select id, spec from import_jobs where state in ('waiting', 'running') order by id");
     for (const j of next) {
       // A card that isn't plugged in: wait for it.
@@ -280,6 +283,12 @@ export function importsApi(ctx: Ctx) {
     const files = all<{ n: number; src: string; size: number; dest_dir: string }>("select n, src, size, dest_dir from job_files where job_id = ? and state = 'todo' order by n", jobId);
     for (const f of files) {
       if (cancel.has(jobId)) break;
+      if (s().paused) {
+        // Pause stops after the photo being copied; Resume carries on here.
+        run("update import_jobs set state = 'waiting' where id = ?", jobId);
+        push(true);
+        return;
+      }
       if (!existsSync(f.src)) {
         // The card was unplugged: stop here and carry on when it's back.
         run("update import_jobs set state = 'waiting' where id = ?", jobId);
@@ -292,6 +301,17 @@ export function importsApi(ctx: Ctx) {
         if (skipDup && known.has(hash)) {
           state = "dup";
           reason = "already";
+        } else if (await sameFile(path.join(f.dest_dir, path.basename(f.src)), hash)) {
+          // Copied last time but the app closed before it was written down:
+          // the checked copy is already there, so don't make a second one.
+          dest = path.join(f.dest_dir, path.basename(f.src));
+          known.add(hash);
+          const info = await readSource(f.src).catch(() => null);
+          run(
+            "insert or replace into import_files (path, import_id, offset_ms, photographer, category) values (?, ?, ?, ?, ?)",
+            dest, job.import_id, info ? (spec.offsets[info.camera] ?? 0) : 0, spec.photographer || null, spec.category || null,
+          );
+          if (info) run("insert or ignore into seen_files (key, at) values (?, ?)", info.key, Date.now());
         } else {
           await mkdir(f.dest_dir, { recursive: true });
           dest = await freeName(path.join(f.dest_dir, path.basename(f.src)));
@@ -310,9 +330,17 @@ export function importsApi(ctx: Ctx) {
           if (info) run("insert or ignore into seen_files (key, at) values (?, ?)", info.key, Date.now());
         }
       } catch (e) {
+        if (dest) run("delete from import_files where path = ?", dest);
+        if (!existsSync(f.src)) {
+          // The card was pulled out while this photo was copying: nothing
+          // half-copied is kept, and this photo is copied again when it's back.
+          if (dest) await rm(path.join(path.dirname(dest), `.${path.basename(dest)}.copying`), { force: true }).catch(() => {});
+          run("update import_jobs set state = 'waiting' where id = ?", jobId);
+          push(true);
+          return;
+        }
         state = "failed";
         reason = e instanceof Error ? e.message : String(e);
-        if (dest) run("delete from import_files where path = ?", dest);
       }
       run("update job_files set state = ?, dest = ?, reason = ? where job_id = ? and n = ?", state, dest, reason, jobId, f.n);
       run("update import_jobs set done = done + 1, bytes_done = bytes_done + ? where id = ?", f.size, jobId);
@@ -325,6 +353,11 @@ export function importsApi(ctx: Ctx) {
       return finish(jobId, spec, true);
     }
     return finish(jobId, spec, false);
+  }
+
+  // A library file with exactly these bytes.
+  async function sameFile(file: string, hash: string) {
+    return existsSync(file) && (await hashFile(file).catch(() => null)) === hash;
   }
 
   async function finish(jobId: number, spec: JobSpec, cancelled: boolean) {
@@ -394,6 +427,7 @@ export function importsApi(ctx: Ctx) {
         // Seconds left from the copying speed so far.
         left: rate > 0 ? Math.round((j.bytes_total - j.bytes_done) / rate) : null,
         waitingForCard: j.state === "waiting" && !!spec.volume && !existsSync(spec.volume),
+        paused: j.state === "waiting" && !!s().paused,
         error: j.error,
       };
     });
@@ -402,7 +436,7 @@ export function importsApi(ctx: Ctx) {
   // ---------- Cards and iPhones ----------
   async function volumes() {
     const out: { name: string; path: string; volume: string }[] = [];
-    if (process.platform === "win32") {
+    if (process.platform === "win32" && !TEST_VOLUMES) {
       // Every drive letter is looked at in the background and at the same
       // time: a network drive that's gone away can take seconds to answer,
       // and the app must not wait for it (0.7, Windows).
@@ -729,5 +763,5 @@ foreach ($f in $dcim.GetFolder.Items()) { $dest.CopyHere($f, 4 + 16 + 1024); Wri
       return dir;
     },
   };
-  return { api, startWatching, stopWatching, jobs };
+  return { api, startWatching, stopWatching, jobs, kick: () => void tick() };
 }

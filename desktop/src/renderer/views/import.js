@@ -169,7 +169,7 @@ App.views.import = {
       <button class="btn primary" id="i-sum">${L("See summary", "عرض الملخص")}</button><button class="btn ghost" id="i-sumx">${icon("x", 14)}</button></div>`;
   },
   jobRow(j) {
-    const state = j.state === "running" ? timeLeft(j.left) : j.waitingForCard ? L("Waiting: plug the card back in to carry on", "في الانتظار: أعد إدخال الكارت للمتابعة") : j.state === "problem" ? L(`Stopped: ${j.error}`, `توقف: ${j.error}`) : j.state === "waiting" ? L("Waiting for the one before", "في انتظار السابق") : j.state === "done" ? L("Finished", "انتهى") : L("Cancelled", "أُلغي");
+    const state = j.state === "running" ? timeLeft(j.left) : j.waitingForCard ? L("Waiting: plug the card back in to carry on", "في الانتظار: أعد إدخال الكارت للمتابعة") : j.state === "problem" ? L(`Stopped: ${j.error}`, `توقف: ${j.error}`) : j.paused ? L("Paused: press Resume to carry on", "متوقف مؤقتًا: اضغط استئناف للمتابعة") : j.state === "waiting" ? L("Waiting for the one before", "في انتظار السابق") : j.state === "done" ? L("Finished", "انتهى") : L("Cancelled", "أُلغي");
     const live = j.state === "running" || j.state === "waiting" || j.state === "problem";
     return `<div class="col gap4"><div class="row nowrap"><b class="grow">${esc(j.title)}</b><span class="muted small">${esc(state)}</span>
       ${live ? `<button class="btn small ghost" data-open="${j.importId}" title="${L("Start picking while it copies", "ابدأ الاختيار أثناء النسخ")}">${icon("images", 14)}</button>` : `<button class="btn small" data-sumj="${j.importId}">${L("Summary", "الملخص")}</button>`}
@@ -187,9 +187,17 @@ App.views.import = {
     if (App.view !== "import" || IMP.scan || IMP.scanning) return;
     if (changed?.includes("status")) {
       const card = $("#imp .card h3")?.closest(".card");
-      if (card && (S.imports ?? []).length && card.textContent.includes(L("Importing", "جارٍ الاستيراد"))) {
+      const shown = card && card.textContent.includes(L("Importing", "جارٍ الاستيراد"));
+      if (shown && (S.imports ?? []).length) {
         card.innerHTML = `<h3>${L("Importing", "جارٍ الاستيراد")}</h3>${S.imports.map((j) => this.jobRow(j)).join("")}`;
         this.bindJobs(card);
+      } else if (!shown && (S.imports ?? []).length && $("#imp #drop")) {
+        // An import started since the tab was drawn (from a card, a link or
+        // after a restart): show it, with its progress.
+        if (!this.redrawing) {
+          this.redrawing = true;
+          this.draw().finally(() => (this.redrawing = false));
+        }
       }
     }
   },

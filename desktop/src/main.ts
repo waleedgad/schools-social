@@ -137,6 +137,7 @@ let features: Record<string, (...args: never[]) => unknown> = {};
 // Imports running in the background (Import tab and sidebar progress).
 let importJobs: () => unknown[] = () => [];
 let stopImports = () => {};
+let kickImports = () => {};
 
 // The sign-in session is encrypted with the operating system's key store.
 const sessionFile = () => data("session.bin");
@@ -1439,7 +1440,7 @@ function createTray() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: "Open", click: () => win?.show() },
-      { label: "Pause / resume", click: () => { settings.set({ paused: !settings.get().paused }); push(); } },
+      { label: "Pause / resume", click: () => { settings.set({ paused: !settings.get().paused }); if (!settings.get().paused) kickImports(); push(); } },
       { label: "Quit", click: () => { quitting = true; app.quit(); } },
     ]),
   );
@@ -1593,6 +1594,7 @@ app.whenReady().then(async () => {
   web.start();
   features.webSyncNow = () => web.now();
   stopImports = imports.stopWatching;
+  kickImports = imports.kick;
   timers.push(binTimer(ctx, features), cleanTimer(ctx));
 
   const api: Record<string, (...args: never[]) => unknown> = {
@@ -1629,6 +1631,7 @@ app.whenReady().then(async () => {
       if (key === "language") createMenu();
       if (key === "theme") syncTheme();
       if (key === "faces" && value) engine?.queueFaceScan();
+      if (key === "paused" && !value) kickImports();
       push();
     },
     addWatched: async () => {
