@@ -1,0 +1,58 @@
+# The whole Mac app on real faces (release 0.9): import, face finding,
+# naming, re-scan and moved folders, with the freely licensed stand-in
+# photos of the face test (never stored in the repository; GitHub keeps them
+# in its cache). Runs on Linux and Windows.
+name: Faces in the app
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - desktop/src/core/faces.ts
+      - desktop/src/core/engine.ts
+      - desktop/src/main.ts
+      - desktop/src/features/faces.ts
+      - desktop/e2e/faces-real.spec.ts
+      - desktop/bench/faces/**
+      - .github/workflows/faces-app.yml
+
+jobs:
+  faces:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done
+      - uses: actions/cache@v4
+        with:
+          path: ~/face-bench-photos
+          key: face-bench-photos-v1-${{ hashFiles('desktop/bench/faces/people.json', 'desktop/bench/faces/fetch.mjs') }}
+      - name: Download the stand-in photos
+        run: node bench/faces/fetch.mjs ~/face-bench-photos 50
+      - run: npm run build
+      - if: runner.os == 'Linux'
+        run: FACE_PHOTOS=~/face-bench-photos xvfb-run -a npx playwright test e2e/faces-real.spec.ts
+      - if: runner.os != 'Linux'
+        run: FACE_PHOTOS="$(cygpath -w ~/face-bench-photos)" npx playwright test e2e/faces-real.spec.ts
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faces-app-${{ matrix.os }}
+          path: |
+            desktop/e2e-report
+            desktop/test-results
+          if-no-files-found: ignore
+          retention-days: 14

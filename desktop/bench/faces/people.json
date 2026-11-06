@@ -1,0 +1,18 @@
+{
+  "about": "Stand-in face test set. Well-known adults whose Wikimedia Commons categories hold many freely licensed photos (CC0, public domain, CC BY, CC BY-SA). Only used to measure the face engine; photos are downloaded during the test and never stored in this repository.",
+  "people": [
+    "Mohamed Salah", "Abdel Fattah el-Sisi", "Mohamed ElBaradei", "Ahmed Zewail", "Amr Moussa", "Hosni Mubarak", "Mohamed Morsi",
+    "Boutros Boutros-Ghali", "Abdullah II of Jordan", "Queen Rania of Jordan", "Mohammed bin Salman", "Tamim bin Hamad Al Thani",
+    "Mohammed bin Rashid Al Maktoum", "Ons Jabeur", "Mahmoud Abbas", "Recep Tayyip Erdoğan", "Hassan Rouhani", "Nawal El Saadawi",
+    "Tawakkol Karman", "Malala Yousafzai", "Rami Malek",
+    "Angela Merkel", "Ursula von der Leyen", "Kamala Harris", "Hillary Clinton", "Michelle Obama", "Jacinda Ardern", "Theresa May",
+    "Christine Lagarde", "Kristalina Georgieva", "Serena Williams", "Taylor Swift", "Emma Watson", "Lupita Nyong'o", "Priyanka Chopra",
+    "Giorgia Meloni", "Sanna Marin", "Nancy Pelosi", "Mette Frederiksen", "Ngozi Okonjo-Iweala", "Ellen Johnson Sirleaf",
+    "Sheikh Hasina", "Tsai Ing-wen", "Yulia Tymoshenko",
+    "Barack Obama", "Joe Biden", "Emmanuel Macron", "Justin Trudeau", "Olaf Scholz", "Narendra Modi", "Shinzo Abe", "Moon Jae-in",
+    "Volodymyr Zelenskyy", "António Guterres", "Ban Ki-moon", "Kofi Annan", "Paul Kagame", "Cyril Ramaphosa", "Lionel Messi",
+    "Cristiano Ronaldo", "Neymar", "Shah Rukh Khan", "Imran Khan", "Jackie Chan", "Keanu Reeves", "Tom Hanks", "Bill Gates",
+    "Pope Francis", "Mark Rutte", "Boris Johnson", "Pedro Sánchez", "Luiz Inácio Lula da Silva", "Kylian Mbappé", "Usain Bolt",
+    "Morgan Freeman", "Denzel Washington"
+  ]
+}
