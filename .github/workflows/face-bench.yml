@@ -1,0 +1,63 @@
+# Face-accuracy test on stand-in photos (until the school's own test photos
+# arrive). Downloads freely licensed photos of well-known adults from
+# Wikimedia Commons (CC0 / public domain / CC BY / CC BY-SA only), builds
+# class-photo style group pictures from them, and scores the app's face
+# engine (SFace and AuraFace). The photos are never stored in the repository;
+# GitHub keeps them in its cache between runs. The score is on the run's
+# summary page and in the "face-report" artifact.
+name: Face test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - desktop/src/core/faces.ts
+      - desktop/bench/faces/**
+      - .github/workflows/face-bench.yml
+
+jobs:
+  faces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run build
+      - uses: actions/cache@v4
+        with:
+          path: ~/face-bench-photos
+          key: face-bench-photos-v1-${{ hashFiles('desktop/bench/faces/people.json', 'desktop/bench/faces/fetch.mjs') }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/face-models
+          key: auraface-v1
+      - name: Download the stand-in photos
+        run: node bench/faces/fetch.mjs ~/face-bench-photos 25
+      - name: Download AuraFace (Apache 2.0)
+        run: |
+          mkdir -p ~/face-models
+          f=~/face-models/auraface_glintr100.onnx
+          [ -s "$f" ] || curl -sSfL -o "$f" https://huggingface.co/fal/AuraFace-v1/resolve/main/glintr100.onnx
+      - name: Score the face engine
+        run: |
+          rm -rf ~/face-bench-photos/groups
+          node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: face-report
+          path: |
+            ~/face-bench-photos/report.md
+            ~/face-bench-photos/report.json
+            ~/face-bench-photos/credits.json
+          retention-days: 30
