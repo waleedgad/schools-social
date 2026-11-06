@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("hub", {
   onProgress: (fn: (p: unknown) => void) => ipcRenderer.on("progress", (_e, p) => fn(p)),
   // Import news: reading a card, an import finished, a card or iPhone plugged in.
   on: (channel: string, fn: (p: unknown) => void) => {
-    if (["importScan", "importDone", "importDevice"].includes(channel)) ipcRenderer.on(channel, (_e, p) => fn(p));
+    if (["importScan", "importDone", "importDevice", "fileAsk"].includes(channel)) ipcRenderer.on(channel, (_e, p) => fn(p));
   },
   pathFor: (file: File) => webUtils.getPathForFile(file),
 });

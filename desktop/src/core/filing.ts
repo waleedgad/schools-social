@@ -12,7 +12,8 @@ const CLASS = /^(KG\s?\d[A-Z]?|\d{1,2}\s?[A-Z]|Grade\s?\d{1,2}\s?[A-Z]?)$/i;
 
 export function planFiling(db: Db, library: string, onlyIds?: number[]) {
   const rows = db
-    .prepare(`select id, path, taken_at, mtime from photos where missing = 0 ${onlyIds?.length ? `and id in (${onlyIds.map(() => "?").join(",")})` : ""}`)
+    // A RAW with its JPEG moves with the JPEG, never by itself.
+    .prepare(`select id, path, taken_at, mtime from photos where missing = 0 and pair_of is null ${onlyIds?.length ? `and id in (${onlyIds.map(() => "?").join(",")})` : ""}`)
     .all(...(onlyIds ?? [])) as { id: number; path: string; taken_at: string | null; mtime: number }[];
   const moves: FilingMove[] = [];
   const unsure: number[] = [];
@@ -21,8 +22,10 @@ export function planFiling(db: Db, library: string, onlyIds?: number[]) {
     // Already under a Year folder: filed, or put there by someone on purpose.
     if (rel.startsWith("..") || placeFromPath(library, r.path).year) continue;
     const parts = rel ? rel.split(path.sep) : [];
-    if (parts.some((p) => p.startsWith("_") || p.startsWith("."))) continue;
+    // "Drop here" files itself (see the Import tab), on its own timer.
+    if (parts.some((p) => p.startsWith("_") || p.startsWith(".")) || parts[0] === "Drop here") continue;
     let className: string | null = null;
+    if (/^raw$/i.test(parts.at(-1) ?? "")) parts.pop();
     let folder = parts.at(-1) ?? "";
     if (CLASS.test(folder) && parts.length > 1) {
       className = folder.toUpperCase().replace(/\s+/g, "");

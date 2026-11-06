@@ -1,6 +1,6 @@
 import { _electron, expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, utimesSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -56,11 +56,11 @@ function setup() {
   return { base, lib, volumes, userData, dbFile: path.join(userData, "library.db") };
 }
 
-async function launch(userData: string, volumes: string) {
+async function launch(userData: string, volumes: string, env: Record<string, string> = {}) {
   const app = await _electron.launch({
     executablePath: require("electron") as unknown as string,
     args: [root, `--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
-    env: { ...process.env, HUB_TEST: "1", HUB_VOLUMES: volumes },
+    env: { ...process.env, HUB_TEST: "1", HUB_VOLUMES: volumes, ...env },
   });
   const win = await app.firstWindow();
   const errors: string[] = [];
@@ -245,3 +245,74 @@ test("a RAW and its JPEG are one photo: counted once, moved and binned together,
 });
 
 const byId = (all: Row[], id: number) => all.find((r) => r.id === id)!;
+
+test("self-filing is off by default; switched on it files photos once, and switched off it stops", async () => {
+  test.setTimeout(240_000);
+  const { lib, volumes, userData, dbFile } = setup();
+  const year = path.join(lib, "2026-2027", "Term 1");
+  const at = (file: string, bytes: Buffer, day: string) => {
+    put(file, bytes);
+    const t = new Date(`${day}T10:00:00`);
+    utimesSync(file, t, t);
+  };
+  const p = await Promise.all([1, 2, 3, 4, 5, 6, 7].map((i) => photo(i + 50)));
+  at(path.join(year, "2026-10-01 Assembly", "IMG_0000.jpg"), p[0], "2026-10-01");
+  at(path.join(lib, "2026-10-12 Sports day", "IMG_0001.jpg"), p[1], "2026-10-12");
+  at(path.join(lib, "2026-10-12 Sports day", "IMG_0002.jpg"), p[2], "2026-10-12");
+  at(path.join(lib, "2026-10-12 Sports day", "RAW", "IMG_0001.CR2"), rawFile(p[1]), "2026-10-12");
+  at(path.join(lib, "Trip", "IMG_0003.jpg"), p[3], "2026-10-15");
+  const { app, win, errors } = await launch(userData, volumes, { HUB_FILE_WAIT: "3000" });
+  await settled(win, dbFile, 5);
+
+  // Off by default: nothing moves.
+  expect(((await call(win, "state")) as { selfFiling: boolean }).selfFiling).toBe(false);
+  await new Promise((r) => setTimeout(r, 5000));
+  expect(existsSync(path.join(lib, "Trip", "IMG_0003.jpg"))).toBe(true);
+
+  // Switched on, "Tidy now": each photo moved once into Year / Term / Event,
+  // the RAW with its JPEG.
+  await call(win, "set", "selfFiling", true);
+  const plan = (await call(win, "filingPlan")) as { count: number };
+  expect(plan.count, "3 photos (the RAW goes with its JPEG)").toBe(3);
+  const done = (await call(win, "applyFiling")) as { moved: number };
+  expect(done.moved).toBe(4);
+  const sports = path.join(year, "2026-10-12 Sports day");
+  for (const f of [path.join(sports, "IMG_0001.jpg"), path.join(sports, "IMG_0002.jpg"), path.join(sports, "RAW", "IMG_0001.CR2"), path.join(year, "2026-10-15 Trip", "IMG_0003.jpg")]) expect(existsSync(f), f).toBe(true);
+  expect(existsSync(path.join(lib, "Trip", "IMG_0003.jpg"))).toBe(false);
+  const check = () => {
+    const all = rows(dbFile).filter((r) => !r.missing);
+    expect(new Set(all.map((r) => r.path)).size, "no photo listed twice").toBe(all.length);
+    expect(new Set(all.map((r) => r.hash)).size, "no photo doubled").toBe(all.length);
+    return all;
+  };
+  expect(check().length).toBe(5);
+  expect(((await call(win, "applyFiling")) as { moved: number }).moved, "nothing moved twice").toBe(0);
+
+  // A new photo outside the event folders is filed by itself.
+  at(path.join(lib, "New", "IMG_0004.jpg"), p[4], "2026-10-16");
+  await expect.poll(() => existsSync(path.join(year, "2026-10-16 New", "IMG_0004.jpg")), { timeout: 60_000 }).toBe(true);
+  expect(check().length).toBe(6);
+
+  // B-60: switched off while a new photo waits to be filed: it stays put.
+  at(path.join(lib, "Later", "IMG_0005.jpg"), p[5], "2026-10-17");
+  await expect.poll(() => rows(dbFile).find((r) => r.path.endsWith(path.join("Later", "IMG_0005.jpg")))?.hash ?? null, { timeout: 60_000, intervals: [100] }).not.toBeNull();
+  await call(win, "set", "selfFiling", false);
+  // Longer than the app's usual 20 second wait, not just the test's 3.
+  await new Promise((r) => setTimeout(r, 22_000));
+  expect(existsSync(path.join(lib, "Later", "IMG_0005.jpg")), "not moved after switching off").toBe(true);
+
+  // B-61: "Ask me first" asks, and moves only when told to.
+  await call(win, "set", "selfFiling", true);
+  await call(win, "set", "fileAsk", true);
+  at(path.join(lib, "Ask", "IMG_0006.jpg"), p[6], "2026-10-18");
+  const toast = win.locator(".t", { hasText: "1 new photo isn't in an event folder yet" });
+  await expect(toast).toBeVisible({ timeout: 60_000 });
+  expect(existsSync(path.join(lib, "Ask", "IMG_0006.jpg")), "asked, not moved").toBe(true);
+  await win.screenshot({ path: test.info().outputPath("filing-ask.png") });
+  await toast.locator("button").click();
+  await expect.poll(() => existsSync(path.join(year, "2026-10-18 Ask", "IMG_0006.jpg")), { timeout: 30_000 }).toBe(true);
+  expect(existsSync(path.join(lib, "Later", "IMG_0005.jpg")), "the one from while it was off stays").toBe(true);
+  expect(check().length).toBe(8);
+  expect(errors).toEqual([]);
+  await app.close();
+});

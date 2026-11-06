@@ -1137,8 +1137,11 @@ async function applyFiling(onlyIds?: number[]) {
   return { moved: undo.length, unsure: unsure.length };
 }
 
-// New photos that land outside the filed folders are filed after a short wait.
+// New photos that land outside the filed folders are filed after a short
+// wait, or, with "Ask me first", the school is asked (B-61). Switched off in
+// the meantime: nothing is moved (B-60).
 let toFile = new Set<number>();
+let askToFile = new Set<number>();
 let fileTimer: NodeJS.Timeout | null = null;
 function fileSoon(id: number) {
   toFile.add(id);
@@ -1147,8 +1150,21 @@ function fileSoon(id: number) {
     fileTimer = null;
     const ids = [...toFile];
     toFile = new Set();
+    const s = settings.get();
+    if (!s.selfFiling) return;
+    if (s.fileAsk) {
+      ids.forEach((id) => askToFile.add(id));
+      const n = planFiling(db, s.library!, [...askToFile]).moves.length;
+      if (n) sendWin("fileAsk", { n });
+      return;
+    }
     applyFiling(ids).catch((e) => (lastMessage = String(e)));
-  }, 20_000);
+  }, Number(process.env.HUB_TEST && process.env.HUB_FILE_WAIT) || 20_000);
+}
+async function fileWaiting() {
+  const ids = [...askToFile];
+  askToFile = new Set();
+  return settings.get().selfFiling && ids.length ? applyFiling(ids) : { moved: 0, unsure: 0 };
 }
 
 // ---------- Albums ----------
@@ -1738,6 +1754,7 @@ app.whenReady().then(async () => {
       return { count: moves.length, unsure: unsure.length, groups: groupMoves(moves).slice(0, 200).map((g) => ({ title: g.title, date: g.date, className: g.className, n: g.ids.length })) };
     },
     applyFiling: () => applyFiling(),
+    fileWaiting: () => fileWaiting(),
     cleanupList: (kind: string) => cleanupList(kind),
     cleanSafe: async () => {
       const r = await cleanupReport();

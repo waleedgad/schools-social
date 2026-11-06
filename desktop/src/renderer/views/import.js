@@ -22,6 +22,13 @@ window.hub.on("importDone", (p) => {
   if (App.view === "import" && !IMP.scan && !IMP.scanning) App.views.import.draw();
   else toastAction(L(`Import finished: ${num(p.copied)} photos`, `انتهى الاستيراد: ${num(p.copied)} صورة`), L("See summary", "عرض الملخص"), () => go("import", { summary: p.importId }), 9000);
 });
+// Self-filing set to "Ask me first": new photos outside the event folders.
+window.hub.on("fileAsk", (p) => {
+  toastAction(p.n === 1 ? L("1 new photo isn't in an event folder yet", "صورة جديدة ليست في مجلد فعالية بعد") : L(`${num(p.n)} new photos aren't in an event folder yet`, `${num(p.n)} صورة جديدة ليست في مجلد فعالية بعد`), L("File them", "رتّبها"), async () => {
+    const r = await call("fileWaiting");
+    if (r?.moved) toastAction(L(`${num(r.moved)} photos filed`, `رُتّبت ${num(r.moved)} صورة`), L("Undo", "تراجع"), () => doUndo());
+  }, 30_000);
+});
 window.hub.on("importDevice", (d) => {
   if (IMP.scan || IMP.scanning) return;
   IMP.device = d;
