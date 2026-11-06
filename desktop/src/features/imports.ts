@@ -323,7 +323,7 @@ export function importsApi(ctx: Ctx) {
           );
           if (info) run("insert or ignore into seen_files (key, at) values (?, ?)", info.key, Date.now());
         } else {
-          await mkdir(f.dest_dir, { recursive: true });
+          await mkdirInside(root, f.dest_dir);
           dest = await freeName(path.join(f.dest_dir, path.basename(f.src)));
           const info = await readSource(f.src).catch(() => null);
           run(
@@ -381,6 +381,21 @@ export function importsApi(ctx: Ctx) {
     if (code === "ENOSPC" || code === "EDQUOT") return "disk-full";
     if (code === "EROFS" || code === "EACCES" || code === "EPERM") return "read-only";
     return null;
+  }
+
+  // Makes the event folders one by one inside the library, never the library
+  // folder itself: if the drive was just unplugged this fails, instead of
+  // making a new, empty library where the drive was (B-63).
+  async function mkdirInside(root: string, dir: string) {
+    const rel = path.relative(root, dir);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) throw new Error("outside-library");
+    let at = root;
+    for (const part of rel.split(path.sep).filter(Boolean)) {
+      at = path.join(at, part);
+      await mkdir(at).catch((e: NodeJS.ErrnoException) => {
+        if (e.code !== "EEXIST") throw e;
+      });
+    }
   }
 
   // A library file with exactly these bytes.
