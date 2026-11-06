@@ -147,11 +147,11 @@ test("real faces: names stay, one name per photo, no tiny, blurred, adult or str
     const soft = all.filter((f) => /^(tiny|blur)-/.test(f.photo) && (f.student_id || f.suggest_id));
     expect(soft.map((f) => `${f.photo}: ${f.student_id ?? f.suggest_id}`), `${when}: tiny or blurred face named`).toEqual([]);
     // B-16: strangers are never named; the teacher is never named as a student.
-    // News photos often show other people too: in each single photo only the
-    // biggest face is the person the folder is about.
-    const main = new Map<string, number>();
-    for (const f of all) if (!main.has(f.photo) || all.find((x) => x.id === main.get(f.photo))!.w < f.w) main.set(f.photo, f.id);
-    const wrong = all.filter((f) => main.get(f.photo) === f.id).filter((f) => {
+    // News photos often show other people too (a stranger meeting one of
+    // the "students"): only photos with a single clear face are judged.
+    const clear = all.filter((f) => f.status !== "background");
+    const single = new Set([...new Set(clear.map((f) => f.photo))].filter((ph) => clear.filter((f) => f.photo === ph).length === 1));
+    const wrong = clear.filter((f) => single.has(f.photo)).filter((f) => {
       const who = f.student_id ?? (f.status === "suggested" ? f.suggest_id : null);
       if (!who) return false;
       const strangerPhoto = f.photo.startsWith(`${stranger1.name}-`) || f.photo.startsWith(`${stranger2.name}-`);
