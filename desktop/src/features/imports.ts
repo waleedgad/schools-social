@@ -403,10 +403,18 @@ export function importsApi(ctx: Ctx) {
   async function volumes() {
     const out: { name: string; path: string; volume: string }[] = [];
     if (process.platform === "win32") {
-      for (const l of "DEFGHIJKLMNOPQRSTUVWXYZ") {
-        const dcim = `${l}:\\DCIM`;
-        if (existsSync(dcim)) out.push({ name: `${l}:`, path: dcim, volume: `${l}:\\` });
-      }
+      // Every drive letter is looked at in the background and at the same
+      // time: a network drive that's gone away can take seconds to answer,
+      // and the app must not wait for it (0.7, Windows).
+      const found = await Promise.all(
+        [..."DEFGHIJKLMNOPQRSTUVWXYZ"].map((l) =>
+          Promise.race([
+            stat(`${l}:\\DCIM`).then((st) => st.isDirectory()).catch(() => false),
+            new Promise<boolean>((r) => setTimeout(() => r(false), 3000).unref?.()),
+          ]).then((ok) => (ok ? l : null)),
+        ),
+      );
+      for (const l of found) if (l) out.push({ name: `${l}:`, path: `${l}:\\DCIM`, volume: `${l}:\\` });
       return out;
     }
     if (!VOLUMES) return out;
