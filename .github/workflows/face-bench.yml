@@ -18,7 +18,7 @@ on:
 jobs:
   faces:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     defaults:
       run:
         working-directory: desktop
@@ -42,7 +42,7 @@ jobs:
           path: ~/face-models
           key: auraface-v1
       - name: Download the stand-in photos
-        run: node bench/faces/fetch.mjs ~/face-bench-photos 25
+        run: node bench/faces/fetch.mjs ~/face-bench-photos 50
       - name: Download AuraFace (Apache 2.0)
         run: |
           mkdir -p ~/face-models

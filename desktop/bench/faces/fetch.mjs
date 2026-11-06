@@ -59,6 +59,30 @@ async function filesIn(category) {
   return files;
 }
 
+// Files whose name carries the person's full name: usually photos of them.
+async function filesNamed(name) {
+  const files = [];
+  const j = await api({
+    action: "query",
+    generator: "search",
+    gsrsearch: `intitle:"${name}" filetype:bitmap`,
+    gsrnamespace: "6",
+    gsrlimit: "100",
+    prop: "imageinfo",
+    iiprop: "url|extmetadata|mime|size",
+    iiurlwidth: "1000",
+  });
+  for (const p of j.query?.pages ?? []) {
+    const ii = p.imageinfo?.[0];
+    if (!ii || ii.mime !== "image/jpeg" || ii.width < 500) continue;
+    const m = ii.extmetadata ?? {};
+    const licence = strip(m.LicenseShortName?.value);
+    if (!OK_LICENCE.test(licence) || BAD_LICENCE.test(licence)) continue;
+    files.push({ title: p.title, url: ii.thumburl ?? ii.url, page: ii.descriptionurl, licence, author: strip(m.Artist?.value) || "unknown" });
+  }
+  return files;
+}
+
 async function subcats(category) {
   const j = await api({ action: "query", list: "categorymembers", cmtitle: `Category:${category}`, cmtype: "subcat", cmlimit: "50" });
   return (j.query?.categorymembers ?? []).map((c) => c.title.replace(/^Category:/, ""));
@@ -80,7 +104,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await mkdir(dir, { recursive: true });
     let files = [];
     try {
-      files = await filesIn(name);
+      files = [...(await filesNamed(name)).map((f) => ({ ...f, named: 1 })), ...(await filesIn(name))];
       // Many people keep most photos in sub-categories ("X in 2019", "Portraits of X").
       if (files.length < perPerson) {
         const surname = name.split(" ").at(-1).toLowerCase();
@@ -94,20 +118,30 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     // Same order every run, so the test is repeatable.
     const seen = new Set();
-    files = files.filter((f) => !seen.has(f.title) && seen.add(f.title)).sort((a, b) => a.title.localeCompare(b.title)).slice(0, perPerson);
+    files = files.filter((f) => !seen.has(f.title) && seen.add(f.title)).sort((a, b) => (b.named ?? 0) - (a.named ?? 0) || a.title.localeCompare(b.title)).slice(0, perPerson);
     let got = 0;
     for (const [i, f] of files.entries()) {
       const file = path.join(dir, `${String(i).padStart(2, "0")}.jpg`);
       if (!(await exists(file))) {
-        try {
-          const res = await fetch(f.url, { headers: { "User-Agent": UA } });
-          if (!res.ok) throw new Error(String(res.status));
-          await writeFile(file, Buffer.from(await res.arrayBuffer()));
-          await sleep(150);
-        } catch (e) {
-          console.log(`  ${f.title}: ${e.message}`);
-          continue;
+        let ok = false;
+        for (let tries = 0; tries < 5 && !ok; tries++) {
+          try {
+            const res = await fetch(f.url, { headers: { "User-Agent": UA } });
+            if (res.status === 429 || res.status >= 500) {
+              // Commons asks us to slow down: wait and try again.
+              await sleep(Number(res.headers.get("retry-after") ?? 0) * 1000 || 3000 * 2 ** tries);
+              continue;
+            }
+            if (!res.ok) throw new Error(String(res.status));
+            await writeFile(file, Buffer.from(await res.arrayBuffer()));
+            ok = true;
+          } catch (e) {
+            console.log(`  ${f.title}: ${e.message}`);
+            break;
+          }
         }
+        await sleep(250);
+        if (!ok) continue;
       }
       got++;
       credits.push({ person: name, file: path.relative(out, file), ...f });
