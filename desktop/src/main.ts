@@ -13,7 +13,7 @@ import { busy, watchStalls } from "./core/busy";
 import { checkpointInBackground, openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
-import { SHOW_FROM, SURE } from "./core/faces";
+import { likelihood, SHOW_FROM, SURE } from "./core/faces";
 import { groupMoves, planFiling } from "./core/filing";
 import { eventFolder, isLibraryFile, placeFromPath, safeName, setTermDates, type TermDates } from "./core/library";
 import type { Ctx } from "./features/ctx";
@@ -296,7 +296,7 @@ function state() {
       (select count(*) from photos where missing = 0 and pair_of is null and dup_of is null) photos,
       (select count(*) from photos where missing = 0 and added_at > ?) newPhotos,
       (select count(*) from faces f join photos p on p.id = f.photo_id where f.status = 'suggested' and p.missing = 0) suggested,
-      (select count(*) from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and p.missing = 0) unknown,
+      (select count(*) from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and coalesce(f.why, '') != 'far' and p.missing = 0) unknown,
       (select count(*) from faces where status in ('confirmed', 'manual')) tagged,
       (select count(*) from students) students,
       (select count(*) from students where portrait is not null) portraits,
@@ -797,12 +797,12 @@ function photo(id: number) {
   const p = one(`select p.*, ${PHOTO_COLUMNS.replace(/p\.id, /, "")} from photos p where p.id = ?`, id);
   if (!p) return null;
   const faces = all(
-    `select f.id, f.x, f.y, f.w, f.h, f.status, f.student_id, f.suggest_id, f.suggest_score,
+    `select f.id, f.x, f.y, f.w, f.h, f.status, f.why, f.student_id, f.suggest_id, f.suggest_score,
        s.name_en, s.name_ar, s.class_name, s.can_post, g.name_en as suggest_en, g.name_ar as suggest_ar, g.class_name as suggest_class
      from faces f left join students s on s.id = f.student_id left join students g on g.id = f.suggest_id
      where f.photo_id = ? and f.status != 'rejected' order by f.x`,
     id,
-  );
+  ).map((f) => ({ ...f, likely: f.status === "suggested" ? likelihood(f.suggest_score as number) : null }));
   const edits = all("select id, name, path from photos where edited_of = ? and missing = 0", id);
   const original = p.edited_of ? one("select id, name from photos where id = ?", p.edited_of) : null;
   const raw = all("select id, name, path from photos where pair_of = ?", id);
@@ -1129,7 +1129,7 @@ function isThisQueue(studentIds?: string[]) {
      where f.status = 'suggested' and f.suggest_score >= ? and p.missing = 0 ${only} order by f.suggest_score desc limit 400`,
     SHOW_FROM,
     ...(studentIds ?? []),
-  );
+  ).map((f) => ({ ...f, likely: likelihood((f as { suggest_score: number }).suggest_score) }));
 }
 
 // ---------- Website uploads and deletes ----------

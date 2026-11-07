@@ -2,8 +2,9 @@
 // parents, visitors) as round faces; "Is this …?" with the whole photo
 // beside the face; "Who is this?" one face at a time with the three likeliest
 // people on keys 1 2 3, or in groups; class photos named row by row;
-// look-alikes and twins; and the "Not a face" bin. Suggestions under 50% are
-// guesses and never shown. Every naming can be undone (⌘Z).
+// look-alikes and twins; and the "Not a face" bin. Suggestions say "Very
+// likely" or "Likely" (right at least 9 in 10 in the face test); weaker
+// matches are guesses, kept behind "More…". Every naming can be undone (⌘Z).
 const FC = { tab: "people", kind: "student", className: "", search: "", event: "", mode: "one", groupOff: new Set(), sel: new Set() };
 const faceImg = (s, big = false) => (s?.face ? `<img class="pface ${big ? "big" : ""}" loading="lazy" src="hub://face/${s.face}" />` : avatar(s, big));
 const undoToast = (msg) => toastAction(msg, L("Undo", "تراجع"), () => doUndo(), 7000);
@@ -143,7 +144,7 @@ App.views.faces = {
         <div class="col gap12" style="align-items: center">
           <div class="muted small">${L(`Student ${studentNo} of ${order.length} · ${left} left for ${esc(name(f))}`, `الطالب ${num(studentNo)} من ${num(order.length)} · بقي ${num(left)} لـ ${esc(name(f))}`)}</div>
           <div class="pair"><img class="q" src="hub://face/${f.id}" />${f.main ? `<div class="col" style="align-items: center; gap: 4px"><img class="ref" src="hub://face/${f.main}" /><span class="tiny muted">${esc(name(f))}</span></div>` : ""}</div>
-          <h2>${L("Is this", "هل هذا")} ${esc(name(f))}${L("?", "؟")} <span class="muted small">${esc(f.class_name ?? "")} · ${Math.round(f.suggest_score * 100)}%</span></h2>
+          <h2>${L("Is this", "هل هذا")} ${esc(name(f))}${L("?", "؟")} <span class="muted small">${esc(f.class_name ?? "")}</span> ${likelyTag(f.likely)}</h2>
           ${f.twin ? `<div class="note warn small">${L(`Careful: looks like ${esc(f.twin)} too`, `انتبه: يشبه ${esc(f.twin)} أيضًا`)}</div>` : ""}
           <div class="row"><button class="btn" id="a-no">${icon("x", 14)} ${L("No", "لا")} <span class="k">N</span></button><button class="btn" id="a-skip">${L("Skip", "تخطٍّ")} <span class="k">S</span></button><button class="btn primary" id="a-yes">${icon("check", 14)} ${L("Yes", "نعم")} <span class="k">Y</span></button></div>
           <button class="link small" id="a-other">${L("No, it's someone else…", "لا، إنه شخص آخر…")}</button>
@@ -193,15 +194,18 @@ App.views.faces = {
         box.innerHTML = emptyState("circle-check", L("No faces left to name here", "لا وجوه بلا أسماء هنا"), named ? L(`${named} named. Thank you!`, `سُمّي ${num(named)}. شكرًا!`) : "");
         return;
       }
-      const guesses = (await quiet("faceGuesses", f.id)) ?? [];
+      const all = (await quiet("faceGuesses", f.id)) ?? [];
       if (faces[i] !== f) return;
+      // Weak guesses only after "More…" (keys 1 2 3 pick what is shown).
+      const guesses = FC.more ? all : all.filter((g) => g.label);
       box.innerHTML = `<div class="zoomconfirm">
         <div class="col gap12" style="align-items: center">
           <div class="muted small">${num(i + 1)} / ${num(faces.length)} · ${esc(eventName(f.event_title, f.event_date))}</div>
           <img class="q" src="hub://face/${f.id}" />
           <div class="col gap4" style="width: 100%; max-width: 340px">
-            ${guesses.map((g, k) => `<button class="trow guess" data-g="${k}">${faceImg({ ...g.student, face: null })}<span class="grow"><b>${esc(name(g.student))}</b> <span class="muted small">${esc(g.student.kind && g.student.kind !== "student" ? KINDS()[g.student.kind] : g.student.class_name ?? "")} · ${Math.round(g.score * 100)}%</span></span><span class="k">${k + 1}</span></button>`).join("")}
-            ${guesses.length ? "" : `<p class="muted small" style="text-align: center">${L("No good guesses yet. Type the name.", "لا اقتراحات جيدة بعد. اكتب الاسم.")}</p>`}
+            ${guesses.map((g, k) => `<button class="trow guess" data-g="${k}">${faceImg({ ...g.student, face: null })}<span class="grow"><b>${esc(name(g.student))}</b> <span class="muted small">${esc(g.student.kind && g.student.kind !== "student" ? KINDS()[g.student.kind] : g.student.class_name ?? "")} </span> ${likelyTag(g.label)}</span><span class="k">${k + 1}</span></button>`).join("")}
+            ${guesses.length ? "" : `<p class="muted small" style="text-align: center">${L("No likely match yet. Type the name.", "لا تطابق مرجّح بعد. اكتب الاسم.")}</p>`}
+            ${all.length > guesses.length ? `<button class="link small" id="w-more" style="align-self: center">${L("More guesses…", "تخمينات أخرى…")}</button>` : ""}
           </div>
           <div class="row"><button class="btn" id="w-type">${L("Type a name", "كتابة اسم")} <span class="k">T</span></button><button class="btn" id="w-hide">${L("Not a face", "ليس وجهًا")} <span class="k">H</span></button><button class="btn ghost" id="w-skip">${L("Skip", "تخطٍّ")} <span class="k">S</span></button></div>
         </div>
@@ -210,9 +214,10 @@ App.views.faces = {
       $("#w-type", box).onclick = () => FC.pick("type");
       $("#w-hide", box).onclick = () => FC.pick("hide");
       $("#w-skip", box).onclick = () => FC.pick("skip");
+      $("#w-more", box)?.addEventListener("click", () => { FC.more = true; draw(); });
       FC.guesses = guesses;
     };
-    const next = () => { i++; draw(); };
+    const next = () => { i++; FC.more = false; draw(); };
     FC.pick = async (what) => {
       const f = faces[i];
       if (!f) return;

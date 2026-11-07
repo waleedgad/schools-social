@@ -193,6 +193,13 @@ function emptyState(ic, title, text = "", actions = "") {
   return `<div class="empty"><div class="eic">${icon(ic, 30)}</div><h2>${esc(title)}</h2>${text ? `<p class="muted">${esc(text)}</p>` : ""}${actions ? `<div class="row" style="justify-content:center">${actions}</div>` : ""}</div>`;
 }
 
+// ---------- How likely a face suggestion is ----------
+// Words, not a %: a face score says how alike two faces are, not a chance.
+// "Very likely" and "Likely" are only given where the face test found them
+// right at least 9 times in 10; everything else is a plain guess.
+const likelyText = (label) => (label === "very" ? L("Very likely", "مرجّح جدًا") : label === "likely" ? L("Likely", "مرجّح") : L("A guess", "تخمين"));
+const likelyTag = (label) => `<span class="tag ${label === "very" ? "good" : ""}">${likelyText(label)}</span>`;
+
 // ---------- Undo toast after a setting changes ----------
 async function setSetting(key, value, label) {
   const before = S[key];

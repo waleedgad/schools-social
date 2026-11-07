@@ -723,7 +723,7 @@ foreach ($f in $dcim.GetFolder.Items()) { $dest.CopyHere($f, 4 + 16 + 1024); Wri
         ...photos,
       ))
         if (r.classes === 1) classes.push(r.class_name, r.class_name);
-    const unnamed = photos.length ? one<{ n: number }>(`select count(*) n from faces where photo_id in (${marks(photos.length)}) and status in ('unknown', 'suggested')`, ...photos)?.n ?? 0 : 0;
+    const unnamed = photos.length ? one<{ n: number }>(`select count(*) n from faces where photo_id in (${marks(photos.length)}) and status in ('unknown', 'suggested') and coalesce(why, '') != 'far'`, ...photos)?.n ?? 0 : 0;
     const noClass = photos.length ? one<{ n: number }>(`select count(*) n from photos where id in (${marks(photos.length)}) and class_name is null`, ...photos)?.n ?? 0 : 0;
     const events = photos.length ? all(`select event_key key, event_title title, event_date date, count(*) n from photos where id in (${marks(photos.length)}) and event_key is not null group by event_key`, ...photos) : [];
     return {

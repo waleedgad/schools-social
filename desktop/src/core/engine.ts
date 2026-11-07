@@ -7,7 +7,7 @@ import { watchTree, type TreeWatcher } from "./tree-watch";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { assignPhoto, cosine, findFaces, guessTraits, handAgrees, isSure, learnFrom, ranked, SAME_PERSON, scaled, SHOW_FROM, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
+import { assignPhoto, clearEnough, cosine, facePx, findFaces, guessTraits, handAgrees, isSure, learnFrom, likelihood, ranked, SAME_PERSON, scaled, SHOW_FROM, SUGGEST_PX, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -114,6 +114,7 @@ export class Engine {
   async start() {
     this.backfillProblems();
     this.upgradeRecogniser();
+    this.tidySuggestions();
     const fixed = this.dedupePeople();
     if (fixed) this.o.log?.(`one person per photo: ${fixed} faces freed`);
     this.timer = setInterval(() => this.pump(), 400);
@@ -473,7 +474,7 @@ export class Engine {
 
   private async faces(id: number) {
     busy.set("finding faces");
-    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, class_name, coalesce(taken_at, event_date) as at from photos where id = ?").get(id) as Row | undefined;
+    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, width, height, class_name, coalesce(taken_at, event_date) as at from photos where id = ?").get(id) as Row | undefined;
     if (!p || p.missing || p.faces_scanned) return;
     try {
       const found = await findFaces(this.o.models, await source(p.path as string), { aura: this.o.aura?.() ?? null, vision: this.o.vision });
@@ -533,7 +534,10 @@ export class Engine {
           const m = matches[i];
           const twin = m ? this.isTwin(m.studentId) : false;
           const sure = isSure(m ? { ...m, twin } : null, model) && handAgrees(f.embedding, known, m!.studentId, model) && this.o.autoName?.() !== false;
-          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, sure ? "confirmed" : m && m.score >= SHOW_FROM - 0.1 ? "suggested" : "unknown", sure ? m!.studentId : null, m?.studentId ?? null, m?.score ?? null, sure ? 1 : 0, (k?.rejected as string) ?? "", model, null, sure ? "auto" : null);
+          // Far or blurred faces are never suggested and ask nothing ("far").
+          const far = !clearEnough(facePx(f.box[2], p.width as number, p.height as number), f.sharpness);
+          const status = sure ? "confirmed" : m && m.score >= SHOW_FROM && !far ? "suggested" : "unknown";
+          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, status, sure ? m!.studentId : null, m?.studentId ?? null, m?.score ?? null, sure ? 1 : 0, (k?.rejected as string) ?? "", model, far && !sure ? "far" : null, sure ? "auto" : null);
         });
         const usable = found.filter((f) => f.usable);
         const biggest = usable.reduce((mx, f) => Math.max(mx, f.box[2]), 0);
@@ -577,6 +581,21 @@ export class Engine {
   // A library described with AuraFace alone (0.9 and before): its photos and
   // portraits are described again with both recognisers, in the background.
   // Names, "not this person" and "not a face" carry over.
+  // Suggestions from before 0.6 went down to 40%: weak ones become plain
+  // unnamed faces, and faces too small to suggest stop asking "Who is this?".
+  tidySuggestions() {
+    const weak = this.db.prepare("update faces set status = 'unknown' where status = 'suggested' and coalesce(suggest_score, 0) < ?").run(SHOW_FROM).changes;
+    const far = this.db
+      .prepare(
+        `update faces set why = 'far', status = 'unknown' where status in ('unknown', 'suggested') and why is null and w > 0 and portrait = 0
+           and photo_id in (select id from photos p where p.width > 0 and p.height > 0
+             and faces.w * p.width * min(1.0, 2000.0 / max(p.width, p.height)) < ?)`,
+      )
+      .run(SUGGEST_PX).changes;
+    if (weak || far) this.o.log?.(`faces: ${weak} weak suggestions removed, ${far} far faces kept quiet`);
+    return Number(weak) + Number(far);
+  }
+
   private upgradeRecogniser() {
     if (this.faceModel !== "both") return;
     const old = this.db
@@ -681,8 +700,8 @@ export class Engine {
   // to, boy or girl, student or adult.
   guesses(faceId: number, n = 3) {
     const f = this.db
-      .prepare("select f.id, f.photo_id, f.embedding, f.model, f.rejected, p.class_name, coalesce(p.taken_at, p.event_date) at from faces f join photos p on p.id = f.photo_id where f.id = ?")
-      .get(faceId) as { id: number; photo_id: number; embedding: Uint8Array | null; model: string; rejected: string; class_name: string | null; at: string | null } | undefined;
+      .prepare("select f.id, f.photo_id, f.embedding, f.model, f.rejected, f.why, p.class_name, coalesce(p.taken_at, p.event_date) at from faces f join photos p on p.id = f.photo_id where f.id = ?")
+      .get(faceId) as { id: number; photo_id: number; embedding: Uint8Array | null; model: string; rejected: string; why: string | null; class_name: string | null; at: string | null } | undefined;
     if (!f?.embedding) return [];
     const model = (f.model as Recogniser) ?? "sface";
     const all = this.knownFaces(model);
@@ -703,7 +722,10 @@ export class Engine {
         if (t.adult === false && who.kind !== "student") return false;
         return true;
       })
-      .slice(0, n);
+      .slice(0, n)
+      // "Very likely" / "Likely" only where the face test says 9 in 10 are
+      // right; the rest (and every guess for a far face) are plain guesses.
+      .map((c, i, list) => ({ ...c, label: f.why === "far" || (i === 0 && list[1] && list[1].score > c.score - 0.02) ? null : i === 0 ? likelihood(c.score) : null }));
   }
 
   // After a confirmation, look again at every face nobody has named yet, in
@@ -723,12 +745,12 @@ export class Engine {
     if (!all.length) return 0;
     const rows = this.db
       .prepare(
-        `select f.id, f.photo_id, f.embedding, f.suggest_id, f.suggest_score, f.rejected, f.status, p.class_name, coalesce(p.taken_at, p.event_date) as at from faces f join photos p on p.id = f.photo_id
+        `select f.id, f.photo_id, f.embedding, f.suggest_id, f.suggest_score, f.rejected, f.status, f.why, p.class_name, coalesce(p.taken_at, p.event_date) as at from faces f join photos p on p.id = f.photo_id
          where f.status in ('unknown', 'suggested') and f.embedding is not null and f.model = ? and p.missing = 0 order by f.photo_id`,
       )
-      .all(model) as { id: number; photo_id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string; class_name: string | null; at: string | null }[];
+      .all(model) as { id: number; photo_id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string; why: string | null; class_name: string | null; at: string | null }[];
     const update = this.db.prepare("update faces set status = ?, suggest_id = ?, suggest_score = ? where id = ?");
-    const name = this.db.prepare("update faces set status = 'confirmed', student_id = ?, suggest_id = ?, suggest_score = ?, auto = 1, named_by = 'auto' where id = ?");
+    const name = this.db.prepare("update faces set status = 'confirmed', student_id = ?, suggest_id = ?, suggest_score = ?, auto = 1, named_by = 'auto', why = null where id = ?");
     const namedIn = this.db.prepare("select student_id from faces where photo_id = ? and status in ('confirmed', 'manual') and student_id is not null");
     const traits = traitCentres(all.filter((k) => !k.learned), all[0]?.embedding.length ?? 0);
     const info = this.peopleInfo();
@@ -758,7 +780,7 @@ export class Engine {
             named.push(r.id);
             changed++;
           } else if (m && (m.studentId !== r.suggest_id || Math.abs(m.score - (r.suggest_score ?? 0)) > 0.005)) {
-            update.run(m.score >= SHOW_FROM - 0.1 ? "suggested" : "unknown", m.studentId, m.score, r.id);
+            update.run(m.score >= SHOW_FROM && r.why !== "far" ? "suggested" : "unknown", m.studentId, m.score, r.id);
             changed++;
           } else if (!m && r.suggest_id) {
             update.run("unknown", null, null, r.id);
@@ -782,7 +804,7 @@ export class Engine {
   unknownGroups(limit = 60) {
     const rows = this.db
       .prepare(
-        "select f.id, f.embedding from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and f.embedding is not null and p.missing = 0 and f.w > 0.025 order by f.id desc limit 2500",
+        "select f.id, f.embedding from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and coalesce(f.why, '') != 'far' and f.embedding is not null and p.missing = 0 and f.w > 0.025 order by f.id desc limit 2500",
       )
       .all() as { id: number; embedding: Uint8Array }[];
     const items = rows.map((r) => ({ id: r.id, e: fromBlob(r.embedding) }));

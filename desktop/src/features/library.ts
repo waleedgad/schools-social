@@ -38,7 +38,7 @@ export const PHOTO_COLUMNS = `p.id, p.name, p.path, p.width, p.height, p.rating,
   (select count(*) from photos e where e.edited_of = p.id and e.missing = 0) as edits,
   (select count(*) from faces f where f.photo_id = p.id and f.status in ('confirmed', 'manual')) as tagged,
   (select count(*) from faces f where f.photo_id = p.id and f.status = 'suggested') as suggested,
-  (select count(*) from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested')) as unnamed,
+  (select count(*) from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested') and coalesce(f.why, '') != 'far') as unnamed,
   (select count(*) from faces f where f.photo_id = p.id and ${noPostFace("f")}) as no_post`;
 
 // What each kind of event is, read from its name (Arabic or English) or
@@ -157,7 +157,7 @@ export function libraryApi(ctx: Ctx): Api {
       case "rejected": where.push("p.flag = -1"); break;
       case "five": where.push("p.rating = 5"); break;
       case "week": where.push("p.added_at > ?"); args.push(Date.now() - 7 * 86400_000); break;
-      case "untagged": where.push("exists (select 1 from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested'))"); break;
+      case "untagged": where.push("exists (select 1 from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested') and coalesce(f.why, '') != 'far')"); break;
       case "nofaces": where.push("p.faces_scanned = 1 and p.face_count = 0"); break;
       case "notsent": where.push("p.remote_id is null and p.flag = 1"); break;
       case "sent": where.push("p.remote_id is not null"); break;

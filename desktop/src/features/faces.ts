@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { exclusive } from "../core/lock";
+import { SHOW_FROM } from "../core/faces";
 import { makeThumb, source } from "../core/media";
 import { marks, q, type Api, type Ctx } from "./ctx";
 
@@ -19,7 +20,7 @@ export function facesApi(ctx: Ctx): Api {
   const PERSON = "id, name_en, name_ar, class_name, kind, portrait, can_post, left_on";
 
   function unknownFaces(f: { event?: string; className?: string; limit?: number } = {}) {
-    const where = ["f.status = 'unknown'", "f.w > 0", "p.missing = 0", "p.hidden = 0"];
+    const where = ["f.status = 'unknown'", "coalesce(f.why, '') != 'far'", "f.w > 0", "p.missing = 0", "p.hidden = 0"];
     const args: unknown[] = [];
     if (f.event) (where.push("p.event_key = ?"), args.push(f.event));
     if (f.className) (where.push("p.class_name = ?"), args.push(f.className));
@@ -35,7 +36,7 @@ export function facesApi(ctx: Ctx): Api {
   function eventsToName() {
     return all(
       `select p.event_key key, max(p.event_title) title, max(p.event_date) date, count(*) n from faces f join photos p on p.id = f.photo_id
-       where f.status in ('unknown', 'suggested') and f.w > 0 and p.missing = 0 and p.hidden = 0 and p.event_key is not null
+       where f.status in ('unknown', 'suggested') and coalesce(f.why, '') != 'far' and f.w > 0 and p.missing = 0 and p.hidden = 0 and p.event_key is not null
        group by p.event_key order by max(p.event_date) desc limit 80`,
     );
   }
@@ -133,7 +134,7 @@ export function facesApi(ctx: Ctx): Api {
   function groupPhotos(className?: string) {
     return all(
       `select p.id, p.face_count, p.event_title, p.event_date, p.class_name,
-         (select count(*) from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested')) unnamed
+         (select count(*) from faces f where f.photo_id = p.id and f.status in ('unknown', 'suggested') and coalesce(f.why, '') != 'far') unnamed
        from photos p where p.face_count >= 8 and p.missing = 0 and p.hidden = 0 ${className ? "and p.class_name = ?" : ""}
        order by unnamed desc, p.event_date desc limit 60`,
       ...(className ? [className] : []),
@@ -170,7 +171,7 @@ export function facesApi(ctx: Ctx): Api {
   async function sendChecks(className: string) {
     const rows = all<{ id: number; pid: number; path: string; remote_id: string | null; x: number; y: number; w: number; h: number; suggest_id: string; suggest_score: number }>(
       `select f.id, p.id pid, p.path, p.remote_id, f.x, f.y, f.w, f.h, f.suggest_id, f.suggest_score from faces f join photos p on p.id = f.photo_id join students s on s.id = f.suggest_id
-       where f.status = 'suggested' and p.missing = 0 and s.class_name = ? and f.suggest_score >= 0.5 and f.w > 0 order by f.suggest_score desc limit 200`,
+       where f.status = 'suggested' and p.missing = 0 and s.class_name = ? and f.suggest_score >= ${SHOW_FROM} and f.w > 0 order by f.suggest_score desc limit 200`,
       className,
     );
     if (!rows.length) return { sent: 0 };
