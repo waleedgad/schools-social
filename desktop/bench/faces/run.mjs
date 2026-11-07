@@ -678,6 +678,29 @@ for (const key of Object.keys(raw).filter((k) => k.includes("|max|3") || (k.incl
     }
 }
 
+// ---- 5c. What a shown score means: of the faces NOT named by the app
+// itself, how often is the top suggestion right, by shown score (strangers
+// count as wrong). This is what a suggestion's label should be based on.
+const calib = {};
+for (const key of Object.keys(raw).filter((k) => k.startsWith(`${KINDS.at(-1)}|`) && (k.includes("|max|") || k.includes("|class|")))) {
+  const r = base(KINDS.at(-1));
+  const bands = [0.4, 0.45, 0.5, 0.55, 0.58, 0.6, 0.62, 1.01];
+  calib[key] = [];
+  for (let b = 0; b < bands.length - 1; b++) {
+    for (const lead of [0, 0.04, 0.08]) {
+      let right = 0, n = 0;
+      for (const x of raw[key]) {
+        const shown = F.scaled(x.s1, r), next = F.scaled(x.s2, r);
+        if (F.isSure({ score: shown, runnerUp: next }, r)) continue;
+        if (shown < bands[b] || shown >= bands[b + 1] || x.s1 - x.s2 < lead) continue;
+        n++;
+        if (x.truth && x.top === x.truth) right++;
+      }
+      calib[key].push({ from: bands[b], to: Math.min(1, bands[b + 1]), lead, n, right });
+    }
+  }
+}
+
 // ---- 6. Report ---------------------------------------------------------------
 const L = [];
 L.push(`# Face test on stand-in photos`, "");
@@ -736,6 +759,11 @@ if (Object.keys(hardResults).length) {
   }
   const hw = Object.values(hardResults).flatMap((t) => t.wrongList);
   if (hw.length) L.push("", ...hw.slice(0, 30).map((x) => `- ${x}`));
+}
+L.push("", `## What a shown score means (${KINDS.at(-1)}): faces not named by the app itself, how often the top suggestion is right (shown score band, raw lead over the next person -> right / faces)`, "");
+for (const [key, rows] of Object.entries(calib)) {
+  const [, how, k] = key.split("|");
+  L.push(`- ${how === "class" ? "class of 30" : "whole set"}, ${k} confirmed faces: ${rows.filter((x) => x.n).map((x) => `${Math.round(x.from * 100)}-${Math.round(x.to * 100)}% lead ${x.lead}: ${pct(x.right, x.n)} of ${x.n}`).join(" · ")}`);
 }
 L.push("", `## Fair comparison (each at its own best setting, at most 0.5% named wrongly)`, "");
 L.push(`| Recogniser | Compare with | Confirmed faces | Right first guess | Named by itself | Setting (raw score, lead) | Right person's score (10th pct / median) | Stranger's best score (median / 99th pct) |`);
