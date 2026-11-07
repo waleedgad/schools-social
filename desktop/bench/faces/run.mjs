@@ -305,7 +305,7 @@ for (const kind of KINDS) {
         };
         for (const [agg, fn] of Object.entries(aggs)) {
           const sorted = [...per.entries()].map(([id, list]) => [id, fn(list)]).sort((a, b) => b[1] - a[1]);
-          (raw[`${kind}|${agg}|${k}`] ??= []).push({ truth: p.truth, top: sorted[0]?.[0], s1: sorted[0]?.[1] ?? -1, s2: sorted[1]?.[1] ?? -1 });
+          (raw[`${kind}|${agg}|${k}`] ??= []).push({ truth: p.truth, top: sorted[0]?.[0], s1: sorted[0]?.[1] ?? -1, s2: sorted[1]?.[1] ?? -1, px: p.s.face.box[2] * p.s.size[0], sharp: p.s.face.sharpness });
         }
       }
     }
@@ -529,6 +529,9 @@ for (const kind of KINDS) {
 // A good result: as many named right as possible, none named wrong, and
 // faces too damaged to trust kept as "not usable" rather than guessed.
 const HARD = (process.env.BENCH_HARD ?? "mask,sunglasses,hat,hand,dark,motion,small").split(",").filter(Boolean);
+// Suggestions (not sure names) with the face's size and sharpness, for
+// "what a shown score means" on hard faces.
+const quality = [];
 const hardResults = {};
 if (HARD.length) {
   const hardKind = KINDS.at(-1);
@@ -616,6 +619,10 @@ if (HARD.length) {
       const list = F.ranked(best.emb[hardKind], known, base(hardKind));
       const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
       const d = decide(m, hardKind);
+      if (d.how !== "sure" && list[0]) {
+        const raw2 = list[1] ? F.unscaled(list[1].score, base(hardKind)) : -1;
+        quality.push({ where: how, shown: list[0].score, lead: F.unscaled(list[0].score, base(hardKind)) - raw2, right: !!p.truth && list[0].studentId === p.truth, px: best.box[2] * (a.width ?? 0), sharp: best.sharpness });
+      }
       if (p.truth) {
         if (d.how === "sure") d.pick === p.truth ? t.right++ : (t.wrong++, t.wrongList.push(`${how}: ${p.truth} "${title(p.s.file)}" named as ${d.pick}`));
         else if (d.how === "suggest" && d.pick === p.truth) t.suggestRight++;
@@ -764,6 +771,22 @@ L.push("", `## What a shown score means (${KINDS.at(-1)}): faces not named by th
 for (const [key, rows] of Object.entries(calib)) {
   const [, how, k] = key.split("|");
   L.push(`- ${how === "class" ? "class of 30" : "whole set"}, ${k} confirmed faces: ${rows.filter((x) => x.n).map((x) => `${Math.round(x.from * 100)}-${Math.round(x.to * 100)}% lead ${x.lead}: ${pct(x.right, x.n)} of ${x.n}`).join(" · ")}`);
+}
+{
+  // Pool: whole set (3 confirmed faces) + hard cases, suggestions only.
+  const r = base(KINDS.at(-1));
+  const pool = [
+    ...(raw[`${KINDS.at(-1)}|max|3`] ?? []).filter((x) => !F.isSure({ score: F.scaled(x.s1, r), runnerUp: F.scaled(x.s2, r) }, r)).map((x) => ({ where: "normal", shown: F.scaled(x.s1, r), lead: x.s1 - x.s2, right: !!x.truth && x.top === x.truth, px: x.px, sharp: x.sharp })),
+    ...quality,
+  ];
+  const cuts = [0, 0.45, 0.5, 0.55, 0.58, 0.6];
+  const cell = (list) => cuts.map((c) => { const l = list.filter((x) => x.shown >= c); return `${pct(l.filter((x) => x.right).length, l.length)} of ${l.length}`; }).join(" | ");
+  L.push("", `## Suggestions by face (${KINDS.at(-1)}, not named by itself): right / shown, at each lowest shown score`, "");
+  L.push(`| Faces | ${cuts.map((c) => `from ${Math.round(c * 100)}%`).join(" | ")} |`, `|---|${cuts.map(() => "---").join("|")}|`);
+  for (const w of [...new Set(pool.map((x) => x.where))]) L.push(`| ${w} | ${cell(pool.filter((x) => x.where === w))} |`);
+  for (const [a, b] of [[0, 60], [60, 90], [90, 130], [130, 200], [200, 1e9]]) L.push(`| ${a}-${b > 1e8 ? "" : b} px wide | ${cell(pool.filter((x) => x.px >= a && x.px < b))} |`);
+  for (const [a, b] of [[0, 25], [25, 50], [50, 100], [100, 200], [200, 1e9]]) L.push(`| sharpness ${a}-${b > 1e8 ? "" : b} | ${cell(pool.filter((x) => x.sharp >= a && x.sharp < b))} |`);
+  for (const lead of [0.02, 0.04, 0.06, 0.08]) L.push(`| lead ≥ ${lead} | ${cell(pool.filter((x) => x.lead >= lead))} |`);
 }
 L.push("", `## Fair comparison (each at its own best setting, at most 0.5% named wrongly)`, "");
 L.push(`| Recogniser | Compare with | Confirmed faces | Right first guess | Named by itself | Setting (raw score, lead) | Right person's score (10th pct / median) | Stranger's best score (median / 99th pct) |`);
