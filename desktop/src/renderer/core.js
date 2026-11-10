@@ -537,7 +537,9 @@ function goForward() {
   go(to.view, to.params, true);
 }
 
-window.hub.onCommand((c) => {
+window.hub.onCommand(function onMenu(c) {
+  // A menu item chosen while the window is still starting runs once it's ready.
+  if (!S) return void setTimeout(() => onMenu(c), 150);
   if (c.startsWith("go:")) {
     const v = c.slice(3);
     if (v === "students-import") return go("students", { import: true });
