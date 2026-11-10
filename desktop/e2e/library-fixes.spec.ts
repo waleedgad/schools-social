@@ -233,3 +233,37 @@ test("B-04: moving never makes copies, even with clashing names; undo puts them 
   expect(after.value.counts.all).toBe(7);
   await app.close();
 });
+
+test("B-78: every event shows as an album, and a new event appears there straight away", async () => {
+  test.setTimeout(120_000);
+  const { lib } = await makeLibrary();
+  const { app, win } = await launch(lib);
+  await expect.poll(() => win.evaluate("lib.list.length"), { timeout: 30_000 }).toBeGreaterThanOrEqual(4);
+
+  // Move one photo into a new event first (from All photos).
+  await clickPhoto(win, "IMG_1001.jpg");
+  await win.locator('#selbar [data-a="move"]').click();
+  await win.locator("#mv-title").fill("Art show");
+  await win.locator("#mv-yes").click();
+  await expect(win.locator("#tree .t", { hasText: "Art show" })).toHaveCount(1, { timeout: 20_000 });
+
+  // All albums: the two events that were already there and the new one.
+  await win.locator('#tree [data-album="albums"]').click();
+  const cards = win.locator("#grid .zcard");
+  await expect(win.locator("#grid .sechead", { hasText: "Events · 2025-2026" })).toBeVisible({ timeout: 10_000 });
+  await expect(cards.filter({ hasText: "Sports day" })).toContainText("3 photos");
+  await expect(cards.filter({ hasText: "Book week" })).toContainText("2 photos");
+  await expect(cards.filter({ hasText: "Art show" })).toContainText("1 photo");
+
+  // A change while the cards are open shows on them without leaving.
+  const ids = (await win.evaluate(`call("photos", { event: lib.tree.rows.find((r) => /Book week/.test(r.event_title)).event_key })`)) as { id: number }[];
+  const art = (await win.evaluate(`lib.tree.rows.find((r) => r.event_title === "Art show")`)) as { event_title: string; event_date: string };
+  await win.evaluate(`call("moveTo", [${ids[0].id}], ${JSON.stringify({ title: art.event_title, date: art.event_date })})`);
+  await expect(cards.filter({ hasText: "Art show" })).toContainText("2 photos", { timeout: 20_000 });
+  await expect(cards.filter({ hasText: "Book week" })).toContainText("1 photo");
+
+  // Clicking an event card opens that event's photos.
+  await cards.filter({ hasText: "Sports day" }).click();
+  await expect(win.locator("#libsub")).toContainText("3 photos", { timeout: 10_000 });
+  await app.close();
+});

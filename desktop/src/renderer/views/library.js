@@ -207,6 +207,9 @@ App.views.library = {
     drawTree();
     drawFilters();
     drawTitle();
+    // The album cards are drawn from the same answer: a move, rename or
+    // import shows on them straight away.
+    if (lib.filter.album === "albums") drawAlbumCards();
   },
   async load(keepSel) {
     if (lib.filter.album === "albums") {
@@ -1096,15 +1099,32 @@ function drawAlbumCards() {
   const card = (id, cover, title, n, ic) => `<div class="zcard" data-al="${esc(id)}">${cover ? `<img loading="lazy" src="hub://thumb/${cover}" />` : `<div class="zph">${icon(ic, 30)}</div>`}<div><b>${esc(title)}</b><span>${plural(n, "photo", "photos", "صورة")}</span></div></div>`;
   const sec = (title, cards) => (cards.length ? `<div class="sechead"><b>${esc(title)}</b></div>${cards.join("")}` : "");
   grid.classList.remove("cols");
+  // Every event is an album too, newest school year first (B-78). One card
+  // per event, even when its photos cross two terms.
+  const years = new Map();
+  for (const r of lib.tree?.rows ?? []) {
+    if (!r.event_key) continue;
+    const y = r.year ?? L("No date", "بلا تاريخ");
+    if (!years.has(y)) years.set(y, new Map());
+    const evs = years.get(y);
+    const e = evs.get(r.event_key);
+    if (e) (e.n += r.n, (e.cover = Math.min(e.cover ?? r.cover, r.cover ?? e.cover)));
+    else evs.set(r.event_key, { ...r });
+  }
+  const events = [...years].map(([y, evs]) =>
+    sec(`${L("Events", "الفعاليات")} · ${y}`, [...evs.values()].map((e) => card(`ev:${e.event_key}`, e.cover, eventLabel(e), e.n, "folder"))),
+  ).join("");
   grid.innerHTML =
     sec(L("My albums", "ألبوماتي"), (a.mine ?? []).map((x) => card(`my:${x.id}`, x.cover, x.name, x.n, "book-marked"))) +
+    events +
     sec(L("Kinds of event", "أنواع الفعاليات"), (a.cats ?? []).map((c) => card(c.id, c.cover, CATS()[c.key]?.[0] ?? c.key, c.n, CATS()[c.key]?.[1] ?? "tag"))) +
     sec(L("Occasions", "المناسبات"), (a.occ ?? []).map((o) => card(o.id, null, OCC()[o.key] ?? o.key, o.n, "calendar-days"))) +
     sec(L("Yearbooks", "الكتب السنوية"), (a.grades ?? []).map((g) => card(g.id, null, `${g.grade} · ${g.year}`, g.n, "book-open"))) || emptyState("book-marked", L("No albums yet", "لا توجد ألبومات بعد"), L("Select photos and choose “Add to album”, or make a smart album that fills itself.", "حدد صورًا واختر «إضافة إلى ألبوم»، أو أنشئ ألبومًا ذكيًا يمتلئ تلقائيًا."));
   grid.classList.add("cards");
   $$("[data-al]", grid).forEach((c) => (c.onclick = () => {
     grid.classList.remove("cards");
-    lib.filter = { album: c.dataset.al };
+    const al = c.dataset.al;
+    lib.filter = al.startsWith("ev:") ? { event: al.slice(3) } : { album: al };
     drawTree();
     drawFilters();
     App.views.library.load();
