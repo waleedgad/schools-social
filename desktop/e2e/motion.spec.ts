@@ -51,7 +51,7 @@ async function school(language: "en" | "ar", theme: "light" | "dark") {
   const db = new DatabaseSync(path.join(userData, "library.db"));
   const addStudent = db.prepare("insert into students (id, name_en, class_name, can_post, added_at) values (?, ?, ?, 1, 0)");
   for (let i = 0; i < 30; i++) addStudent.run(`S${i}`, `Student ${i}`, ["3A", "3B", "4A"][i % 3]);
-  const addFace = db.prepare("insert into faces (photo_id, x, y, w, h, student_id, status, suggest_id) values (?, ?, 0.3, 0.2, 0.25, ?, ?, ?)");
+  const addFace = db.prepare("insert into faces (photo_id, x, y, w, h, student_id, status, suggest_id, suggest_score) values (?, ?, 0.3, 0.2, 0.25, ?, ?, ?, 0.6)");
   const ids = (db.prepare("select id from photos").all() as { id: number }[]).map((r) => r.id);
   ids.forEach((id, k) => {
     addFace.run(id, 0.1, `S${k % 30}`, "confirmed", null);
