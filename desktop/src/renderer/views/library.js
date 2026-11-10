@@ -127,13 +127,23 @@ App.views.library = {
       lib.shown.forEach((p) => lib.sel.add(p.id));
       refreshSelection();
     }
-    if (c === "post") newPostFromSelection();
+    if (c === "selectNone") {
+      lib.sel.clear();
+      refreshSelection();
+    }
+    if (c === "invertSelection") {
+      lib.sel = new Set(lib.shown.filter((p) => !lib.sel.has(p.id)).map((p) => p.id));
+      refreshSelection();
+    }
+    if (c === "post" && selectedIds().length) return newPostFromSelection(), true;
   },
   keys: () => [
     ["← → ↑ ↓", L("Move", "تنقل")], ["Space", L("Quick look", "نظرة سريعة")], ["Enter", L("Open", "فتح")], ["P", L("Pick", "اختيار")], ["X", L("Reject", "رفض")],
     ["U", L("Clear pick", "إلغاء الاختيار")], ["0-5", L("Stars", "نجوم")], ["6 7 8", L("Red, yellow, green label", "لون أحمر، أصفر، أخضر")], ["9", L("No label", "بلا لون")],
     ["T", L("Name who is in it", "تسمية من فيها")], ["C", L("Compare", "مقارنة")], ["H", L("Hide", "إخفاء")], ["I", L("Info panel", "لوحة المعلومات")], ["S", L("Stack bursts", "تجميع المتتابعة")],
-    ["+ −", L("Bigger, smaller", "أكبر، أصغر")], ["⌘ A", L("Select all", "تحديد الكل")], ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")], ["⌘ N", L("New post", "منشور جديد")],
+    ["+ −", L("Bigger, smaller", "أكبر، أصغر")], ["Home End", L("First, last photo", "أول، آخر صورة")],
+    ["⌘ A", L("Select all", "تحديد الكل")], ["⌘ D", L("Select none", "إلغاء التحديد")], ["⌥ ⌘ A", L("Invert selection", "عكس التحديد")], ["Esc", L("Clear selection", "إلغاء التحديد")],
+    ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")], ["⌘ L", L("Hide", "إخفاء")], ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ N", L("New post", "منشور جديد")],
   ],
   onKey(e) {
     if ($(".quicklook")) return;
@@ -146,18 +156,24 @@ App.views.library = {
       return true;
     }
     if (((modKey(e) && k === "backspace") || (!isMac() && k === "delete")) && ids.length) return act.bin(ids), true;
-    if (e.metaKey || e.ctrlKey) return;
+    if (modKey(e) && !e.altKey && !e.shiftKey && ids.length) {
+      if (k === "l") return e.preventDefault(), act.hide(ids, lib.filter.album !== "hidden"), true;
+      if (k === "r") return e.preventDefault(), call(ids.length > 1 ? "revealMany" : "reveal", ids.length > 1 ? ids : ids[0]), true;
+      if (k === "e") return e.preventDefault(), call("openEditor", ids), true;
+    }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (k === "escape") {
       lib.sel.clear();
       return refreshSelection(), true;
     }
-    if (["arrowright", "arrowleft", "arrowdown", "arrowup"].includes(k)) {
+    if (["arrowright", "arrowleft", "arrowdown", "arrowup", "home", "end", "pageup", "pagedown"].includes(k) && lib.shown.length) {
       e.preventDefault();
       const grid = $("#grid");
       const first = $(".tile", grid);
       const cols = first ? Math.max(1, Math.round(grid.clientWidth / (first.getBoundingClientRect().width + 3))) : 1;
+      const rows = first ? Math.max(1, Math.floor(grid.clientHeight / (first.getBoundingClientRect().height + 3))) : 1;
       const rtl = document.documentElement.dir === "rtl";
-      const step = { arrowright: rtl ? -1 : 1, arrowleft: rtl ? 1 : -1, arrowdown: cols, arrowup: -cols }[k];
+      const step = { arrowright: rtl ? -1 : 1, arrowleft: rtl ? 1 : -1, arrowdown: cols, arrowup: -cols, pagedown: cols * rows, pageup: -cols * rows, home: -Infinity, end: Infinity }[k];
       lib.focus = Math.min(lib.shown.length - 1, Math.max(0, lib.focus + step));
       if (!e.shiftKey) lib.sel.clear();
       if (lib.shown[lib.focus]) lib.sel.add(lib.shown[lib.focus].id);
@@ -911,7 +927,11 @@ function quickLook() {
       closeOverlay();
       return openViewer(lib.shown.map((p) => p.id), lib.focus, {});
     }
-    if (k === "p" || k === "x") act.flag([lib.shown[lib.focus].id], k === "p" ? 1 : -1);
+    const id = [lib.shown[lib.focus].id];
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (k === "p" || k === "x" || k === "u") act.flag(id, { p: 1, x: -1, u: 0 }[k]);
+    else if (/^[0-5]$/.test(k)) act.rate(id, Number(k));
+    else if (/^[6-9]$/.test(k)) act.label(id, { 6: "red", 7: "yellow", 8: "green", 9: null }[k]);
   };
 }
 

@@ -70,17 +70,26 @@ App.views.import = {
     }
     this.draw();
   },
-  keys: () => [["⌘O", L("Choose folders", "اختيار مجلدات")], ["⌘A", L("Tick every photo", "تحديد كل الصور")]],
+  keys: () => [["⌘ O", L("Choose folders", "اختيار مجلدات")], ["⌘ A", L("Tick every photo", "تحديد كل الصور")], ["⌘ D", L("Untick every photo", "إلغاء تحديد كل الصور")], ["⌘ ↩", L("Start the import", "بدء الاستيراد")]],
+  onCommand(c) {
+    if (!IMP.scan) return;
+    if (c === "selectAll") IMP.scan.files.forEach((f) => IMP.ticked.add(f.n));
+    else if (c === "selectNone") IMP.ticked.clear();
+    else if (c === "invertSelection") IMP.ticked = new Set(IMP.scan.files.filter((f) => !IMP.ticked.has(f.n)).map((f) => f.n));
+    else return;
+    this.drawPreview();
+  },
   onKey(e) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "o") {
+    if (!modKey(e) || e.altKey || e.shiftKey) return;
+    const k = e.key.toLowerCase();
+    if (k === "o") {
       e.preventDefault();
       this.choose();
       return true;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === "a" && IMP.scan) {
+    if (k === "enter" && $("#i-go") && !$("#i-go").disabled) {
       e.preventDefault();
-      IMP.scan.files.forEach((f) => IMP.ticked.add(f.n));
-      this.drawPreview();
+      this.start();
       return true;
     }
   },

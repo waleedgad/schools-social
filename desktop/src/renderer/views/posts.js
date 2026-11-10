@@ -177,6 +177,7 @@ App.views.posts = {
     });
   },
   onKey(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "n") newPostMenu();
   },
 };

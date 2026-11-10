@@ -248,7 +248,9 @@ function globalKey(e) {
 
 function shortcutSheet() {
   const view = App.views[App.view];
-  const here = view?.keys?.() ?? [];
+  // Opened over the photo view: its keys, and closing goes back to the photo.
+  const inViewer = App.overlayKeys === viewerKeys && V.open;
+  const here = inViewer ? viewerKeyList() : view?.keys?.() ?? [];
   const nav = Object.entries(JUMPS).map(([k, v]) => [`G ${k.toUpperCase()}`, NAV.flatMap((s) => s.items).find((n) => n.id === v)?.label() ?? v]);
   const block = (title, rows) =>
     rows.length ? `<h3>${esc(title)}</h3><div class="keysheet">${rows.map(([k, t]) => `<div><span>${esc(t)}</span><span class="ltr">${forPc(k).split(" ").map((x) => `<span class="k">${esc(x)}</span>`).join(" ")}</span></div>`).join("")}</div>` : "";
@@ -257,15 +259,26 @@ function shortcutSheet() {
     ${block(L("On this screen", "في هذه الشاشة"), here)}
     ${block(L("Everywhere", "في كل مكان"), [
       ["⌘ K", L("Search and commands", "البحث والأوامر")],
+      ["⌘ F", L("Search", "بحث")],
       ["⌘ N", L("New post", "منشور جديد")],
       ["⌘ I", L("Import photos", "استيراد صور")],
       ["⌘ Z", L("Undo", "تراجع")],
+      ["⌘ A", L("Select all", "تحديد الكل")],
+      ["⌘ D", L("Select none", "إلغاء التحديد")],
       ["⌘ ,", L("Settings", "الإعدادات")],
-      ["?", L("This list", "هذه القائمة")],
+      [isMac() ? "⌘ [ ⌘ ]" : "Alt+← Alt+→", L("Back, forward", "رجوع، تقدّم")],
+      ["Esc", L("Close what is on top", "إغلاق ما في الأعلى")],
+      ["⌘ / ?", L("This list", "هذه القائمة")],
     ])}
+    ${block(L("Tabs", "التبويبات"), Object.entries(TAB_KEYS).map(([n, id]) => [`⌘ ${n}`, NAV.flatMap((s) => s.items).find((x) => x.id === id)?.label() ?? id]))}
     ${block(L("Go to", "انتقال إلى"), nav)}`,
     { wide: true },
-  ).querySelector("[data-x]").onclick = closeOverlay;
+  );
+  const close = () => (inViewer ? openViewer(V.ids, V.i, V.opts) : closeOverlay());
+  $("#overlay [data-x]").onclick = close;
+  App.overlayKeys = (e) => {
+    if (e.key === "Escape" || (modKey(e) && (e.key === "/" || e.key === "?"))) return e.preventDefault(), close();
+  };
 }
 
 // ---------- Small helpers used across screens ----------

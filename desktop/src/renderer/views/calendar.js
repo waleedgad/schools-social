@@ -47,6 +47,7 @@ App.views.calendar = {
     this.load();
   },
   onKey(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") $(e.key === "ArrowLeft" ? (S.language === "en" ? "#c-prev" : "#c-next") : S.language === "en" ? "#c-next" : "#c-prev")?.click();
     if (e.key === "t") $("#c-today")?.click();
     if (["d", "w", "m"].includes(e.key)) go("calendar", { view: { d: "day", w: "week", m: "month" }[e.key] });

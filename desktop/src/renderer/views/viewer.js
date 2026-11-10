@@ -1,11 +1,12 @@
 // The big view: one photo with its faces, culling keys, before/after and compare.
-const V = { ids: [], i: 0, opts: {}, photo: null, showFaces: true, before: false };
+const V = { ids: [], i: 0, opts: {}, photo: null, showFaces: true, before: false, open: false };
 
 function openViewer(ids, index, opts = {}) {
   V.ids = ids;
   V.i = Math.max(0, Math.min(ids.length - 1, index));
   V.opts = opts;
   V.before = false;
+  V.open = true;
   App.overlayKeys = viewerKeys;
   V.opening = true;
   drawViewer();
@@ -24,6 +25,7 @@ function viewerPreload(src, wait = 400) {
 }
 
 function closeViewer() {
+  V.open = false;
   closeOverlay();
   App.views[App.view]?.onState?.(["photos"]);
 }
@@ -33,17 +35,18 @@ async function drawViewer() {
   const p = await call("photo", id);
   const shown = V.before && p.original ? p.original.id : id;
   await viewerPreload(`hub://preview/${shown}`);
-  // Moved on again while this one loaded: draw only the newest.
-  if (V.ids[V.i] !== id) return;
+  // Moved on again while this one loaded: draw only the newest. Closed while
+  // it loaded (Esc straight after opening or after an arrow key): stay closed.
+  if (V.ids[V.i] !== id || !V.open) return;
   V.photo = p;
   const overlay = $("#overlay");
   const opening = V.opening;
   V.opening = false;
   const faces = V.showFaces && !V.before ? p.faces : [];
   const keys = [
-    ["← →", L("next", "التالي")], ["P", L("pick", "اختيار")], ["X", L("reject", "رفض")], ["1-5", L("stars", "نجوم")],
+    ["← →", L("next", "التالي")], ["P", L("pick", "اختيار")], ["X", L("reject", "رفض")], ["0-5", L("stars", "نجوم")],
     ["T", L("tag", "وسم")], ["Y / N", L("yes / no to suggestions", "نعم / لا للاقتراحات")], ["B", L("before / after", "قبل / بعد")],
-    ["C", L("compare", "مقارنة")], ["F", L("faces", "الوجوه")], ["Esc", L("close", "إغلاق")],
+    ["C", L("compare", "مقارنة")], ["F", L("faces", "الوجوه")], ["Esc", L("close", "إغلاق")], ["⌘ /", L("all keys", "كل الاختصارات")],
   ];
   const html = `<div class="viewer ${opening ? "opening" : ""}">
     <div class="vtop"><b>${esc(p.name)}</b><span class="muted small">${num(V.i + 1)} / ${num(V.ids.length)}</span>
@@ -59,7 +62,7 @@ async function drawViewer() {
       ${faces.map((f) => (f.w ? `<div class="facebox ${f.status} ${f.why === "far" && f.status === "unknown" ? "far" : ""} ${f.status !== "suggested" && f.can_post === 0 ? "nopost" : ""}" data-face="${f.id}" style="left: ${f.x * 100}%; top: ${f.y * 100}%; width: ${f.w * 100}%; height: ${f.h * 100}%"><span class="nm">${esc(faceLabel(f))}</span></div>` : "")).join("")}
       ${V.before ? `<span class="tag" style="position: absolute; top: 8px; left: 8px">${L("Original", "الأصل")}</span>` : ""}</div></div>
       <aside class="vside${$("#v-side.hide") ? " hide" : ""}" id="v-side" data-own></aside></div>
-    <div class="keys">${keys.map(([k, t]) => `<span><span class="k">${k}</span> ${t}</span>`).join("")}</div>
+    <div class="keys">${keys.map(([k, t]) => `<span><span class="k">${esc(forPc(k))}</span> ${t}</span>`).join("")}</div>
     <div class="strip" id="v-strip" data-own></div></div>`;
   // Moving to the next photo changes the viewer in place: the photo strip,
   // buttons and side panel stay put and only what changed is drawn again
@@ -146,7 +149,7 @@ function drawSide(p) {
   $("#v-finder", side).onclick = () => call("reveal", p.id);
   $("#v-editor", side).onclick = () => call("openEditor", [p.id]);
   $("#v-post", side).onclick = async () => {
-    closeOverlay();
+    closeViewer();
     newPostFromSelection([p.id]);
   };
 }
@@ -226,14 +229,29 @@ function tagHere() {
   };
 }
 
+// The photo the keys act on: the one moved to, even if it is still loading
+// (a quick End then U must clear the last photo, not the one still shown).
+const here = () => (V.photo?.id === V.ids[V.i] ? V.photo : { id: V.ids[V.i], flag: 0, faces: [] });
+
 async function flagHere(n) {
-  await call("flag", [V.photo.id], n);
+  await call("flag", [here().id], n);
   if (V.opts.cull && n !== 0 && V.i < V.ids.length - 1) V.i++;
   drawViewer();
 }
 async function rateHere(n) {
-  await call("rate", [V.photo.id], n);
+  await call("rate", [here().id], n);
   drawViewer();
+}
+
+// Every key of the photo view, for the shortcut sheet (⌘/).
+function viewerKeyList() {
+  return [
+    ["← →", L("Previous, next photo", "السابقة، التالية")], ["Home End", L("First, last photo", "أول، آخر صورة")], ["P", L("Pick", "اختيار")], ["X", L("Reject", "رفض")], ["U", L("Clear pick", "إلغاء الاختيار")],
+    ["0-5", L("Stars", "نجوم")], ["6 7 8", L("Red, yellow, green label", "لون أحمر، أصفر، أخضر")], ["9", L("No label", "بلا لون")], ["T", L("Name someone", "تسمية شخص")],
+    ["Y N", L("Yes / no to suggested names", "نعم / لا للأسماء المقترحة")], ["F", L("Face boxes", "مربعات الوجوه")], ["B", L("Hold to see the original", "اضغط مطولًا لرؤية الأصل")],
+    ["C", L("Compare with the next", "مقارنة مع التالية")], ["I", L("Info panel", "لوحة المعلومات")], ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")],
+    ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ N", L("New post with this photo", "منشور جديد بهذه الصورة")], ["Esc", L("Close", "إغلاق")],
+  ];
 }
 
 function viewerKeys(e) {
@@ -241,13 +259,27 @@ function viewerKeys(e) {
   const k = e.key.toLowerCase();
   const rtl = document.documentElement.dir === "rtl";
   if (k === "escape") return closeViewer();
-  if (k === "arrowright" || k === "arrowleft") {
-    const step = (k === "arrowright") !== rtl ? 1 : -1;
-    V.i = Math.max(0, Math.min(V.ids.length - 1, V.i + step));
-    return drawViewer();
+  if (e.key === "?" && !modKey(e)) return shortcutSheet();
+  if (modKey(e)) {
+    if (e.altKey || e.shiftKey) return;
+    if (k === "backspace" && isMac()) return e.preventDefault(), binHere();
+    if (k === "r") return e.preventDefault(), call("reveal", here().id);
+    if (k === "e") return e.preventDefault(), call("openEditor", [here().id]);
+    if (k === "n") return e.preventDefault(), (closeViewer(), newPostFromSelection([here().id]));
+    return;
   }
-  if (k === "p") return flagHere(V.photo.flag === 1 ? 0 : 1);
-  if (k === "x") return flagHere(V.photo.flag === -1 ? 0 : -1);
+  if (e.altKey) return;
+  if (k === "delete" && !isMac()) return binHere();
+  const to = (i) => {
+    e.preventDefault();
+    V.i = Math.max(0, Math.min(V.ids.length - 1, i));
+    return drawViewer();
+  };
+  if (k === "arrowright" || k === "arrowleft") return to(V.i + ((k === "arrowright") !== rtl ? 1 : -1));
+  if (k === "home") return to(0);
+  if (k === "end") return to(V.ids.length - 1);
+  if (k === "p") return flagHere(here().flag === 1 ? 0 : 1);
+  if (k === "x") return flagHere(here().flag === -1 ? 0 : -1);
   if (k === "u") return flagHere(0);
   if (/^[0-5]$/.test(k)) return rateHere(Number(k));
   if (k === "t") return tagHere();
@@ -269,7 +301,21 @@ function viewerKeys(e) {
   }
   if (k === "c") return openCompare(V.ids.slice(V.i, V.i + 2), true);
   if (k === "i") return $("#v-side")?.classList.toggle("hide");
-  if (k === "6" || k === "7" || k === "8" || k === "9") return call("label", [V.photo.id], { 6: "red", 7: "yellow", 8: "green", 9: null }[k]).then(drawViewer);
+  if (k === "6" || k === "7" || k === "8" || k === "9") return call("label", [here().id], { 6: "red", 7: "yellow", 8: "green", 9: null }[k]).then(drawViewer);
+}
+
+// ⌘⌫ (Delete on Windows): the same question as in the grid, then the next photo.
+function binHere() {
+  const id = here().id;
+  if (!id) return;
+  confirmBox(L("Move this photo to the Bin? It stays there for 30 days and can be put back.", "نقل هذه الصورة إلى السلة؟ تبقى فيها 30 يومًا ويمكن استعادتها."), L("Move to Bin", "نقل إلى السلة")).then(async (yes) => {
+    if (!yes) return openViewer(V.ids, V.i, V.opts);
+    await call("bin", [id]);
+    toast(L("Moved to the Bin", "نُقلت إلى السلة"), { undo: true });
+    const ids = V.ids.filter((x) => x !== id);
+    if (!ids.length) return closeViewer();
+    openViewer(ids, Math.min(V.i, ids.length - 1), V.opts);
+  });
 }
 
 // Two to four shots side by side; keep the best, reject the rest.
@@ -284,6 +330,7 @@ async function openCompare(ids, back = false) {
 }
 async function drawCompare() {
   const rows = await call("photos", { ids: CMP.ids, sort: "time" });
+  if (App.overlayKeys !== compareKeys) return; // closed while it loaded
   const byId = new Map(rows.map((r) => [r.id, r]));
   const cols = CMP.ids.length <= 2 ? 2 : 2;
   $("#overlay").innerHTML = `<div class="viewer"><div class="vtop"><b>◫ ${L("Compare", "مقارنة")}</b><span class="muted small">${L("Click a photo, then P to keep it or K to keep it and reject the others", "اختر صورة، ثم P للإبقاء عليها أو K للإبقاء عليها ورفض الباقي")}</span><span class="grow"></span>

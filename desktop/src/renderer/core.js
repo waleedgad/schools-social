@@ -10,6 +10,8 @@ function forPc(s) {
   if (typeof s !== "string" || !S || isMac()) return s;
   return s
     .replace(/⌘\s?⌫/g, "Delete")
+    .replace(/⌥\s?⌘\s?/g, "Ctrl+Alt+")
+    .replace(/⇧\s?⌘\s?/g, "Ctrl+Shift+")
     .replace(/⌘\s?/g, "Ctrl+")
     .replace(/Finder/g, S.language === "en" ? "File Explorer" : "مستكشف الملفات")
     .replace(/\b([Tt])(his|he) Mac\b/g, (_, t, w) => `${t}${w} computer`)
@@ -402,7 +404,14 @@ function topbar(title, sub = "", right = "") {
   return `<header class="topbar"><div class="title"><b>${title}</b>${sub ? `<span>${sub}</span>` : ""}</div><div class="grow"></div><div class="tools">${right}<button class="btn ghost qhelp" data-screenhelp title="${L("Help for this screen", "مساعدة لهذه الشاشة")}">?</button></div></header>`;
 }
 
-function go(view, params = {}) {
+function go(view, params = {}, history = false) {
+  // Every new screen can be gone back to (⌘[); going back keeps the way forward.
+  if (!history && (view !== App.view || JSON.stringify(params) !== JSON.stringify(App.params))) {
+    NAV_BACK.push({ view: App.view, params: App.params });
+    if (NAV_BACK.length > 50) NAV_BACK.shift();
+    NAV_FWD.length = 0;
+  }
+  if (typeof V !== "undefined") V.open = false; // a photo view still loading must not come back
   if (App.leave) App.leave();
   App.leave = null;
   const same = view === App.view;
@@ -457,35 +466,80 @@ function applyLook() {
 }
 
 // ---------- Keys, menu commands, drag and drop ----------
+// The full map is in the shortcut sheet (⌘/). Mac uses ⌘, Windows Ctrl.
+// Keys that also sit in the Mac menu are handled here on both computers
+// (and the key is marked handled, so the menu never runs it a second time);
+// the menu stays for clicking and for showing the keys.
 document.addEventListener("keydown", (e) => {
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) && document.activeElement.type !== "checkbox";
-  if (modKey(e) && e.key.toLowerCase() === "k") {
+  if (!S) return; // still starting: no screen to act on yet
+  const typing = isTyping();
+  if (modKey(e) && !e.altKey && !e.shiftKey && (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "f")) {
     e.preventDefault();
+    // ⌘F on a screen with its own search box goes there; otherwise search everything.
+    if (e.key.toLowerCase() === "f" && !App.overlayKeys && App.views[App.view]?.onCommand?.("find") === true) return;
     return palette();
   }
-  // Windows: the window has no menu bar, so its shortcuts are handled here.
-  if (!isMac() && e.ctrlKey && !e.altKey && !e.shiftKey && pcMenuKey(e, typing)) return;
+  if (modKey(e) && (e.key === "/" || e.key === "?") && (!App.overlayKeys || App.overlayKeys === viewerKeys)) return e.preventDefault(), shortcutSheet();
+  if (modKey(e) && menuKey(e, typing)) return;
+  if (!isMac() && !typing && e.altKey && !e.ctrlKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) return e.preventDefault(), (e.key === "ArrowLeft") !== (document.documentElement.dir === "rtl") ? goBack() : goForward();
+  if (!isMac() && e.key === "F1") return e.preventDefault(), go("help");
   if (App.overlayKeys) return App.overlayKeys(e, typing);
   if (typing) return;
   if (App.views[App.view]?.onKey?.(e) === true) return;
   globalKey(e);
 });
+function isTyping() {
+  const a = document.activeElement;
+  return (/^(INPUT|TEXTAREA|SELECT)$/.test(a?.tagName) && !["checkbox", "radio", "button", "range"].includes(a.type)) || !!a?.isContentEditable;
+}
 
-// The Mac menu's shortcuts, for Windows (Ctrl+I, Ctrl+N, Ctrl+Z, Ctrl+A, Ctrl+1 to 5, Ctrl+,).
-function pcMenuKey(e, typing) {
+// The menu's keys (⌘1 to ⌘9, ⌘, ⌘I ⌘N ⌘Z ⌘A ⌘D, ⌘[ ⌘]).
+const TAB_KEYS = { 1: "today", 2: "library", 3: "faces", 4: "students", 5: "posts", 6: "calendar", 7: "books", 8: "coverage", 9: "cleanup" };
+function menuKey(e, typing) {
   const k = e.key.toLowerCase();
-  const views = { 1: "today", 2: "library", 3: "faces", 4: "students", 5: "posts" };
-  if (views[k]) return e.preventDefault(), go(views[k]), true;
-  if (k === ",") return e.preventDefault(), go("settings"), true;
-  if (k === "i") return e.preventDefault(), go("import"), true;
-  if (typing) return false; // Ctrl+Z, Ctrl+A and Ctrl+N keep their usual meaning in a text box
-  if (k === "z") return e.preventDefault(), doUndo(), true;
-  if (k === "n") return e.preventDefault(), App.views[App.view]?.onCommand?.("post"), true;
-  if (k === "a" && App.views[App.view]?.onCommand) return e.preventDefault(), App.views[App.view].onCommand("selectAll"), true;
+  const view = App.views[App.view];
+  const plain = !e.altKey && !e.shiftKey;
+  if (plain && TAB_KEYS[k]) return e.preventDefault(), go(TAB_KEYS[k]), true;
+  if (plain && k === ",") return e.preventDefault(), go("settings"), true;
+  if (plain && k === "i" && !App.overlayKeys) return e.preventDefault(), go("import"), true;
+  if (plain && (k === "[" || k === "]")) return e.preventDefault(), (k === "[" ? goBack() : goForward()), true;
+  if (typing) return false; // ⌘Z, ⌘A and the rest keep their usual meaning in a text box
+  if (App.overlayKeys) return false; // the photo view and dialogs have their own
+  // On the Mac ⌘Z belongs to the Edit menu (it also undoes typing).
+  if (plain && k === "z" && !isMac()) return e.preventDefault(), doUndo(), true;
+  if (plain && k === "n") return e.preventDefault(), newPost(), true;
+  if (plain && k === "a" && view?.onCommand) return e.preventDefault(), view.onCommand("selectAll"), true;
+  if (((plain && k === "d") || (e.shiftKey && !e.altKey && k === "a")) && view?.onCommand) return e.preventDefault(), view.onCommand("selectNone"), true;
+  if (e.altKey && !e.shiftKey && k === "a" && view?.onCommand) return e.preventDefault(), view.onCommand("invertSelection"), true;
   return false;
 }
 
-window.hub.onCommand((c) => {
+// ⌘N: a post from the selected photos where there is a selection (Library),
+// otherwise the "new post" choices.
+function newPost() {
+  if (App.views[App.view]?.onCommand?.("post") === true) return;
+  newPostMenu();
+}
+
+// Back and forward between screens (⌘[ ⌘], Alt+← Alt+→ on Windows).
+const NAV_BACK = [];
+const NAV_FWD = [];
+function goBack() {
+  const to = NAV_BACK.pop();
+  if (!to) return;
+  NAV_FWD.push({ view: App.view, params: App.params });
+  go(to.view, to.params, true);
+}
+function goForward() {
+  const to = NAV_FWD.pop();
+  if (!to) return;
+  NAV_BACK.push({ view: App.view, params: App.params });
+  go(to.view, to.params, true);
+}
+
+window.hub.onCommand(function onMenu(c) {
+  // A menu item chosen while the window is still starting runs once it's ready.
+  if (!S) return void setTimeout(() => onMenu(c), 150);
   if (c.startsWith("go:")) {
     const v = c.slice(3);
     if (v === "students-import") return go("students", { import: true });
@@ -493,7 +547,11 @@ window.hub.onCommand((c) => {
     return go(v);
   }
   if (c === "undo") return doUndo();
+  if (c === "post") return newPost();
   if (c === "search") return palette();
+  if (c === "shortcuts") return shortcutSheet();
+  if (c === "back") return goBack();
+  if (c === "forward") return goForward();
   App.views[App.view]?.onCommand?.(c);
 });
 
