@@ -79,7 +79,7 @@ App.views.books = {
   },
   keys: () => [["↑ ↓", L("Previous / next page", "الصفحة السابقة / التالية")], ["L", L("Lock or unlock the page", "قفل الصفحة أو فتحها")]],
   onKey(e) {
-    if (!BK.book || e.target.closest("input, textarea, select")) return;
+    if (!BK.book || e.target.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
     const i = BK.book.pages.findIndex((p) => p.id === BK.page);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();

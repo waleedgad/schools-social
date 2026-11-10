@@ -1424,6 +1424,17 @@ function createWindow() {
     e.preventDefault();
     if (url.startsWith("https://")) shell.openExternal(url);
   });
+  // Windows has no menu bar to own these: Ctrl+Q quits, Ctrl+W closes the
+  // window (the app keeps running by the clock), F11 is full screen.
+  if (process.platform !== "darwin")
+    win.webContents.on("before-input-event", (e, input) => {
+      if (input.type !== "keyDown" || input.alt || input.shift) return;
+      const k = input.key.toLowerCase();
+      const code = input.code;
+      if (input.control && (k === "q" || code === "KeyQ")) { e.preventDefault(); quitting = true; app.quit(); }
+      else if (input.control && (k === "w" || code === "KeyW")) { e.preventDefault(); win?.close(); }
+      else if (!input.control && k === "f11") { e.preventDefault(); win?.setFullScreen(!win.isFullScreen()); }
+    });
   // Closing the window keeps the library up to date from the menu bar.
   win.on("close", (e) => {
     if (!quitting) {
@@ -1482,9 +1493,14 @@ function createMenu() {
   // Windows and Linux show no menu bar (the title bar is hidden), so the
   // window handles Ctrl+I, Ctrl+N and the rest itself (core.js pcMenuKey);
   // the menu keeps them only as labels so a key never runs twice.
+  // On the Mac too, the window handles the keys in WINDOW_KEYS itself (so they
+  // follow the key, not the letter, with the Arabic keyboard on); the menu
+  // only shows them. ⌘Z, ⌘A, ⌘Q, copy and paste stay the menu's, because a
+  // text box needs them from the menu on the Mac.
   const pc = process.platform !== "darwin";
+  const windowKey = (acc: unknown) => typeof acc === "string" && /^CmdOrCtrl\+(Shift\+|Alt\+)?([1-9]|,|I|N|K|D|A|\[|\]|\/)$/.test(acc) && acc !== "CmdOrCtrl+A";
   const keys = (list: Electron.MenuItemConstructorOptions[]): Electron.MenuItemConstructorOptions[] =>
-    list.map((it) => ({ ...(pc && it.accelerator ? { ...it, registerAccelerator: false } : it), ...(Array.isArray(it.submenu) ? { submenu: keys(it.submenu) } : {}) }));
+    list.map((it) => ({ ...((pc && it.accelerator) || windowKey(it.accelerator) ? { ...it, registerAccelerator: false } : it), ...(Array.isArray(it.submenu) ? { submenu: keys(it.submenu) } : {}) }));
   Menu.setApplicationMenu(
     Menu.buildFromTemplate(keys([
       {
@@ -1506,6 +1522,8 @@ function createMenu() {
           { label: L("Import photos…", "استيراد صور…"), accelerator: "CmdOrCtrl+I", click: () => send("go:import") },
           { label: L("Import class list…", "استيراد قائمة الفصول…"), click: () => send("go:students-import") },
           { label: L("New post from selection", "منشور جديد من المحدد"), accelerator: "CmdOrCtrl+N", click: () => send("post") },
+          { type: "separator" },
+          { label: L("Close window", "إغلاق النافذة"), accelerator: "CmdOrCtrl+W", click: () => win?.close() },
         ],
       },
       {
@@ -1517,6 +1535,8 @@ function createMenu() {
           { role: "copy" },
           { role: "paste" },
           { label: L("Select all", "تحديد الكل"), accelerator: "CmdOrCtrl+A", click: () => send("selectAll") },
+          { label: L("Select none", "إلغاء التحديد"), accelerator: "CmdOrCtrl+D", click: () => send("selectNone") },
+          { label: L("Invert selection", "عكس التحديد"), accelerator: "CmdOrCtrl+Alt+A", click: () => send("invertSelection") },
           { label: L("Search…", "بحث…"), accelerator: "CmdOrCtrl+K", click: () => send("search") },
         ],
       },
@@ -1528,6 +1548,13 @@ function createMenu() {
           { label: L("Faces", "الوجوه"), accelerator: "CmdOrCtrl+3", click: () => send("go:faces") },
           { label: L("Students", "الطلاب"), accelerator: "CmdOrCtrl+4", click: () => send("go:students") },
           { label: L("Posts", "المنشورات"), accelerator: "CmdOrCtrl+5", click: () => send("go:posts") },
+          { label: L("Calendar", "التقويم"), accelerator: "CmdOrCtrl+6", click: () => send("go:calendar") },
+          { label: L("Yearbooks", "الكتب السنوية"), accelerator: "CmdOrCtrl+7", click: () => send("go:books") },
+          { label: L("Coverage", "التغطية"), accelerator: "CmdOrCtrl+8", click: () => send("go:coverage") },
+          { label: L("Clean up", "تنظيف"), accelerator: "CmdOrCtrl+9", click: () => send("go:cleanup") },
+          { type: "separator" },
+          { label: L("Back", "رجوع"), accelerator: "CmdOrCtrl+[", click: () => send("back") },
+          { label: L("Forward", "تقدّم"), accelerator: "CmdOrCtrl+]", click: () => send("forward") },
           { type: "separator" },
           { role: "togglefullscreen" },
           { role: "zoomIn" },
@@ -1537,7 +1564,10 @@ function createMenu() {
         ],
       },
       { role: "windowMenu" },
-      { label: L("Help", "مساعدة"), submenu: [{ label: L("School Social Hub help", "مساعدة School Social Hub"), click: () => send("go:help") }] },
+      { label: L("Help", "مساعدة"), submenu: [
+        { label: L("School Social Hub help", "مساعدة School Social Hub"), accelerator: pc ? "F1" : undefined, click: () => send("go:help") },
+        { label: L("Keyboard shortcuts", "اختصارات لوحة المفاتيح"), accelerator: "CmdOrCtrl+/", click: () => send("shortcuts") },
+      ] },
     ])),
   );
 }

@@ -49,15 +49,21 @@ App.views.students = {
       ST.t = setTimeout(() => { this.tree(); this.list(); }, 800);
     }
   },
-  keys: () => [["⌘ A", L("Select all", "تحديد الكل")], ["Esc", L("Clear selection", "إلغاء التحديد")]],
+  keys: () => [["⌘ A", L("Select all", "تحديد الكل")], ["⌘ D", L("Select none", "إلغاء التحديد")], ["⌥ ⌘ A", L("Invert selection", "عكس التحديد")], ["Esc", L("Clear selection", "إلغاء التحديد")], ["⌘ F", L("Find someone", "البحث عن شخص")]],
+  onCommand(c) {
+    const rows = ST.rows ?? [];
+    if (c === "find") return $("#st-q")?.focus(), $("#st-q")?.select(), true;
+    if (c === "selectAll") rows.forEach((r) => ST.sel.add(r.id));
+    else if (c === "selectNone") ST.sel.clear();
+    else if (c === "invertSelection") ST.sel = new Set(rows.filter((r) => !ST.sel.has(r.id)).map((r) => r.id));
+    else return;
+    this.drawList();
+  },
   onKey(e) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !e.target.closest("input, textarea")) {
-      e.preventDefault();
-      (ST.rows ?? []).forEach((r) => ST.sel.add(r.id));
-      this.drawList();
-    } else if (e.key === "Escape" && ST.sel.size) {
+    if (e.key === "Escape" && ST.sel.size) {
       ST.sel.clear();
       this.drawList();
+      return true;
     }
   },
 
