@@ -51,6 +51,8 @@ async function start(language: "en" | "ar") {
   const errors: string[] = [];
   win.on("pageerror", (e) => errors.push(e.message));
   await expect(win.locator("html")).toHaveAttribute("dir", language === "ar" ? "rtl" : "ltr", { timeout: 30_000 });
+  // Keys pressed before the window has its first state do nothing, as for a person.
+  await expect.poll(() => win.evaluate("!!S && !!document.querySelector('#side .nav')"), { timeout: 30_000 }).toBe(true);
   await expect.poll(async () => ((await call(win, "photos", {})) as unknown[]).length, { timeout: 90_000 }).toBe(6);
   await expect.poll(async () => ((await call(win, "state")) as { engine?: { processing?: number } }).engine?.processing ?? 0, { timeout: 60_000 }).toBe(0);
   return { app, win, errors };

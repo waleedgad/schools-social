@@ -23,6 +23,8 @@ for (const language of ["en", "ar"] as const) {
     });
     const win = await app.firstWindow();
     await expect(win.locator("html")).toHaveAttribute("dir", language === "ar" ? "rtl" : "ltr", { timeout: 20_000 });
+    // Keys pressed before the window has its first state do nothing, as for a person.
+    await expect.poll(() => win.evaluate("!!S && !!document.querySelector('#side .nav')"), { timeout: 30_000 }).toBe(true);
     const view = () => win.evaluate("App.view");
 
     // Screens by number, settings, import.
