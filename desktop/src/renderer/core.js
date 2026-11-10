@@ -471,6 +471,7 @@ function applyLook() {
 // (and the key is marked handled, so the menu never runs it a second time);
 // the menu stays for clicking and for showing the keys.
 document.addEventListener("keydown", (e) => {
+  if (!S) return; // still starting: no screen to act on yet
   const typing = isTyping();
   if (modKey(e) && !e.altKey && !e.shiftKey && (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "f")) {
     e.preventDefault();

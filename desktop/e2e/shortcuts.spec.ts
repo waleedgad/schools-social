@@ -139,6 +139,10 @@ for (const language of ["en", "ar"] as const) {
     await win.keyboard.press("Home");
     await expect.poll(() => win.evaluate("V.photo?.id === V.ids[0]")).toBe(true);
     const shown0 = (await win.evaluate("V.ids[0]")) as number;
+    await call(win, "flag", [shown0], 0);
+    await call(win, "rate", [shown0], 0);
+    await win.keyboard.press("Home"); // draws it again with the fresh state
+    await expect.poll(() => win.evaluate("V.photo?.flag === 0 && !V.photo?.rating")).toBe(true);
     const state = async () => { const p = (await call(win, "photo", shown0)) as { flag: number; rating: number }; return [p.flag, p.rating]; };
     await win.keyboard.press("p");
     await win.keyboard.press("3");
