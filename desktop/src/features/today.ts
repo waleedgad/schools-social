@@ -69,7 +69,7 @@ export function todayApi(ctx: Ctx): Api {
     );
     const students = one<{ n: number }>("select count(*) n from students where kind = 'student' and left_on is null")?.n ?? 0;
     const facesToConfirm = one<{ n: number }>("select count(*) n from faces where status = 'suggested'")?.n ?? 0;
-    const facesUnknown = one<{ n: number }>("select count(*) n from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and p.missing = 0 and p.hidden = 0")?.n ?? 0;
+    const facesUnknown = one<{ n: number }>("select count(*) n from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and coalesce(f.why, '') != 'far' and p.missing = 0 and p.hidden = 0")?.n ?? 0;
     const toCull = one<{ n: number }>(`select count(*) n from photos p where ${good} and flag = 0 and rating = 0 and added_at > ?`, now - 7 * DAY)?.n ?? 0;
     const birthdays = all(
       "select id, name_en, name_ar, class_name, birthday from students where kind = 'student' and left_on is null and birthday is not null and substr(birthday, 6, 5) between ? and ? order by substr(birthday, 6, 5) limit 12",

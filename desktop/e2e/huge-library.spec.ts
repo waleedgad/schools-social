@@ -85,7 +85,7 @@ test("a library of 20,000 photos stays quick", async () => {
   for (let i = 0; i < 600; i++) addStudent.run(`S${i}`, `Student ${i} ${["Adel", "Hassan", "Nour", "Salma", "Omar"][i % 5]}`, CLASSES[i % 20], i === 7 || i === 70 || i === 300 ? 0 : 1);
   const all = db.prepare("select id, event_key, event_date from photos order by id").all() as { id: number; event_key: string; event_date: string }[];
   const setPhoto = db.prepare("update photos set taken_at = ?, class_name = ?, face_count = ?, faces_scanned = 1 where id = ?");
-  const addFace = db.prepare("insert into faces (photo_id, x, y, w, h, student_id, status, suggest_id) values (?, 0.1, 0.1, 0.2, 0.2, ?, ?, ?)");
+  const addFace = db.prepare("insert into faces (photo_id, x, y, w, h, student_id, status, suggest_id, suggest_score) values (?, 0.1, 0.1, 0.2, 0.2, ?, ?, ?, ?)");
   const want = { byStudent: new Map<string, Set<number>>(), byClass: new Map<string, Set<number>>(), noPost: new Set<number>(), byDay: new Map<string, Set<number>>() };
   const addTo = <K>(m: Map<K, Set<number>>, k: K, id: number) => m.set(k, (m.get(k) ?? new Set()).add(id));
   all.forEach((p, n) => {
@@ -100,14 +100,14 @@ test("a library of 20,000 photos stays quick", async () => {
     addTo(want.byDay, new Date(local).toISOString().slice(0, 10), p.id);
     const named = [(n * 7) % 600, (n * 13 + 5) % 600].slice(0, n % 3);
     for (const st of named) {
-      addFace.run(p.id, `S${st}`, "confirmed", null);
+      addFace.run(p.id, `S${st}`, "confirmed", null, null);
       addTo(want.byStudent, `S${st}`, p.id);
       addTo(want.byClass, CLASSES[st % 20], p.id);
       if (st === 7 || st === 70 || st === 300) want.noPost.add(p.id);
     }
-    // Every 97th photo has an unconfirmed suggestion of student 300.
+    // Every 97th photo has an unconfirmed (likely) suggestion of student 300.
     if (n % 97 === 0) {
-      addFace.run(p.id, null, "suggested", "S300");
+      addFace.run(p.id, null, "suggested", "S300", 0.6);
       want.noPost.add(p.id);
     }
     setPhoto.run(takenUtc, filed, named.length + (n % 97 === 0 ? 1 : 0), p.id);

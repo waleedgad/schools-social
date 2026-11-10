@@ -75,8 +75,36 @@ export function scaled(raw: number, r: Recogniser) {
   return 1;
 }
 export const SAME_PERSON = 0.363;
-// Below this, a suggestion is a guess and isn't shown (Waleed, Oct 2026).
-export const SHOW_FROM = 0.5;
+// Suggestions are only shown when they are right at least 9 times in 10 in
+// the face test (strangers counted as wrong), and are labelled in words, not
+// a %: a shown score is how alike two faces are, not a chance (Waleed, 7 Nov
+// 2026: "it should only suggest 90%+"). Below SHOW_FROM a match is a guess:
+// it never becomes a suggestion and only appears under "More…".
+// Face test, 7 Nov 2026 (both recognisers, faces not named by themselves):
+// 40-50% right 3-58% of the time, 50-55% 50-81%, 55-60% 91-98%, 60-62% 100%.
+export const SHOW_FROM = 0.55;
+export const VERY_LIKELY = 0.6;
+export type Likelihood = "very" | "likely" | null;
+export function likelihood(score: number | null | undefined): Likelihood {
+  if (score == null || !(score >= SHOW_FROM)) return null;
+  return score >= VERY_LIKELY ? "very" : "likely";
+}
+// Far and blurred faces are never suggested and get no "?" prompt; a sure
+// match still names them. Face test, 7 Nov 2026, from 55%: faces under 60 px
+// 91% right, 60-90 px 100%, bigger 98-100%; masks, sunglasses, hats, hands,
+// low light 95-100%, motion blur 93%. 90 px keeps a margin (Waleed: no
+// suggestions for far faces).
+export const SUGGEST_PX = 90; // face width in the photo's own pixels
+export const SUGGEST_SHARP = 25; // faceSharpness of the aligned face
+// A face's width in the pixels the face finder looked at (photos are read at
+// most 2000 px on the long side).
+export function facePx(boxW: number, width: number | null | undefined, height: number | null | undefined) {
+  if (!width || !height) return Infinity;
+  return boxW * width * Math.min(1, 2000 / Math.max(width, height));
+}
+export function clearEnough(px: number, sharpness: number | null | undefined) {
+  return px >= SUGGEST_PX && (sharpness == null || sharpness >= SUGGEST_SHARP);
+}
 // A match this strong, well clear of the next student, is named by itself
 // and marked "auto" so it can be checked later.
 export const SURE = 0.62;

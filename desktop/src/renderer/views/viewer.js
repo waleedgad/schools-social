@@ -56,7 +56,7 @@ async function drawViewer() {
     <div class="vbody"><div class="stage"><div class="imgbox"><img id="v-img" src="hub://preview/${shown}" style="background: center / contain no-repeat url('hub://thumb/${shown}')" />
       <div class="vmissing hide" id="v-miss">${icon("image-off", 16)} <span>${L("The original isn't on this computer now (moved, renamed, or on a drive that isn't connected). This is its small copy.", "الأصل ليس على هذا الجهاز الآن (نُقل أو أُعيدت تسميته أو على قرص غير موصول). هذه نسخته الصغيرة.")}</span>
         <button class="btn small" id="v-mfind">${L("Find missing…", "البحث عن المفقودة…")}</button><button class="btn small" id="v-mshow">${S.platform === "win32" ? L("Show in Explorer", "إظهار في المستكشف") : L("Show in Finder", "إظهار في Finder")}</button></div>
-      ${faces.map((f) => (f.w ? `<div class="facebox ${f.status} ${f.status !== "suggested" && f.can_post === 0 ? "nopost" : ""}" data-face="${f.id}" style="left: ${f.x * 100}%; top: ${f.y * 100}%; width: ${f.w * 100}%; height: ${f.h * 100}%"><span class="nm">${esc(faceLabel(f))}</span></div>` : "")).join("")}
+      ${faces.map((f) => (f.w ? `<div class="facebox ${f.status} ${f.why === "far" && f.status === "unknown" ? "far" : ""} ${f.status !== "suggested" && f.can_post === 0 ? "nopost" : ""}" data-face="${f.id}" style="left: ${f.x * 100}%; top: ${f.y * 100}%; width: ${f.w * 100}%; height: ${f.h * 100}%"><span class="nm">${esc(faceLabel(f))}</span></div>` : "")).join("")}
       ${V.before ? `<span class="tag" style="position: absolute; top: 8px; left: 8px">${L("Original", "الأصل")}</span>` : ""}</div></div>
       <aside class="vside${$("#v-side.hide") ? " hide" : ""}" id="v-side" data-own></aside></div>
     <div class="keys">${keys.map(([k, t]) => `<span><span class="k">${k}</span> ${t}</span>`).join("")}</div>
@@ -96,14 +96,15 @@ async function drawViewer() {
 function faceLabel(f) {
   if (f.status === "suggested") return `${S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en}?`;
   if (f.student_id) return name(f);
-  return "?";
+  return f.why === "far" ? "" : "?";
 }
 
 function drawSide(p) {
   const side = $("#v-side");
   const named = p.faces.filter((f) => f.student_id && f.status !== "suggested");
   const sug = p.faces.filter((f) => f.status === "suggested");
-  const unknown = p.faces.filter((f) => f.status === "unknown" && f.w);
+  // Far and blurred faces ask nothing (they can still be named from their box).
+  const unknown = p.faces.filter((f) => f.status === "unknown" && f.w && f.why !== "far");
   morph(side, `
     <div class="col gap4"><b>${esc(p.event_title ?? L("Not in an event", "خارج الفعاليات"))}</b>
       <span class="muted">${[p.taken_at && fmtDate(p.taken_at), p.class_name, p.term, p.year].filter(Boolean).map(esc).join(" · ")}</span>
@@ -111,7 +112,7 @@ function drawSide(p) {
       <div class="row">${p.remote_id ? `<span class="tag info">☁ ${L("On the website", "على الموقع")}</span>` : ""}${p.is_raw || p.raw.length ? `<span class="tag">RAW</span>` : ""}${p.edits.length ? `<span class="tag violet">✎ ${L("Edited", "معدّلة")}</span>` : ""}</div></div>
     <div class="col gap4"><b>${L("People", "الأشخاص")}</b>
       ${named.map((f) => `<div class="who" data-key="f${f.id}" data-fm="${f.id}">${avatar({ ...f, id: f.student_id, portrait: null })}<div class="grow"><div>${esc(name(f))}</div><div class="muted tiny">${esc(f.class_name ?? "")}</div></div>${f.can_post === 0 ? `<span class="tag bad" title="${L("Can't appear in posts", "لا يظهر في المنشورات")}">⛔</span>` : ""}<button class="btn small ghost" data-untag="${f.id}" title="${L("Remove", "إزالة")}">✕</button></div>`).join("")}
-      ${sug.map((f) => `<div class="who" data-key="f${f.id}" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div>${esc(S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en)}?</div><div class="muted tiny">${L("match", "تطابق")} ${Math.round((f.suggest_score ?? 0) * 100)}%</div></div><button class="btn small" data-yes="${f.id}" title="Y">✓</button><button class="btn small" data-no="${f.id}" title="N">✕</button></div>`).join("")}
+      ${sug.map((f) => `<div class="who" data-key="f${f.id}" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div>${esc(S.language === "en" ? f.suggest_en || f.suggest_ar : f.suggest_ar || f.suggest_en)}?</div><div class="tiny">${likelyTag(f.likely)}</div></div><button class="btn small" data-yes="${f.id}" title="Y">✓</button><button class="btn small" data-no="${f.id}" title="N">✕</button></div>`).join("")}
       ${unknown.map((f) => `<div class="who" data-key="f${f.id}" data-fm="${f.id}"><img src="hub://face/${f.id}" /><div class="grow"><div class="muted">${L("Who is this?", "من هذا؟")}</div><div class="row gap4" data-guess="${f.id}" data-own></div></div><button class="btn small" data-name="${f.id}">${L("Name", "تسمية")}</button></div>`).join("")}
       ${!p.faces.length ? `<span class="muted">${p.faces_scanned === 1 ? L("No faces found.", "لم يتم العثور على وجوه.") : L("Looking for faces…", "جارٍ البحث عن وجوه…")}</span>` : ""}
       <button class="btn small" id="v-tag">+ ${L("Tag someone (T)", "وسم شخص (T)")}</button></div>
@@ -132,8 +133,14 @@ function drawSide(p) {
     const id = Number(box.dataset.guess);
     if (box.childElementCount) return; // already filled for this face
     const g = (await quiet("faceGuesses", id)) ?? [];
-    box.innerHTML = g.map((x, i) => `<button class="btn small" data-pickg="${esc(x.studentId)}" title="${Math.round(x.score * 100)}%">${esc(name(x.student))}</button>`).join("");
-    $$("[data-pickg]", box).forEach((b) => (b.onclick = () => faceAction("confirmFaces", [id], b.dataset.pickg)));
+    // Only a likely person is offered; weak guesses wait behind "More…".
+    const fill = (all) => {
+      const list = all ? g : g.filter((x) => x.label);
+      box.innerHTML = list.map((x) => `<button class="btn small" data-pickg="${esc(x.studentId)}" title="${esc(likelyText(x.label))}">${esc(name(x.student))}${x.label ? ` · ${likelyText(x.label)}` : ""}</button>`).join("") + (!all && g.length > list.length ? `<button class="link small" data-more>${L("More…", "المزيد…")}</button>` : "");
+      $$("[data-pickg]", box).forEach((b) => (b.onclick = () => faceAction("confirmFaces", [id], b.dataset.pickg)));
+      $("[data-more]", box)?.addEventListener("click", () => fill(true));
+    };
+    fill(false);
   });
   $("#v-tag", side).onclick = tagHere;
   $("#v-finder", side).onclick = () => call("reveal", p.id);
