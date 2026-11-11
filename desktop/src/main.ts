@@ -1542,7 +1542,7 @@ function createMenu() {
       {
         label: L("File", "ملف"),
         submenu: [
-          { label: L("Import photos…", "استيراد صور…"), accelerator: "CmdOrCtrl+I", click: () => send("go:import") },
+          { label: L("Import photos…", "استيراد صور…"), accelerator: "CmdOrCtrl+Shift+I", click: () => send("go:import") },
           { label: L("Import class list…", "استيراد قائمة الفصول…"), click: () => send("go:students-import") },
           { label: L("New post from selection", "منشور جديد من المحدد"), accelerator: "CmdOrCtrl+N", click: () => send("post") },
           { type: "separator" },
@@ -1576,6 +1576,8 @@ function createMenu() {
           { label: L("Coverage", "التغطية"), accelerator: "CmdOrCtrl+8", click: () => send("go:coverage") },
           { label: L("Clean up", "تنظيف"), accelerator: "CmdOrCtrl+9", click: () => send("go:cleanup") },
           { type: "separator" },
+          { label: L("Show info", "إظهار المعلومات"), accelerator: "CmdOrCtrl+I", click: () => send("info") },
+          { type: "separator" },
           { label: L("Back", "رجوع"), accelerator: "CmdOrCtrl+[", click: () => send("back") },
           { label: L("Forward", "تقدّم"), accelerator: "CmdOrCtrl+]", click: () => send("forward") },
           { type: "separator" },
@@ -1583,7 +1585,7 @@ function createMenu() {
           { role: "zoomIn" },
           { role: "zoomOut" },
           { role: "resetZoom" },
-          ...(app.isPackaged ? [] : [{ role: "toggleDevTools" as const }]),
+          ...(app.isPackaged ? [] : [{ role: "toggleDevTools" as const, accelerator: "F12" }]),
         ],
       },
       { role: "windowMenu" },

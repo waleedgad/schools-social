@@ -250,7 +250,8 @@ test("B-78: every event shows as an album, and a new event appears there straigh
   // All albums: the two events that were already there and the new one.
   await win.locator('#tree [data-album="albums"]').click();
   const cards = win.locator("#grid .zcard");
-  await expect(win.locator("#grid .sechead", { hasText: "Events · 2025-2026" })).toBeVisible({ timeout: 10_000 });
+  // B-93: the year is kept left-to-right, so Arabic doesn't show "2026-2025".
+  await expect(win.locator("#grid .sechead", { hasText: "Events · \u20662025-2026\u2069" })).toBeVisible({ timeout: 10_000 });
   await expect(cards.filter({ hasText: "Sports day" })).toContainText("3 photos");
   await expect(cards.filter({ hasText: "Book week" })).toContainText("2 photos");
   await expect(cards.filter({ hasText: "Art show" })).toContainText("1 photo");

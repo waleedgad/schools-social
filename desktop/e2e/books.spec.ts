@@ -1,5 +1,5 @@
 import { _electron, expect, test } from "@playwright/test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -24,6 +24,7 @@ function pdfInfo(file: string) {
   return { pages, w: Number(box?.[1]), h: Number(box?.[2]) };
 }
 const pt = (mm: number) => (mm / 25.4) * 72;
+const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
 
 test("yearbooks, graduation books, student books and flipbooks", async () => {
   test.setTimeout(300_000);
@@ -70,7 +71,6 @@ test("yearbooks, graduation books, student books and flipbooks", async () => {
     .toBe(n);
 
   // A Grade 12 class: Omar and Laila may appear; Nour may not. Ms Hoda teaches it.
-  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
   const db = new DatabaseSync(path.join(userData, "library.db"));
   db.exec("pragma busy_timeout = 5000");
   const addPerson = db.prepare("insert into students (id, name_en, name_ar, grade, class_name, can_post, kind, added_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -149,11 +149,39 @@ test("yearbooks, graduation books, student books and flipbooks", async () => {
   const before = await sharpness(nourPhoto.path);
   const after = await sharpness(blurred);
   expect(after, `checkerboard contrast ${before.toFixed(0)} -> ${after.toFixed(0)}`).toBeLessThan(before / 3);
-  // B-88: where the book uses the photo with a likely match with Nour, that face is blurred too.
-  if (book.pages.flatMap((p) => p.photos).includes(likelyNour.id)) {
-    const likely = printed(likelyNour.id);
-    expect(likely, "B-88: the likely match is blurred in print").toBeTruthy();
-    expect(await sharpness(likely)).toBeLessThan((await sharpness(likelyNour.path)) / 3);
+  // B-88: the photo with a likely match with Nour, in the book: that face is
+  // blurred too. It is put on a page by hand when the draft didn't pick it,
+  // so this is checked on every run.
+  if (!book.pages.flatMap((p) => p.photos).includes(likelyNour.id)) {
+    const page = book.pages.find((p) => p.type === "trips") ?? book.pages.find((p) => p.photos.length && p.type !== "cover")!;
+    await call("saveBook", id, { pages: book.pages.map((p) => (p.id === page.id ? { ...p, photos: [...p.photos, likelyNour.id] } : p)) });
+    expect((await call<{ missing: number }>("bookPdf", id)).missing).toBe(0);
+  }
+  const likely = printed(likelyNour.id);
+  const why = () => {
+    const d = new DatabaseSync(path.join(userData, "library.db"));
+    const r = { faces: d.prepare("select status, student_id, suggest_id, suggest_score, w from faces where photo_id = ?").all(likelyNour.id), original: existsSync(likelyNour.path), cache: readdirSync(path.join(userData, "cache", "book")) };
+    d.close();
+    return JSON.stringify(r);
+  };
+  expect(likely, `B-88: the likely match is blurred in print ${likely ? "" : why()}`).toBeTruthy();
+  expect(await sharpness(likely)).toBeLessThan((await sharpness(likelyNour.path)) / 3);
+
+  // B-94: the original can't be reached (a drive unplugged): the book is
+  // printed from the screen picture, and Nour's face is blurred there too.
+  const away = `${nourPhoto.path}.away`;
+  renameSync(nourPhoto.path, away);
+  try {
+    expect((await call<{ missing: number }>("bookPdf", id)).missing).toBe(0);
+    const screen = readdirSync(path.join(userData, "cache", "book")).find((f) => f.startsWith(`${nourPhoto.id}-b`) && f.endsWith("-screen.jpg"));
+    expect(screen, "B-94: printed from the screen picture, blurred").toBeTruthy();
+    const big = path.join(base, "screen-big.jpg");
+    await sharp(path.join(userData, "cache", "book", screen!)).resize(2400, 1800, { fit: "fill" }).toFile(big);
+    const plain = path.join(base, "plain-big.jpg");
+    await sharp(away).resize(1600, 1200).resize(2400, 1800, { fit: "fill" }).toFile(plain);
+    expect(await sharpness(big)).toBeLessThan((await sharpness(plain)) / 3);
+  } finally {
+    renameSync(away, nourPhoto.path);
   }
 
   // In Arabic, right to left.

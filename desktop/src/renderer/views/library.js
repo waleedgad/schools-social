@@ -127,6 +127,7 @@ App.views.library = {
       lib.shown.forEach((p) => lib.sel.add(p.id));
       refreshSelection();
     }
+    if (c === "info") return toggleInfo(), true;
     if (c === "selectNone") {
       lib.sel.clear();
       refreshSelection();
@@ -140,10 +141,10 @@ App.views.library = {
   keys: () => [
     ["← → ↑ ↓", L("Move", "تنقل")], ["Space", L("Quick look", "نظرة سريعة")], ["Enter", L("Open", "فتح")], ["P", L("Pick", "اختيار")], ["X", L("Reject", "رفض")],
     ["U", L("Clear pick", "إلغاء الاختيار")], ["0-5", L("Stars", "نجوم")], ["6 7 8", L("Red, yellow, green label", "لون أحمر، أصفر، أخضر")], ["9", L("No label", "بلا لون")],
-    ["T", L("Name who is in it", "تسمية من فيها")], ["C", L("Compare", "مقارنة")], ["H", L("Hide", "إخفاء")], ["I", L("Info panel", "لوحة المعلومات")], ["S", L("Stack bursts", "تجميع المتتابعة")],
+    ["T", L("Name who is in it", "تسمية من فيها")], ["C", L("Compare", "مقارنة")], [["H", "⌘ L"], L("Hide, or show again", "إخفاء أو إظهار")], [["I", "⌘ I"], L("Info panel", "لوحة المعلومات")], ["S", L("Stack bursts", "تجميع المتتابعة")],
     ["+ −", L("Bigger, smaller", "أكبر، أصغر")], ["Home End", L("First, last photo", "أول، آخر صورة")],
-    ["⌘ A", L("Select all", "تحديد الكل")], ["⌘ D", L("Select none", "إلغاء التحديد")], ["⌥ ⌘ A", L("Invert selection", "عكس التحديد")], ["Esc", L("Clear selection", "إلغاء التحديد")],
-    ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")], ["⌘ L", L("Hide", "إخفاء")], ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ N", L("New post", "منشور جديد")],
+    ["⌘ A", L("Select all", "تحديد الكل")], [["⌘ D", "Esc"], L("Select none", "إلغاء التحديد")], ["⌥ ⌘ A", L("Invert selection", "عكس التحديد")],
+    ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")], ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ N", L("New post", "منشور جديد")],
   ],
   onKey(e) {
     if ($(".quicklook")) return;
@@ -1132,7 +1133,8 @@ function drawAlbumCards() {
     else evs.set(r.event_key, { ...r });
   }
   const events = [...years].map(([y, evs]) =>
-    sec(`${L("Events", "الفعاليات")} · ${y}`, [...evs.values()].map((e) => card(`ev:${e.event_key}`, e.cover, eventLabel(e), e.n, "folder"))),
+    // The year keeps its own direction, or Arabic shows "2027-2026" (B-93).
+    sec(`${L("Events", "الفعاليات")} · \u2066${y}\u2069`, [...evs.values()].map((e) => card(`ev:${e.event_key}`, e.cover, eventLabel(e), e.n, "folder"))),
   ).join("");
   grid.innerHTML =
     sec(L("My albums", "ألبوماتي"), (a.mine ?? []).map((x) => card(`my:${x.id}`, x.cover, x.name, x.n, "book-marked"))) +

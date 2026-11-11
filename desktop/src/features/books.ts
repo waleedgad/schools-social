@@ -90,19 +90,28 @@ export function booksApi(ctx: Ctx): Api {
   // with the faces of students who can't appear pixelated when the book blurs them.
   async function printFile(id: number, spec: BookSpec) {
     const p = one<{ path: string; ext: string }>("select path, ext from photos where id = ?", id);
-    if (!p || !existsSync(p.path)) return `hub://preview/${id}`;
+    if (!p) return `hub://preview/${id}`;
     // Faces that can't appear: the same rule as the website check, likely
     // matches too (B-88). The saved print copy is named after the faces it
     // blurs, so a face named later is never printed from an old copy.
     const boxes = spec.cantAppear === "blur"
       ? all<{ x: number; y: number; w: number; h: number }>(`select f.x, f.y, f.w, f.h from faces f where f.photo_id = ? and f.w > 0 and ${noPostFace("f")} order by f.id`, id)
       : [];
+    // The original isn't there (a drive unplugged, a file locked): the
+    // screen picture is printed instead, and it is blurred just the same.
+    // Before, it went in as it was, with the face of a student who can't
+    // appear in plain view (B-94). With no screen picture either, the
+    // frame counts as missing.
+    const original = existsSync(p.path);
+    if (!original && !boxes.length) return `hub://preview/${id}`;
+    const src = original ? p.path : await ctx.engine()?.preview(id).catch(() => null);
+    if (!src) return "";
     const key = boxes.length ? "-b" + createHash("sha1").update(JSON.stringify(boxes)).digest("hex").slice(0, 10) : "";
-    const out = ctx.data(`cache/book/${id}${key}.jpg`);
+    const out = ctx.data(`cache/book/${id}${key}${original ? "" : "-screen"}.jpg`);
     if (!existsSync(out)) {
       await mkdir(path.dirname(out), { recursive: true });
       await exclusive(async () => {
-        const base = sharp(await readable(p.path), { failOn: "none" }).rotate().resize(4200, 4200, { fit: "inside", withoutEnlargement: true });
+        const base = sharp(original ? await readable(src) : src, { failOn: "none" }).rotate().resize(4200, 4200, { fit: "inside", withoutEnlargement: true });
         const { data, info } = await base.jpeg({ quality: 92 }).toBuffer({ resolveWithObject: true });
         if (!boxes.length) return writeFile(out, data);
         const parts = await Promise.all(

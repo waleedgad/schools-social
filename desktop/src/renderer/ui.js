@@ -252,24 +252,30 @@ function shortcutSheet() {
   const inViewer = App.overlayKeys === viewerKeys && V.open;
   const here = inViewer ? viewerKeyList() : view?.keys?.() ?? [];
   const nav = Object.entries(JUMPS).map(([k, v]) => [`G ${k.toUpperCase()}`, NAV.flatMap((s) => s.items).find((n) => n.id === v)?.label() ?? v]);
+  // A row is one action; its key can be a list of keys that do the same
+  // thing (shown as "I or ⌘I").
+  const keysOf = (k) => (Array.isArray(k) ? k : [k]);
+  const chips = (k) => forPc(k).split(" ").map((x) => `<span class="k">${esc(x)}</span>`).join(" ");
   const block = (title, rows) =>
-    rows.length ? `<h3>${esc(title)}</h3><div class="keysheet">${rows.map(([k, t]) => `<div><span>${esc(t)}</span><span class="ltr">${forPc(k).split(" ").map((x) => `<span class="k">${esc(x)}</span>`).join(" ")}</span></div>`).join("")}</div>` : "";
+    rows.length ? `<h3>${esc(title)}</h3><div class="keysheet">${rows.map(([k, t]) => `<div><span>${esc(t)}</span><span class="ltr">${keysOf(k).map(chips).join(` <span class="muted small">${L("or", "أو")}</span> `)}</span></div>`).join("")}</div>` : "";
+  // "Everywhere" leaves out the keys this screen already lists.
+  const shown = new Set(here.flatMap(([k]) => keysOf(k)));
+  const notShown = (rows) => rows.filter(([k]) => !keysOf(k).some((x) => shown.has(x)));
   modal(
     `<div class="row"><h2 class="grow">${L("Keyboard shortcuts", "اختصارات لوحة المفاتيح")}</h2><button class="btn ghost" data-x>${icon("x")}</button></div>
     ${block(L("On this screen", "في هذه الشاشة"), here)}
-    ${block(L("Everywhere", "في كل مكان"), [
-      ["⌘ K", L("Search and commands", "البحث والأوامر")],
-      ["⌘ F", L("Search", "بحث")],
+    ${block(L("Everywhere", "في كل مكان"), notShown([
+      [["⌘ K", "⌘ F"], L("Search and commands", "البحث والأوامر")],
       ["⌘ N", L("New post", "منشور جديد")],
-      ["⌘ I", L("Import photos", "استيراد صور")],
+      ["⇧ ⌘ I", L("Import photos", "استيراد صور")],
       ["⌘ Z", L("Undo", "تراجع")],
       ["⌘ A", L("Select all", "تحديد الكل")],
       ["⌘ D", L("Select none", "إلغاء التحديد")],
       ["⌘ ,", L("Settings", "الإعدادات")],
       [isMac() ? "⌘ [ ⌘ ]" : "Alt+← Alt+→", L("Back, forward", "رجوع، تقدّم")],
       ["Esc", L("Close what is on top", "إغلاق ما في الأعلى")],
-      ["⌘ / ?", L("This list", "هذه القائمة")],
-    ])}
+      [["⌘ /", "?"], L("This list", "هذه القائمة")],
+    ]))}
     ${block(L("Tabs", "التبويبات"), Object.entries(TAB_KEYS).map(([n, id]) => [`⌘ ${n}`, NAV.flatMap((s) => s.items).find((x) => x.id === id)?.label() ?? id]))}
     ${block(L("Go to", "انتقال إلى"), nav)}`,
     { wide: true },
