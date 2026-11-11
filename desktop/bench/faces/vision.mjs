@@ -89,13 +89,15 @@ for (const size of [70, 110, 170]) {
     for (let i = 0; i < 24; i++) {
       const p = people[(g * 24 + i) % people.length];
       const files = (await readdir(path.join(photos, p))).filter((f) => f.endsWith(".jpg")).sort();
+      if (!files.length) continue;
       const src = path.join(photos, p, files[(g + i) % files.length]);
-      const found = (await F.findFaces(MODELS, src)).filter((f) => f.usable).sort((a, b) => b.box[2] - a.box[2])[0];
+      const found = (await F.findFaces(MODELS, src).catch(() => [])).filter((f) => f.usable).sort((a, b) => b.box[2] - a.box[2])[0];
       if (!found) continue;
       const m = await sharp(src).rotate().metadata();
       const side = Math.round(found.box[2] * m.width * 2.2);
       const left = Math.max(0, Math.round((found.box[0] + found.box[2] / 2) * m.width - side / 2));
       const top = Math.max(0, Math.round((found.box[1] + found.box[3] / 2) * m.height - side / 2));
+      if (side < 8) continue;
       const cut = await sharp(src).rotate().extract({ left, top, width: Math.min(side, m.width - left), height: Math.min(side, m.height - top) }).resize(Math.round(size * 2.2), Math.round(size * 2.2), { fit: "cover" }).toBuffer();
       tiles.push({ input: cut, left: 60 + (i % 6) * Math.round(size * 2.4), top: 60 + Math.floor(i / 6) * Math.round(size * 2.4) });
     }
