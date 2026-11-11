@@ -26,6 +26,15 @@ export type Face = {
   usable: boolean;
   why: string | null;
   sharpness: number;
+  // The face's width in the best pixels it was read from (the original
+  // photo's own pixels, up to HI_RES on the long side).
+  px?: number;
+  // The face finder's confidence on the whole photo, and on its closer
+  // second look at just this face (null: it saw no face there).
+  detScore?: number;
+  zoomScore?: number | null;
+  // Other ways of describing the same face, for the face test only.
+  variants?: Record<string, Float32Array>;
 };
 
 export type Recogniser = "sface" | "aura" | "both";
@@ -96,11 +105,14 @@ export function likelihood(score: number | null | undefined): Likelihood {
 // suggestions for far faces).
 export const SUGGEST_PX = 90; // face width in the photo's own pixels
 export const SUGGEST_SHARP = 25; // faceSharpness of the aligned face
-// A face's width in the pixels the face finder looked at (photos are read at
-// most 2000 px on the long side).
+// A face's width in the photo's own pixels. Faces are found on a copy at
+// most 2000 px on the long side, but each face is then read (described)
+// from the original, up to HI_RES px: a student at the back of a class photo
+// from a good camera is 150 px wide there, not 50.
+export const HI_RES = 6000;
 export function facePx(boxW: number, width: number | null | undefined, height: number | null | undefined) {
   if (!width || !height) return Infinity;
-  return boxW * width * Math.min(1, 2000 / Math.max(width, height));
+  return boxW * width * Math.min(1, HI_RES / Math.max(width, height));
 }
 export function clearEnough(px: number, sharpness: number | null | undefined) {
   return px >= SUGGEST_PX && (sharpness == null || sharpness >= SUGGEST_SHARP);
@@ -287,7 +299,52 @@ export function cosine(a: Float32Array, b: Float32Array) {
 }
 
 // Finds every face in a photo file and describes each one.
-export type FindOptions = { aura?: string | null; vision?: (jpeg: Buffer) => Promise<VisionFace[] | null> };
+export type FindOptions = {
+  aura?: string | null;
+  vision?: (jpeg: Buffer) => Promise<VisionFace[] | null>;
+  // The face test only: "legacy" reads faces the way 0.11 did (from the
+  // 2000 px copy, no second look); "variants" also returns those
+  // descriptions next to the app's own, to compare them face by face.
+  legacy?: boolean;
+  variants?: ("v1" | "aa")[];
+};
+
+type Img = { data: Buffer; width: number; height: number };
+
+// A rectangle cut out of a photo (black outside the photo).
+export function cut(img: Img, x0: number, y0: number, w: number, h: number) {
+  const out = Buffer.alloc(w * h * 3);
+  const xa = Math.max(0, x0), xb = Math.min(img.width, x0 + w);
+  if (xb <= xa) return out;
+  for (let y = Math.max(0, y0); y < Math.min(img.height, y0 + h); y++) {
+    img.data.copy(out, ((y - y0) * w + (xa - x0)) * 3, (y * img.width + xa) * 3, (y * img.width + xb) * 3);
+  }
+  return out;
+}
+
+// A big face is made smaller properly before it is cut out at 112 px.
+// Sampling a 600 px face straight down to 112 px skips most of its pixels
+// and leaves speckle (aliasing) that the recognisers read as detail.
+export async function shrinkForAlign(img: Img, landmarks: number[]): Promise<Img & { landmarks: number[] }> {
+  const src = [0, 1, 2, 3, 4].map((i) => [landmarks[i * 2], landmarks[i * 2 + 1]]);
+  const { a, b, tx, ty } = similarity(src, REFERENCE);
+  const s = Math.hypot(a, b); // 112-px-face pixels per photo pixel
+  if (!(s < 0.6) || !Number.isFinite(s) || s <= 0) return { ...img, landmarks };
+  // Where the 112 px square sits in the photo.
+  const det = a * a + b * b;
+  const xs: number[] = [], ys: number[] = [];
+  for (const [u, v] of [[0, 0], [112, 0], [0, 112], [112, 112]]) {
+    xs.push((a * (u - tx) + b * (v - ty)) / det);
+    ys.push((-b * (u - tx) + a * (v - ty)) / det);
+  }
+  const x0 = Math.floor(Math.min(...xs)) - 4, y0 = Math.floor(Math.min(...ys)) - 4;
+  const w = Math.ceil(Math.max(...xs)) + 4 - x0, h = Math.ceil(Math.max(...ys)) + 4 - y0;
+  if (w < 8 || h < 8 || w > 20000 || h > 20000) return { ...img, landmarks };
+  const f = s / 0.9;
+  const nw = Math.max(8, Math.round(w * f)), nh = Math.max(8, Math.round(h * f));
+  const data = await sharp(cut(img, x0, y0, w, h), { raw: { width: w, height: h, channels: 3 } }).resize(nw, nh, { fit: "fill" }).raw().toBuffer();
+  return { data, width: nw, height: nh, landmarks: landmarks.map((v, i) => (i % 2 ? (v - y0) * (nh / h) : (v - x0) * (nw / w))) };
+}
 export type VisionFace = { box: [number, number, number, number]; quality: number };
 
 export async function findFaces(modelsDir: string, file: string | Buffer, o: FindOptions = {}): Promise<Face[] & { recogniser?: Recogniser }> {
@@ -297,6 +354,7 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
     .rotate()
     .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
     .removeAlpha()
+    .toColourspace("srgb")
     .raw()
     .toBuffer({ resolveWithObject: true });
   const { width, height } = info;
@@ -323,17 +381,8 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
       .resize({ width: SIZE, height: SIZE, fit: "contain", position: "left top", background: { r: 0, g: 0, b: 0 } })
       .raw()
       .toBuffer();
-    // YuNet takes BGR, 0-255, channels first.
-    const input = new Float32Array(3 * SIZE * SIZE);
-    const plane = SIZE * SIZE;
-    for (let i = 0; i < plane; i++) {
-      input[i] = crop[i * 3 + 2];
-      input[plane + i] = crop[i * 3 + 1];
-      input[2 * plane + i] = crop[i * 3];
-    }
-    const out = await detector.run({ input: new ort.Tensor("float32", input, [1, 3, SIZE, SIZE]) });
     const contain = Math.min(SIZE / Math.min(side, width - view.x), SIZE / Math.min(side, height - view.y));
-    for (const f of decode(out as never)) {
+    for (const f of await detect(ort, detector, crop)) {
       const k = 1 / contain;
       all.push({
         score: f.score,
@@ -357,11 +406,35 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
     vision = await o.vision(jpeg).catch(() => null);
   }
 
-  const result: Face[] = [];
-  for (const f of faces) {
-    const aligned = align(rgb, width, height, f.landmarks, kind);
-    const describe = async (t: Float32Array, s: Session = recognizer) =>
-      Float32Array.from((await s.run({ [s.inputNames[0]]: new ort.Tensor("float32", t, [1, 3, 112, 112]) }))[s.outputNames[0]].data as Float32Array);
+  // Faces are found on the 2000 px copy; a photo from a good camera is three
+  // times that. When a face is small on the copy, every face is read from
+  // the original instead (up to HI_RES px), where it has nine times the detail.
+  const copy: Img = { data: rgb, width, height };
+  let hi: Img | null = null;
+  if (!o.legacy && faces.some((f) => f.box[2] < HI_BELOW)) {
+    try {
+      const meta = await sharp(file, { failOn: "none" }).metadata();
+      if (Math.max(meta.width ?? 0, meta.height ?? 0) > Math.max(width, height) * 1.15) {
+        const r = await sharp(file, { failOn: "none" })
+          .rotate()
+          .resize({ width: HI_RES, height: HI_RES, fit: "inside", withoutEnlargement: true })
+          .removeAlpha()
+          .toColourspace("srgb")
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        if (r.info.channels === 3) hi = { data: r.data, width: r.info.width, height: r.info.height };
+      }
+    } catch {
+      hi = null; // the copy is still there
+    }
+  }
+  const src = hi ?? copy;
+  const K = src.width / width;
+
+  const describe = async (t: Float32Array, s: Session = recognizer) =>
+    Float32Array.from((await s.run({ [s.inputNames[0]]: new ort.Tensor("float32", t, [1, 3, 112, 112]) }))[s.outputNames[0]].data as Float32Array);
+  const embed = async (im: Img, lm: number[]) => {
+    const aligned = align(im.data, im.width, im.height, lm, kind);
     let raw = await describe(aligned);
     // AuraFace also looks at the mirror image of the face and adds the two:
     // steadier descriptions, so more faces are named by themselves (face test:
@@ -370,11 +443,37 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
       const m = await describe(mirror(aligned));
       raw = raw.map((v, i) => v + m[i]);
     }
-    const embedding = kind === "both" && sface ? combine(raw, await describe(align(rgb, width, height, f.landmarks, "sface"), sface)) : unit(raw);
+    const embedding = kind === "both" && sface ? combine(raw, await describe(align(im.data, im.width, im.height, lm, "sface"), sface)) : unit(raw);
+    return { aligned, embedding };
+  };
+
+  const result: Face[] = [];
+  for (const f of faces) {
+    const boxS = f.box.map((v) => v * K);
+    let lm = f.landmarks.map((v) => v * K);
+    // A second, closer look at just this face places the eyes, nose and
+    // mouth more exactly than the look at the whole photo could.
+    let zoomScore: number | null | undefined;
+    if (!o.legacy) {
+      const z = await secondLook(ort, detector, src, boxS).catch(() => null);
+      zoomScore = z?.score ?? null;
+      if (z) lm = z.landmarks;
+    }
+    const ready = o.legacy ? { ...src, landmarks: lm } : await shrinkForAlign(src, lm);
+    const { aligned, embedding } = await embed(ready, ready.landmarks);
+    let variants: Record<string, Float32Array> | undefined;
+    if (o.variants?.length) {
+      variants = {};
+      if (o.variants.includes("v1")) variants.v1 = (await embed(copy, f.landmarks)).embedding;
+      if (o.variants.includes("aa")) {
+        const r = await shrinkForAlign(copy, f.landmarks);
+        variants.aa = (await embed(r, r.landmarks)).embedding;
+      }
+    }
     const [x, y, w, h] = f.box;
     const box: Face["box"] = [clamp(x / width), clamp(y / height), clamp(w / width), clamp(h / height)];
     const sharpness = faceSharpness(aligned, kind);
-    let why = faceProblem(f, sharpness, width, height);
+    let why = faceProblem({ box: boxS, score: f.score, landmarks: lm }, sharpness, src.width, src.height);
     if (!why && vision) {
       const v = vision.find((vf) => iou(vf.box, box) > 0.25 || inside(box, vf.box));
       // Vision looks at a 1600 px copy and misses small faces at the back of
@@ -383,9 +482,44 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
       if (!v && visionCanSee(box, width, height)) why = "not-a-face";
       else if (v && v.quality < 0.12) why = "blurred";
     }
-    result.push({ box, score: f.score, landmarks: f.landmarks, embedding, usable: !why, why, sharpness });
+    result.push({ box, score: f.score, landmarks: lm.map((v) => v / K), embedding, usable: !why, why, sharpness, px: boxS[2], detScore: f.score, zoomScore, variants });
   }
   return Object.assign(result, { recogniser: kind });
+}
+
+// Below this width on the 2000 px copy a face gains from the original.
+const HI_BELOW = 160;
+
+// The face finder on one 640 x 640 picture (RGB bytes).
+async function detect(ort: Ort, detector: Session, crop: Buffer, threshold = SCORE) {
+  // YuNet takes BGR, 0-255, channels first.
+  const input = new Float32Array(3 * SIZE * SIZE);
+  const plane = SIZE * SIZE;
+  for (let i = 0; i < plane; i++) {
+    input[i] = crop[i * 3 + 2];
+    input[plane + i] = crop[i * 3 + 1];
+    input[2 * plane + i] = crop[i * 3];
+  }
+  const out = await detector.run({ input: new ort.Tensor("float32", input, [1, 3, SIZE, SIZE]) });
+  return decode(out as never, SIZE, threshold);
+}
+
+// The face finder again, on a square around one face (the face fills a
+// little under half of it): its eyes, nose and mouth in the photo's pixels,
+// or null when it sees no face there.
+export async function secondLook(ort: Ort, detector: Session, img: Img, box: number[]): Promise<Raw | null> {
+  const [x, y, w, h] = box;
+  const side = Math.max(32, Math.round(Math.max(w, h) * 2.2));
+  const x0 = Math.round(x + w / 2 - side / 2), y0 = Math.round(y + h / 2 - side / 2);
+  const crop = await sharp(cut(img, x0, y0, side, side), { raw: { width: side, height: side, channels: 3 } }).resize(SIZE, SIZE, { fit: "fill" }).raw().toBuffer();
+  const k = side / SIZE;
+  let best: Raw | null = null, bi = 0.3;
+  for (const f of await detect(ort, detector, crop, 0.3)) {
+    const b = [f.box[0] * k + x0, f.box[1] * k + y0, f.box[2] * k, f.box[3] * k];
+    const v = iou(b, box);
+    if (v > bi) [best, bi] = [{ score: f.score, box: b, landmarks: f.landmarks.map((p, i) => p * k + (i % 2 ? y0 : x0)) }, v];
+  }
+  return best;
 }
 
 // Is a face big enough that Apple Vision, looking at the 1600 px copy,
@@ -425,8 +559,7 @@ export const UNSURE_SCORE = 0.86;
 export function faceProblem(f: { box: number[]; score: number; landmarks: number[] }, sharpness: number, width: number, height: number, o: { minScore?: number } = {}): string | null {
   const [x, y, w, h] = f.box;
   const lm = f.landmarks;
-  const longSide = Math.max(width, height);
-  if (w < 40 || h < 40 || w / longSide < 0.018) return "too-small";
+  if (w < 40 || h < 40) return "too-small";
   if (f.score < (o.minScore ?? UNSURE_SCORE)) return "unsure";
   const ratio = w / h;
   if (ratio < 0.55 || ratio > 1.45) return "not-a-face";
@@ -495,7 +628,14 @@ export function bestMatch(embedding: Float32Array, known: Known[], r: Recogniser
 // One photo, many faces: a person appears in a photo at most once. The
 // strongest face-person pair wins; the other faces get their next-best
 // person or stay unknown. "taken" are people already named in the photo.
-export function assignPhoto(embeddings: (Float32Array | null)[], known: Known[], r: Recogniser = "sface", taken: Set<string> = new Set(), allowed?: (face: number, studentId: string) => boolean): (Match | null)[] {
+//
+// The same rule sharpens each match's lead: the "next most likely person"
+// for a face can't be someone a person already named in this photo, or
+// someone another face in it is surely (a stronger, sure match). In a class
+// photo most of the class is ruled out this way, so more faces are named by
+// themselves. Twins and look-alikes ("careful") are never ruled out.
+export type AssignOptions = { plain?: boolean; careful?: (studentId: string) => boolean };
+export function assignPhoto(embeddings: (Float32Array | null)[], known: Known[], r: Recogniser = "sface", taken: Set<string> = new Set(), allowed?: (face: number, studentId: string) => boolean, o: AssignOptions = {}): (Match | null)[] {
   const lists = embeddings.map((e, i) => (e ? ranked(e, known, r).filter((c) => !allowed || allowed(i, c.studentId)).slice(0, 8) : []));
   const pairs: { face: number; studentId: string; score: number }[] = [];
   lists.forEach((l, face) => l.forEach((c) => c.score >= SAME_PERSON && pairs.push({ face, ...c })));
@@ -508,6 +648,21 @@ export function assignPhoto(embeddings: (Float32Array | null)[], known: Known[],
     out[p.face] = { studentId: p.studentId, score: p.score, runnerUp };
     used.add(p.studentId);
   }
+  if (o.plain) return out;
+  // Who is surely somewhere else in this photo, judged on the plain leads.
+  const held = new Map<string, { face: number; score: number }>();
+  out.forEach((m, face) => m && isSure(m, r) && held.set(m.studentId, { face, score: m.score }));
+  out.forEach((m, face) => {
+    if (!m) return;
+    const next = lists[face].find((c) => {
+      if (c.studentId === m.studentId) return false;
+      if (o.careful?.(c.studentId) || o.careful?.(m.studentId)) return true;
+      if (taken.has(c.studentId)) return false;
+      const h = held.get(c.studentId);
+      return !(h && h.face !== face && h.score > c.score);
+    });
+    m.runnerUp = next?.score ?? 0;
+  });
   return out;
 }
 

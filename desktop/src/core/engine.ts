@@ -7,7 +7,7 @@ import { watchTree, type TreeWatcher } from "./tree-watch";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { assignPhoto, clearEnough, cosine, facePx, findFaces, guessTraits, handAgrees, isSure, learnFrom, likelihood, ranked, SAME_PERSON, scaled, SHOW_FROM, SUGGEST_PX, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
+import { assignPhoto, clearEnough, cosine, facePx, findFaces, guessTraits, handAgrees, HI_RES, isSure, learnFrom, likelihood, ranked, SAME_PERSON, scaled, SHOW_FROM, SUGGEST_PX, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -114,6 +114,7 @@ export class Engine {
   async start() {
     this.backfillProblems();
     this.upgradeRecogniser();
+    this.upgradeReading();
     this.tidySuggestions();
     const fixed = this.dedupePeople();
     if (fixed) this.o.log?.(`one person per photo: ${fixed} faces freed`);
@@ -518,7 +519,7 @@ export class Engine {
         const k = kept.get(i);
         return f.usable && !(k && ["confirmed", "manual", "rejected"].includes(k.status as string) && !(k.status === "confirmed" && k.auto)) ? f.embedding : null;
       });
-      const matches = assignPhoto(free, known, model, named, fits);
+      const matches = assignPhoto(free, known, model, named, fits, { careful: (sid) => this.isTwin(sid) });
       tx(this.db, () => {
         this.db.prepare(`delete from faces where photo_id = ? and portrait = 0 and w > 0 ${lost.length ? `and id not in (${lost.join(",")})` : ""}`).run(id);
         const insert = this.db.prepare(
@@ -553,6 +554,7 @@ export class Engine {
         this.db
           .prepare("update photos set faces_scanned = 1, face_count = ?, quality = ?, smile = ?, problems = ? where id = ?")
           .run(usable.length, score(p.sharpness as number, p.brightness as number, usable.length, biggest) + (smile ? Math.max(0, smile - 0.85) * 4 : 0), smile, problems, id);
+        this.db.prepare("update faces set read = 2 where photo_id = ? and portrait = 0").run(id);
       });
       this.o.onChange("faces");
       this.o.onNamed?.([id]);
@@ -593,11 +595,27 @@ export class Engine {
       .prepare(
         `update faces set why = 'far', status = 'unknown' where status in ('unknown', 'suggested') and why is null and w > 0 and portrait = 0
            and photo_id in (select id from photos p where p.width > 0 and p.height > 0
-             and faces.w * p.width * min(1.0, 2000.0 / max(p.width, p.height)) < ?)`,
+             and faces.w * p.width * min(1.0, (case when faces.read >= 2 then ${HI_RES}.0 else 2000.0 end) / max(p.width, p.height)) < ?)`,
       )
       .run(SUGGEST_PX).changes;
     if (weak || far) this.o.log?.(`faces: ${weak} weak suggestions removed, ${far} far faces kept quiet`);
     return Number(weak) + Number(far);
+  }
+
+  // Since 0.12 small faces in big photos are read from the original photo
+  // (three times the detail of the 2000 px copy) with a closer second look.
+  // Photos read the old way that have such faces are looked at again once,
+  // in the background. Names, "not this person" and "not a face" carry over.
+  upgradeReading() {
+    const n = this.db
+      .prepare(
+        `update photos set faces_scanned = 0 where missing = 0 and faces_scanned = 1 and max(width, height) > 2300
+           and id in (select f.photo_id from faces f join photos p on p.id = f.photo_id
+             where f.read < 2 and f.portrait = 0 and f.w > 0 and f.w * p.width * min(1.0, 2000.0 / max(p.width, p.height)) < 160)`,
+      )
+      .run().changes;
+    if (n) this.o.log?.(`faces: ${n} big photos with small faces are read again from the originals`);
+    return Number(n);
   }
 
   private upgradeRecogniser() {
@@ -630,8 +648,14 @@ export class Engine {
   }
 
   // Twins and look-alike siblings in the same grade need a clearer lead.
+  private twins: { at: number; ids: Set<string> } | null = null;
   private isTwin(studentId: string) {
-    return !!this.db.prepare("select 1 from links where (a = ? or b = ?) and kind in ('twin', 'lookalike') limit 1").get(studentId, studentId);
+    if (!this.twins || Date.now() - this.twins.at > 2000) {
+      const ids = new Set<string>();
+      for (const r of this.db.prepare("select a, b from links where kind in ('twin', 'lookalike')").all() as { a: string; b: string }[]) ids.add(r.a).add(r.b);
+      this.twins = { at: Date.now(), ids };
+    }
+    return this.twins.ids.has(studentId);
   }
 
   // Every face a person has confirmed, plus portraits: what suggestions are
@@ -800,7 +824,7 @@ export class Engine {
           if (who && t.adult === true && who.kind === "student") return false;
           if (who && t.adult === false && who.kind !== "student") return false;
           return true;
-        });
+        }, { careful: (sid) => this.isTwin(sid) });
         faces.forEach((r, i) => {
           const m = matches[i];
           if (studentIds && m && !studentIds.includes(m.studentId) && r.suggest_id === m.studentId) return;

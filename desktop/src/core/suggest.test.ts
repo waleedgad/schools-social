@@ -21,10 +21,12 @@ test("suggestion labels: nothing below the cut-off, words above it", () => {
 });
 
 test("far and blurred faces are never suggested", () => {
-  // a 6000 x 4000 photo is read at 2000 px wide: a 3% wide face is 60 px
-  assert.equal(Math.round(facePx(0.03, 6000, 4000)), 60);
+  // faces are read from the original photo (up to 6000 px): a 3% wide face
+  // in a 6000 x 4000 photo is 180 px, in a 2400 px photo 72 px
+  assert.equal(Math.round(facePx(0.03, 6000, 4000)), 180);
+  assert.equal(Math.round(facePx(0.03, 12000, 8000)), 180);
   assert.equal(facePx(0.1, 1000, 800), 100);
-  assert.equal(clearEnough(facePx(0.03, 6000, 4000), 200), false);
+  assert.equal(clearEnough(facePx(0.03, 2400, 1600), 200), false);
   assert.equal(clearEnough(SUGGEST_PX, 200), true);
   assert.equal(clearEnough(200, SUGGEST_SHARP - 1), false);
   assert.equal(clearEnough(200, null), true);

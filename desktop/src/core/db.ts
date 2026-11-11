@@ -263,6 +263,9 @@ export function openDb(file: string): Db {
   addColumn(db, "faces", "model", "text not null default 'sface'");
   addColumn(db, "faces", "why", "text");
   addColumn(db, "faces", "named_by", "text");
+  // 0.12: how the face was read. 1 = from the 2000 px copy (0.11 and before),
+  // 2 = from the original photo, with the closer second look.
+  addColumn(db, "faces", "read", "integer not null default 1");
   // 0.4: people who aren't students, and each student's time at the school.
   addColumn(db, "students", "kind", "text not null default 'student'");
   addColumn(db, "students", "birthday", "text");

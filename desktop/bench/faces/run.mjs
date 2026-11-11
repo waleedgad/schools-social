@@ -32,8 +32,12 @@ const photos = path.resolve(process.argv[2] ?? "face-bench-photos");
 const auraFile = process.argv[3] && existsSync(process.argv[3]) ? path.resolve(process.argv[3]) : null;
 // "both" is what the app uses once AuraFace is there: AuraFace (with its
 // mirror image) and SFace together.
-const KINDS = auraFile ? ["sface", "aura", "aura+flip", "both"] : ["sface"];
-const base = (kind) => kind.split("+")[0];
+// "both@v1" is how 0.11 read each face (from the 2000 px copy, eyes and mouth
+// as first found), "both@aa" adds the smooth shrink of big faces, and "both"
+// is the app now (also the closer second look).
+const KINDS = auraFile ? ["sface", "aura+flip", "both@v1", "both@aa", "both"] : ["sface"];
+const base = (kind) => kind.split(/[+@]/)[0];
+const BIG = Number(process.env.BENCH_BIG ?? 12);
 const GROUPS = Number(process.env.BENCH_GROUPS ?? 40);
 const DUP = Number(process.env.BENCH_DUP ?? 0.95);
 const MIN_PHOTOS = Number(process.env.BENCH_MIN ?? 7);
@@ -68,51 +72,27 @@ const pct = (n, d) => (d ? `${((100 * n) / d).toFixed(1)}%` : "–");
 // "+flip" also describes the mirror image of the face and adds the two (a
 // common way to make face descriptions steadier); tested here before the app
 // uses it.
-const sessions = { sface: (await F.loadModels(MODELS)).recognizer };
-if (auraFile) sessions.aura = (await F.loadModels(MODELS, auraFile)).recognizer;
-const { ort } = await F.loadModels(MODELS);
-const flipped = (t) => {
-  const o = new Float32Array(t.length);
-  for (let c = 0; c < 3; c++) for (let y = 0; y < 112; y++) for (let x = 0; x < 112; x++) o[c * 12544 + y * 112 + x] = t[c * 12544 + y * 112 + 111 - x];
-  return o;
-};
-async function describe(kind, tensor) {
-  const r = sessions[kind];
-  const o = await r.run({ [r.inputNames[0]]: new ort.Tensor("float32", tensor, [1, 3, 112, 112]) });
-  return Float32Array.from(o[r.outputNames[0]].data);
-}
 const whyCount = {};
-async function analyse(file) {
-  const found = await F.findFaces(MODELS, file, { aura: auraFile });
-  const { data: rgb, info } = await sharp(file, { failOn: "none" })
-    .rotate()
-    .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+async function analyse(file, o = {}) {
+  const found = await F.findFaces(MODELS, file, { aura: auraFile, ...o });
+  const { info } = await sharp(file, { failOn: "none" }).rotate().resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true }).jpeg().toBuffer({ resolveWithObject: true });
   const out = [];
   for (const f of found) {
     const emb = {};
-    for (const kind of Object.keys(sessions)) {
-      const aligned = F.align(rgb, info.width, info.height, f.landmarks, kind);
-      const a = await describe(kind, aligned);
-      // The app's own description is AuraFace (with its mirror image) and
-      // SFace joined: 512 + 128 numbers, each part weighted.
-      if (found.recogniser === "both") {
-        emb.both = f.embedding;
-        if (kind === "aura") {
-          emb.aura = unit(a);
-          emb["aura+flip"] = unit(f.embedding.slice(0, 512));
-        } else emb.sface = unit(f.embedding.slice(512));
-        continue;
+    if (found.recogniser === "both") {
+      emb.both = f.embedding;
+      // AuraFace (with its mirror image) and SFace on their own, as 0.11 read them
+      if (f.variants?.v1) {
+        emb["both@v1"] = f.variants.v1;
+        const cutAt = f.variants.v1.length - 128; // AuraFace's part, then SFace's 128
+        emb["aura+flip"] = unit(f.variants.v1.slice(0, cutAt));
+        emb.sface = unit(f.variants.v1.slice(cutAt));
       }
-      const b = kind === "aura" ? await describe(kind, flipped(aligned)) : null;
-      emb[kind] = unit(a);
-      if (b) emb[`${kind}+flip`] = unit(Float32Array.from(a, (v, i) => v + b[i]));
-    }
+      if (f.variants?.aa) emb["both@aa"] = f.variants.aa;
+    } else emb.sface = f.embedding;
     // pixel box and landmarks too, so the quality filter can be tried with
     // other settings without finding the faces again
-    out.push({ box: f.box, score: f.score, usable: f.usable, why: f.why, sharpness: f.sharpness, landmarks: f.landmarks, emb });
+    out.push({ box: f.box, score: f.score, usable: f.usable, why: f.why, sharpness: f.sharpness, landmarks: f.landmarks, px: f.px, zoomScore: f.zoomScore, emb });
   }
   return { faces: out, width: info.width, height: info.height };
 }
@@ -124,7 +104,7 @@ const cache = new Map();
 // The cache is only used while the face finding and describing code is the
 // same (matching settings can change freely).
 const fingerprint = createHash("sha1")
-  .update([F.findFaces, F.align, F.faceProblem, F.faceSharpness, F.decode, F.loadModels].map(String).join("\n") + KINDS.join() + analyse.toString())
+  .update([F.findFaces, F.align, F.faceProblem, F.faceSharpness, F.decode, F.loadModels, F.shrinkForAlign, F.secondLook, F.cut].map(String).join("\n") + KINDS.join() + analyse.toString())
   .digest("hex");
 const stored = cacheFile && existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : null;
 if (stored?.fingerprint === fingerprint) {
@@ -135,7 +115,7 @@ if (stored?.fingerprint === fingerprint) {
 }
 async function analyseCached(file) {
   const key = path.relative(photos, file);
-  if (!cache.has(key)) cache.set(key, await analyse(file));
+  if (!cache.has(key)) cache.set(key, await analyse(file, auraFile ? { variants: ["v1", "aa"] } : {}));
   const a = cache.get(key);
   for (const f of a.faces) if (f.why) whyCount[f.why] = (whyCount[f.why] ?? 0) + 1;
   return a;
@@ -185,12 +165,14 @@ await saveCache();
 // A photo filed under someone sometimes shows somebody else (a team mate, an
 // interviewer). Faces far from the person's average face are dropped, and so
 // are near-copies of the same photo (they'd make matching look too easy).
-const cleanKind = auraFile ? "aura" : "sface";
-const cut = { sface: 0.25, aura: 0.2 }[cleanKind];
+const cleanKind = auraFile ? "aura+flip" : "sface";
+const cut = { sface: 0.25, "aura+flip": 0.2 }[cleanKind];
 const byPerson = new Map();
 for (const s of singles) (byPerson.get(s.person) ?? byPerson.set(s.person, []).get(s.person)).push(s);
 let dropped = 0;
-for (const [person, list] of byPerson) {
+// (BENCH_NOCLEAN: a quick check of this script on made-up photos)
+const NOCLEAN = !!process.env.BENCH_NOCLEAN;
+for (const [person, list] of NOCLEAN ? [] : byPerson) {
   let keep = list;
   for (let round = 0; round < 3; round++) {
     const c = new Float32Array(keep[0]?.face.emb[cleanKind].length ?? 0);
@@ -206,7 +188,7 @@ for (const [person, list] of byPerson) {
 }
 // Then a face that looks more like another person's average face than its own,
 // with either recogniser, is taken to be filed under the wrong person.
-const cleanKinds = auraFile ? ["sface", "aura"] : ["sface"];
+const cleanKinds = auraFile ? ["sface", "aura+flip"] : ["sface"];
 const centres = {};
 for (const kind of cleanKinds) {
   centres[kind] = new Map();
@@ -218,7 +200,7 @@ for (const kind of cleanKinds) {
   }
 }
 let misfiled = 0;
-for (const [p, list] of byPerson) {
+for (const [p, list] of NOCLEAN ? [] : byPerson) {
   const keep = list.filter((s) =>
     cleanKinds.every((kind) => {
       const own = F.cosine(s.face.emb[kind], centres[kind].get(p));
@@ -302,6 +284,12 @@ for (const kind of KINDS) {
             for (const x of list) x.forEach((v, i) => (c[i] += v));
             return F.cosine(e, unit(c));
           },
+          // half the closest confirmed face, half the person's average face
+          blend: (list) => {
+            const c = new Float32Array(e.length);
+            for (const x of list) x.forEach((v, i) => (c[i] += v));
+            return 0.5 * Math.max(...list.map((x) => F.cosine(e, x))) + 0.5 * F.cosine(e, unit(c));
+          },
         };
         for (const [agg, fn] of Object.entries(aggs)) {
           const sorted = [...per.entries()].map(([id, list]) => [id, fn(list)]).sort((a, b) => b[1] - a[1]);
@@ -347,8 +335,8 @@ for (const kind of classKinds) {
   const rk = base(kind);
   for (const k of [3, 5]) {
     for (const [way, opt] of Object.entries(WAYS)) {
-      if (way === "strict" && !kind.startsWith("aura+flip") && kind !== "both") continue;
-      if (way === "app" && kind !== KINDS.at(-1)) continue;
+      if (way === "strict" && kind !== "both") continue;
+      if (way === "app" && !kind.startsWith("both")) continue;
       const t = { n: 0, right: 0, wrong: 0, strangers: 0, strangerNamed: 0, byEvent: 0, wrongList: [] };
       const cr = rng(1000 + k);
       for (let trial = 0; trial < 20; trial++) {
@@ -456,6 +444,46 @@ for (let g = 0; g < GROUPS && pool.length >= 8; g++) {
   groupTruth.push({ file, truth });
 }
 
+// ---- 4a. Big class photos: 6000 x 4000 px, as a photographer's camera
+// gives, three rows of ten. Each face is 150-200 px wide in the photo
+// itself, and only 50-67 px on the 2000 px copy the face finder looks at.
+// Faces are never enlarged: only sources with a face that big are used.
+const bigTruth = [];
+{
+  const BW = 6000, BH = 4000;
+  const bigPool = usablePeople.map((p) => ({ p, list: byPerson.get(p).slice(strangers.has(p) ? 0 : 3).filter((x) => x.face.box[2] * x.size[0] >= 130) })).filter((x) => x.list.length);
+  for (let g = 0; g < BIG && bigPool.length >= 20; g++) {
+    const perRow = 10;
+    const who = shuffle(bigPool, r).slice(0, 3 * perRow);
+    const bgSrc = who[0].list[0];
+    const bg = await sharp(bgSrc.file).rotate().resize(BW, BH, { fit: "cover" }).blur(30).modulate({ brightness: 0.75 }).toBuffer();
+    const layers = [], truth = [];
+    for (const [i, w] of who.entries()) {
+      const s = w.list[Math.floor(r() * w.list.length)];
+      const row = Math.floor(i / perRow), col = i % perRow;
+      const slot = BW / perRow;
+      const [sw, sh] = s.size;
+      const [fx, fy, fw, fh] = [s.face.box[0] * sw, s.face.box[1] * sh, s.face.box[2] * sw, s.face.box[3] * sh];
+      const target = Math.min(fw, 150 + r() * 50);
+      const left = Math.max(0, Math.round(fx - fw * 0.7)), top = Math.max(0, Math.round(fy - fh * 0.6));
+      const cw = Math.min(sw - left, Math.round(fw * 2.4)), ch = Math.min(sh - top, Math.round(fh * 2.6));
+      if (cw < fw || ch < fh) continue;
+      const scale = target / fw;
+      const outW = Math.max(8, Math.round(cw * scale)), outH = Math.max(8, Math.round(ch * scale));
+      const seen = await sharp(s.file, { failOn: "none" }).rotate().resize(sw, sh).toBuffer();
+      const buf = await sharp(await sharp(seen).extract({ left, top, width: cw, height: ch }).toBuffer()).resize(outW, outH).jpeg({ quality: 93 }).toBuffer();
+      const cx = slot * (col + 0.5) + (r() - 0.5) * slot * 0.1;
+      const x = Math.round(Math.min(BW - outW, Math.max(0, cx - outW / 2)));
+      const y = Math.round(Math.min(BH - outH, Math.max(0, BH * (0.08 + row * 0.3) + (r() - 0.5) * 80)));
+      layers.push({ input: buf, left: x, top: y });
+      truth.push({ person: w.p, stranger: strangers.has(w.p), look: "normal", box: [(x + (fx - left) * scale) / BW, (y + (fy - top) * scale) / BH, (fw * scale) / BW, (fh * scale) / BH] });
+    }
+    const file = path.join(gdir, `big-${String(g).padStart(2, "0")}.jpg`);
+    await sharp(bg).composite(layers).jpeg({ quality: 90 }).toFile(file);
+    bigTruth.push({ file, truth });
+  }
+}
+
 const iou = (a, b) => {
   const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
   const x2 = Math.min(a[0] + a[2], b[0] + b[2]), y2 = Math.min(a[1] + a[3], b[1] + b[3]);
@@ -473,52 +501,83 @@ function softItem(where, truth, f, known, kind) {
   const m = { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 };
   softItems.push({ where, truth, score: f.score, sure: F.isSure(m, base(kind)), raw: F.unscaled(m.score, base(kind)), pick: m.studentId });
 }
-for (const kind of KINDS) {
-  const known = gallery(kind, 3);
-  const g = { normal: tally(), found: 0, faces: 0, tinyNamed: 0, tiny: 0, blurNamed: 0, blurred: 0, blurUsable: 0, extra: 0, extraNamed: 0, twice: 0 };
-  for (const { file, truth } of groupTruth) {
-    const a = (groupTruth.cache ??= new Map()).get(file) ?? (await analyse(file));
-    groupTruth.cache.set(file, a);
-    const free = a.faces.map((f) => (f.usable ? f.emb[kind] : null));
-    const matches = F.assignPhoto(free, known, base(kind));
-    const decisions = matches.map((m) => decide(m, kind));
-    const usedTruth = new Set();
-    const names = decisions.filter((d) => d.pick).map((d) => d.pick);
-    if (new Set(names).size !== names.length) g.twice++;
-    a.faces.forEach((f, i) => {
-      let best = -1, bi = -1;
-      truth.forEach((t, j) => {
-        const v = iou(f.box, t.box);
-        if (v > best && !usedTruth.has(j)) [best, bi] = [v, j];
-      });
-      if (best < 0.3) {
-        g.extra++;
-        if (decisions[i].pick) g.extraNamed++;
-        if (kind === KINDS.at(-1) && softOk(f, a, 0.5)) softItem("group photos", "extra", f, known, kind);
-        return;
-      }
-      usedTruth.add(bi);
-      const t = truth[bi];
-      if (kind === KINDS.at(-1) && softOk(f, a, 0.5)) softItem("group photos", t.look !== "normal" ? t.look : t.stranger ? null : t.person, f, known, kind);
-      if (t.look === "tiny") {
-        if (decisions[i].pick) g.tinyNamed++;
-      } else if (t.look === "blurred") {
-        if (f.usable) g.blurUsable++;
-        if (decisions[i].pick) g.blurNamed++;
-      } else {
-        g.found++;
-        count(g.normal, t.stranger ? null : t.person, decisions[i], matches[i]?.studentId);
-      }
-    });
-    for (const t of truth) {
-      if (t.look === "tiny") g.tiny++;
-      else if (t.look === "blurred") g.blurred++;
-      else g.faces++;
-    }
-    // Normal faces the finder missed still count as "nothing" for the named ones.
-  }
-  results.groups[kind] = g;
+// Three ways: as 0.11 did everything; the new reading with 0.11's plain
+// lead; and the app now (new reading, and "one person per photo" used to
+// sharpen each lead).
+const GWAYS = auraFile
+  ? [
+      { label: "0.11", kind: "both@v1", legacy: true, plain: true },
+      { label: "new reading only", kind: "both", plain: true },
+      { label: "app now", kind: "both" },
+    ]
+  : [{ label: "sface", kind: "sface" }];
+const groupCache = new Map();
+const scoreCells = {}; // what the finder's two looks said, by kind of face
+function scoreCell(what, f) {
+  if (f.zoomScore === undefined) return;
+  const d = f.score >= F.UNSURE_SCORE ? "sure" : "unsure";
+  const z = f.zoomScore == null ? "none" : f.zoomScore >= F.UNSURE_SCORE ? "sure" : f.zoomScore >= 0.6 ? "mid" : "low";
+  ((scoreCells[what] ??= {})[`${d}/${z}`] ??= 0), scoreCells[what][`${d}/${z}`]++;
 }
+async function evalGroups(list, into) {
+  for (const way of GWAYS) {
+    const kind = way.kind;
+    const last = way === GWAYS.at(-1);
+    const known = gallery(kind, 3);
+    const g = { normal: tally(), found: 0, usable: 0, clear: 0, faces: 0, tinyNamed: 0, tiny: 0, blurNamed: 0, blurred: 0, blurUsable: 0, extra: 0, extraNamed: 0, twice: 0 };
+    for (const { file, truth } of list) {
+      const ck = `${file}|${way.legacy ? "legacy" : "new"}`;
+      const a = groupCache.get(ck) ?? (await analyse(file, way.legacy ? { legacy: true } : {}));
+      groupCache.set(ck, a);
+      const embOf = (f) => f.emb.both ?? f.emb.sface;
+      const free = a.faces.map((f) => (f.usable ? embOf(f) : null));
+      const matches = F.assignPhoto(free, known, base(kind), new Set(), undefined, { plain: !!way.plain });
+      const decisions = matches.map((m) => decide(m, kind));
+      const usedTruth = new Set();
+      const names = decisions.filter((d) => d.pick).map((d) => d.pick);
+      if (new Set(names).size !== names.length) g.twice++;
+      a.faces.forEach((f, i) => {
+        let best = -1, bi = -1;
+        truth.forEach((t, j) => {
+          const v = iou(f.box, t.box);
+          if (v > best && !usedTruth.has(j)) [best, bi] = [v, j];
+        });
+        const cell = (what) => last && scoreCell(what, f);
+        if (best < 0.3) {
+          g.extra++;
+          cell("not a real face");
+          if (decisions[i].pick) g.extraNamed++;
+          if (last && softOk(f, a, 0.5)) softItem("group photos", "extra", f, known, kind);
+          return;
+        }
+        usedTruth.add(bi);
+        const t = truth[bi];
+        cell(t.look === "normal" ? (into === "big" ? "big photo face" : "normal face") : t.look);
+        if (last && softOk(f, a, 0.5)) softItem("group photos", t.look !== "normal" ? t.look : t.stranger ? null : t.person, f, known, kind);
+        if (t.look === "tiny") {
+          if (decisions[i].pick) g.tinyNamed++;
+        } else if (t.look === "blurred") {
+          if (f.usable) g.blurUsable++;
+          if (decisions[i].pick) g.blurNamed++;
+        } else {
+          g.found++;
+          if (f.usable) g.usable++;
+          if (f.usable && F.clearEnough(f.px ?? f.box[2] * a.width, f.sharpness)) g.clear++;
+          count(g.normal, t.stranger ? null : t.person, decisions[i], matches[i]?.studentId);
+        }
+      });
+      for (const t of truth) {
+        if (t.look === "tiny") g.tiny++;
+        else if (t.look === "blurred") g.blurred++;
+        else g.faces++;
+      }
+      // Normal faces the finder missed still count as "nothing" for the named ones.
+    }
+    (results[into] ??= {})[way.label] = g;
+  }
+}
+await evalGroups(groupTruth, "groups");
+await evalGroups(bigTruth, "big");
 
 // ---- 4b. Hard cases: the same test faces made harder, then found and
 // matched by the app's own code (3 confirmed faces each, whole set, so
@@ -609,6 +668,7 @@ if (HARD.length) {
         if (v > bi) [best, bi] = [f, v];
       }
       if (!best) continue;
+      scoreCell(`hard: ${how}`, best);
       if (p.truth) t.found++;
       if (!best.usable) {
         t.why[best.why] = (t.why[best.why] ?? 0) + 1;
@@ -731,13 +791,19 @@ for (const [key, t] of Object.entries(classResults)) {
 }
 const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith(KINDS.at(-1))).flatMap(([, t]) => t.wrongList))];
 if (classWrong.length) L.push("", "Wrong in the class test (the app's recogniser):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
-L.push("", `## Group photos (3 confirmed faces each)`, "");
-L.push(`| Recogniser | Normal faces found | Named by itself: right | WRONG | Suggested: right | wrong | Strangers named | Tiny faces named | Blurred faces kept as usable | Blurred faces named | Not-real faces found / named | Photos with a name twice |`);
-L.push(`|---|---|---|---|---|---|---|---|---|---|---|---|`);
-for (const kind of KINDS) {
-  const g = results.groups[kind];
-  const t = g.normal;
-  L.push(`| ${kind} | ${pct(g.found, g.faces)} | ${pct(t.sureRight, t.n)} | ${pct(t.sureWrong, t.n)} | ${pct(t.sugRight, t.n)} | ${pct(t.sugWrong, t.n)} | ${pct(t.strangerSure + t.strangerSug, t.strangers)} | ${g.tinyNamed} of ${g.tiny} | ${g.blurUsable} of ${g.blurred} | ${g.blurNamed} of ${g.blurred} | ${g.extra} / ${g.extraNamed} | ${g.twice} |`);
+for (const [into, head] of [["groups", "Group photos (2400 px, 3 confirmed faces each)"], ["big", `Big class photos (6000 x 4000 px, 30 faces each 150-200 px wide, ${bigTruth.length} photos)`]]) {
+  if (!results[into]) continue;
+  L.push("", `## ${head}`, "");
+  L.push(`| Way | Normal faces found | Kept as usable | Clear enough to ask about | Named by itself: right | WRONG | Suggested: right | wrong | Strangers named by itself / suggested | Tiny faces named | Blurred kept as usable | Blurred named | Not-real faces found / named | Photos with a name twice |`);
+  L.push(`|---|---|---|---|---|---|---|---|---|---|---|---|---|---|`);
+  for (const [label, g] of Object.entries(results[into])) {
+    const t = g.normal;
+    L.push(`| ${label} | ${pct(g.found, g.faces)} | ${pct(g.usable, g.faces)} | ${pct(g.clear, g.faces)} | ${pct(t.sureRight, t.n)} | ${pct(t.sureWrong, t.n)} | ${pct(t.sugRight, t.n)} | ${pct(t.sugWrong, t.n)} | ${t.strangerSure} / ${t.strangerSug} of ${t.strangers} | ${g.tinyNamed} of ${g.tiny} | ${g.blurUsable} of ${g.blurred} | ${g.blurNamed} of ${g.blurred} | ${g.extra} / ${g.extraNamed} | ${g.twice} |`);
+  }
+}
+if (Object.keys(scoreCells).length) {
+  L.push("", `### The face finder's two looks (whole photo / closer look at the face): faces by what each said`, "");
+  for (const [what, cells] of Object.entries(scoreCells)) L.push(`- ${what}: ${Object.entries(cells).sort().map(([k, v]) => `${k} ${v}`).join(" · ")}`);
 }
 if (Object.keys(hardResults).length) {
   L.push("", `## Hard cases (${KINDS.at(-1)}, 3 confirmed faces each, matched against everyone)`, "");
