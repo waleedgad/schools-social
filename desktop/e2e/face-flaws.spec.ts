@@ -13,6 +13,8 @@ import sharp from "sharp";
 //         and in events, never shown) and didn't re-check the website block
 //   B-83  naming a face didn't free another face already named as the same
 //         person in that photo (one person, two faces)
+//   B-90  merging a person entered twice could leave them on two faces of
+//         one photo and lost "not this person"
 const root = path.join(__dirname, "..");
 type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<{ ok: boolean; value?: unknown; error?: string }> } };
 
@@ -120,6 +122,18 @@ test("naming faces: undo, removing a person, one face per person, class of the y
     expect(row(sugNour), "B-82: no suggestion left for someone who's gone").toMatchObject({ status: "unknown", suggest_id: null });
     const left = db.prepare("select count(*) n from faces where suggest_id = 'NOUR' or student_id = 'NOUR'").get() as { n: number };
     expect(left.n).toBe(0);
+
+    // ---------- B-90: merging a person entered twice ----------
+    person.run("SARA2", "Sara (again)", "5A", 1);
+    const p4 = ofThisYear[3];
+    const handSara = face(p4, 0.1, "confirmed", "SARA");
+    const sugSara2 = face(p4, 0.5, "suggested", null, { suggest: "SARA2", score: 0.58 });
+    const notSara2 = face(p4, 0.8, "unknown", null);
+    db.prepare("update faces set rejected = 'OMAR,SARA2' where id = ?").run(notSara2);
+    await call("mergeStudents", "SARA", "SARA2");
+    expect(row(handSara)).toMatchObject({ status: "confirmed", student_id: "SARA" });
+    expect(row(sugSara2), "B-90: Sara isn't suggested for a second face in the photo").toMatchObject({ status: "unknown" });
+    expect(row(notSara2)!.rejected.split(",").sort(), "B-90: 'not this person' carries over").toEqual(["OMAR", "SARA"]);
     db.close();
   } finally {
     await app.close();

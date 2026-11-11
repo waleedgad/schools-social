@@ -303,6 +303,11 @@ export function studentsApi(ctx: Ctx): Api {
       run("update students set can_post = min(can_post, ?) where id = ?", d.can_post ?? 1, keep);
       run("update faces set student_id = ? where student_id = ?", keep, drop);
       run("update faces set suggest_id = ? where suggest_id = ?", keep, drop);
+      // "Not this person" said about the second one is about the same person (B-90).
+      run(
+        `update faces set rejected = trim(replace(',' || rejected || ',', ',' || ? || ',', ',' || ? || ','), ',') where instr(',' || rejected || ',', ',' || ? || ',') > 0`,
+        drop, keep, drop,
+      );
       run("insert or ignore into links (a, b, kind) select ?, b, kind from links where a = ? and b <> ?", keep, drop, keep);
       run("insert or ignore into links (a, b, kind) select a, ?, kind from links where b = ? and a <> ?", keep, drop, keep);
       run("insert or ignore into group_members (group_id, student_id) select group_id, ? from group_members where student_id = ?", keep, drop);
@@ -316,7 +321,10 @@ export function studentsApi(ctx: Ctx): Api {
       throw e;
     }
     ctx.remember("student", `merge:${drop}>${keep}`, null);
-    ctx.engine()?.queueFaceScan?.();
+    // Both entries could be named or suggested in the same photo: one face
+    // per person per photo again, then the faces are matched again (B-90).
+    ctx.engine()?.dedupePeople();
+    ctx.engine()?.rematchSoon();
     ctx.push("students");
   }
 

@@ -36,7 +36,7 @@ import { AuraDownload } from "./core/models";
 import { visionFaces } from "./core/vision";
 import { downloadPhoto, finishCheck, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 import { exclusive } from "./core/lock";
-import { noPostFace, noPostPhoto } from "./core/privacy";
+import { noPostFace, noPostPhoto, webCheck } from "./core/privacy";
 
 type Watched = { path: string; label: string };
 type Settings = {
@@ -1184,14 +1184,12 @@ async function checkWebUploads() {
         if (!existsSync(file)) delete pending[file];
         continue;
       }
-      if (!p.hash || (s.faces && p.faces_scanned === 0)) continue;
+      if (!p.hash) continue;
       // Suggested matches count too: a likely match with a student who can't
-      // appear blocks the photo until someone looks.
-      const opted = one<{ n: number }>(
-        `select count(*) n from faces f where f.photo_id = ? and ${noPostFace("f")}`,
-        p.id,
-      );
-      await finishCheck(sb, remoteId, (opted?.n ?? 0) > 0);
+      // appear blocks the photo until someone looks (see webCheck, B-91).
+      const check = webCheck(db, p.id, !!s.faces);
+      if (!check.ready) continue;
+      await finishCheck(sb, remoteId, check.optedOut);
       db.prepare("update photos set remote_id = ? where id = ?").run(remoteId, p.id);
       queue.markSent(p.hash, remoteId);
       delete pending[file];
