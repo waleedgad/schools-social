@@ -127,6 +127,7 @@ App.views.library = {
       lib.shown.forEach((p) => lib.sel.add(p.id));
       refreshSelection();
     }
+    if (c === "info") return toggleInfo(), true;
     if (c === "selectNone") {
       lib.sel.clear();
       refreshSelection();
@@ -140,7 +141,7 @@ App.views.library = {
   keys: () => [
     ["← → ↑ ↓", L("Move", "تنقل")], ["Space", L("Quick look", "نظرة سريعة")], ["Enter", L("Open", "فتح")], ["P", L("Pick", "اختيار")], ["X", L("Reject", "رفض")],
     ["U", L("Clear pick", "إلغاء الاختيار")], ["0-5", L("Stars", "نجوم")], ["6 7 8", L("Red, yellow, green label", "لون أحمر، أصفر، أخضر")], ["9", L("No label", "بلا لون")],
-    ["T", L("Name who is in it", "تسمية من فيها")], ["C", L("Compare", "مقارنة")], ["H", L("Hide", "إخفاء")], ["I", L("Info panel", "لوحة المعلومات")], ["S", L("Stack bursts", "تجميع المتتابعة")],
+    ["T", L("Name who is in it", "تسمية من فيها")], ["C", L("Compare", "مقارنة")], ["H", L("Hide", "إخفاء")], ["I", L("Info panel", "لوحة المعلومات")], ["⌘ I", L("Info panel", "لوحة المعلومات")], ["S", L("Stack bursts", "تجميع المتتابعة")],
     ["+ −", L("Bigger, smaller", "أكبر، أصغر")], ["Home End", L("First, last photo", "أول، آخر صورة")],
     ["⌘ A", L("Select all", "تحديد الكل")], ["⌘ D", L("Select none", "إلغاء التحديد")], ["⌥ ⌘ A", L("Invert selection", "عكس التحديد")], ["Esc", L("Clear selection", "إلغاء التحديد")],
     ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")], ["⌘ L", L("Hide", "إخفاء")], ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ N", L("New post", "منشور جديد")],

@@ -250,7 +250,7 @@ function viewerKeyList() {
     ["0-5", L("Stars", "نجوم")], ["6 7 8", L("Red, yellow, green label", "لون أحمر، أصفر، أخضر")], ["9", L("No label", "بلا لون")], ["T", L("Name someone", "تسمية شخص")],
     ["Y N", L("Yes / no to suggested names", "نعم / لا للأسماء المقترحة")], ["F", L("Face boxes", "مربعات الوجوه")], ["B", L("Hold to see the original", "اضغط مطولًا لرؤية الأصل")],
     ["C", L("Compare with the next", "مقارنة مع التالية")], ["I", L("Info panel", "لوحة المعلومات")], ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")],
-    ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ N", L("New post with this photo", "منشور جديد بهذه الصورة")], ["Esc", L("Close", "إغلاق")],
+    ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ I", L("Info panel", "لوحة المعلومات")], ["⌘ N", L("New post with this photo", "منشور جديد بهذه الصورة")], ["Esc", L("Close", "إغلاق")], ["Space", L("Close", "إغلاق")],
   ];
 }
 
@@ -258,11 +258,13 @@ function viewerKeys(e) {
   if ($(".modalback")) return;
   const k = e.key.toLowerCase();
   const rtl = document.documentElement.dir === "rtl";
-  if (k === "escape") return closeViewer();
+  // Esc or Space goes back to the grid, as in Apple Photos.
+  if (k === "escape" || (k === " " && !modKey(e))) return e.preventDefault(), closeViewer();
   if (e.key === "?" && !modKey(e)) return shortcutSheet();
   if (modKey(e)) {
     if (e.altKey || e.shiftKey) return;
     if (k === "backspace" && isMac()) return e.preventDefault(), binHere();
+    if (k === "i") return e.preventDefault(), $("#v-side")?.classList.toggle("hide");
     if (k === "r") return e.preventDefault(), call("reveal", here().id);
     if (k === "e") return e.preventDefault(), call("openEditor", [here().id]);
     if (k === "n") return e.preventDefault(), (closeViewer(), newPostFromSelection([here().id]));

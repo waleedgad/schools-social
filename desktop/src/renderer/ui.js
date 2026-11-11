@@ -261,7 +261,7 @@ function shortcutSheet() {
       ["⌘ K", L("Search and commands", "البحث والأوامر")],
       ["⌘ F", L("Search", "بحث")],
       ["⌘ N", L("New post", "منشور جديد")],
-      ["⌘ I", L("Import photos", "استيراد صور")],
+      ["⇧ ⌘ I", L("Import photos", "استيراد صور")],
       ["⌘ Z", L("Undo", "تراجع")],
       ["⌘ A", L("Select all", "تحديد الكل")],
       ["⌘ D", L("Select none", "إلغاء التحديد")],

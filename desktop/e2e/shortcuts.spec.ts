@@ -98,6 +98,13 @@ for (const language of ["en", "ar"] as const) {
     await expect.poll(() => selected(win), { message: "invert" }).toBe(6);
     await win.keyboard.press("Escape");
     await expect.poll(() => selected(win), { message: "Esc" }).toBe(0);
+    // ⌘I shows and hides the info panel (Import moved to ⇧⌘I).
+    const info = (await win.evaluate("lib.info")) as boolean;
+    await win.keyboard.press(`${mod}+i`);
+    await expect.poll(() => win.evaluate("lib.info"), { message: "⌘I info" }).toBe(!info);
+    await win.keyboard.press(`${mod}+i`);
+    await expect.poll(() => win.evaluate("lib.info")).toBe(info);
+    expect(await view(win)).toBe("library");
     await win.keyboard.press("End");
     await expect.poll(() => win.evaluate("lib.focus")).toBe(5);
     await win.keyboard.press("Home");
@@ -163,12 +170,20 @@ for (const language of ["en", "ar"] as const) {
     await win.keyboard.press("Escape");
     await expect(win.locator("#overlay .viewer")).toBeVisible();
     await expect.poll(() => win.evaluate("V.i")).toBe(0);
+    // ⌘I in the photo view: its side panel.
+    const sideHidden = () => win.evaluate("!!document.querySelector('#v-side.hide')");
+    const was = await sideHidden();
+    await win.keyboard.press(`${mod}+i`);
+    await expect.poll(sideHidden, { message: "⌘I in the photo view" }).toBe(!was);
+    await win.keyboard.press(`${mod}+i`);
+    await expect.poll(sideHidden).toBe(was);
     // ⌘⌫ (Delete on Windows): asks, Cancel keeps the photo and the view.
     await win.keyboard.press(mac ? "Meta+Backspace" : "Delete");
     await expect(win.locator(".modal [data-no]")).toBeVisible();
     await win.locator(".modal [data-no]").click();
     await expect(win.locator("#overlay .viewer")).toBeVisible();
-    await win.keyboard.press("Escape");
+    // Space closes it too, as in Apple Photos.
+    await win.keyboard.press("Space");
     await expect(win.locator("#overlay .viewer")).toHaveCount(0);
 
     // ⌘/ in the grid: the selection keys are listed, in the computer's words.
