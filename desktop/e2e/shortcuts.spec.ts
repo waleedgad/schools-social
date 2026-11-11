@@ -203,7 +203,8 @@ for (const language of ["en", "ar"] as const) {
       const lists = [...Object.entries(App.views).map(([n, v]) => [n, v.keys?.() ?? []]), ["viewer", viewerKeyList()]];
       return lists.flatMap(([n, rows]) => {
         const seen = new Map();
-        rows.forEach(([k]) => seen.set(k, (seen.get(k) ?? 0) + 1));
+        // one key twice, or one label twice (the same action on two rows)
+        rows.forEach(([k, t]) => [...[k].flat(), "label:" + t].forEach((x) => seen.set(x, (seen.get(x) ?? 0) + 1)));
         return [...seen].filter(([, c]) => c > 1).map(([k]) => n + ": " + k);
       });
     })()`)) as string[];

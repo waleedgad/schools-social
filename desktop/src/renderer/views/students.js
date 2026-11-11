@@ -49,7 +49,7 @@ App.views.students = {
       ST.t = setTimeout(() => { this.tree(); this.list(); }, 800);
     }
   },
-  keys: () => [["⌘ A", L("Select all", "تحديد الكل")], ["⌘ D", L("Select none", "إلغاء التحديد")], ["⌥ ⌘ A", L("Invert selection", "عكس التحديد")], ["Esc", L("Clear selection", "إلغاء التحديد")], ["⌘ F", L("Find someone", "البحث عن شخص")]],
+  keys: () => [["⌘ A", L("Select all", "تحديد الكل")], [["⌘ D", "Esc"], L("Select none", "إلغاء التحديد")], ["⌥ ⌘ A", L("Invert selection", "عكس التحديد")], ["⌘ F", L("Find someone", "البحث عن شخص")]],
   onCommand(c) {
     const rows = ST.rows ?? [];
     if (c === "find") return $("#st-q")?.focus(), $("#st-q")?.select(), true;

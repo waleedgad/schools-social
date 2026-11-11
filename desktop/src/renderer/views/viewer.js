@@ -249,8 +249,8 @@ function viewerKeyList() {
     ["← →", L("Previous, next photo", "السابقة، التالية")], ["Home End", L("First, last photo", "أول، آخر صورة")], ["P", L("Pick", "اختيار")], ["X", L("Reject", "رفض")], ["U", L("Clear pick", "إلغاء الاختيار")],
     ["0-5", L("Stars", "نجوم")], ["6 7 8", L("Red, yellow, green label", "لون أحمر، أصفر، أخضر")], ["9", L("No label", "بلا لون")], ["T", L("Name someone", "تسمية شخص")],
     ["Y N", L("Yes / no to suggested names", "نعم / لا للأسماء المقترحة")], ["F", L("Face boxes", "مربعات الوجوه")], ["B", L("Hold to see the original", "اضغط مطولًا لرؤية الأصل")],
-    ["C", L("Compare with the next", "مقارنة مع التالية")], ["I", L("Info panel", "لوحة المعلومات")], ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")],
-    ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ I", L("Info panel", "لوحة المعلومات")], ["⌘ N", L("New post with this photo", "منشور جديد بهذه الصورة")], ["Esc", L("Close", "إغلاق")], ["Space", L("Close", "إغلاق")],
+    ["C", L("Compare with the next", "مقارنة مع التالية")], [["I", "⌘ I"], L("Info panel", "لوحة المعلومات")], ["⌘ ⌫", L("Move to Bin", "نقل إلى السلة")],
+    ["⌘ R", L("Show in Finder", "إظهار في Finder")], ["⌘ E", L("Open in editing app", "فتح في تطبيق التعديل")], ["⌘ N", L("New post with this photo", "منشور جديد بهذه الصورة")], [["Esc", "Space"], L("Close", "إغلاق")],
   ];
 }
 
