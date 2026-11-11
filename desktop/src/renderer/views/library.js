@@ -1133,7 +1133,8 @@ function drawAlbumCards() {
     else evs.set(r.event_key, { ...r });
   }
   const events = [...years].map(([y, evs]) =>
-    sec(`${L("Events", "الفعاليات")} · ${y}`, [...evs.values()].map((e) => card(`ev:${e.event_key}`, e.cover, eventLabel(e), e.n, "folder"))),
+    // The year keeps its own direction, or Arabic shows "2027-2026" (B-93).
+    sec(`${L("Events", "الفعاليات")} · \u2066${y}\u2069`, [...evs.values()].map((e) => card(`ev:${e.event_key}`, e.cover, eventLabel(e), e.n, "folder"))),
   ).join("");
   grid.innerHTML =
     sec(L("My albums", "ألبوماتي"), (a.mine ?? []).map((x) => card(`my:${x.id}`, x.cover, x.name, x.n, "book-marked"))) +
