@@ -90,7 +90,8 @@ test("the window opens in its own colours and language: no white frame in dark m
   const frames = await app.evaluate(async ({ BrowserWindow }) => {
     const out: { t: number; main: number; dir: string }[] = [];
     const t0 = Date.now();
-    while (Date.now() - t0 < 2500) {
+    // A slow test machine draws few frames in 2.5 s: keep reading until there are enough.
+    while (Date.now() - t0 < 2500 || (out.length < 8 && Date.now() - t0 < 15_000)) {
       const w = BrowserWindow.getAllWindows()[0];
       if (w && !w.webContents.isLoading()) {
         const img = await w.webContents.capturePage();
