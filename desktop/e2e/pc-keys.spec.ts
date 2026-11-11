@@ -43,7 +43,7 @@ for (const language of ["en", "ar"] as const) {
           const item = walk(Menu.getApplicationMenu()?.items ?? []);
           if (item) item.click(undefined, BrowserWindow.getAllWindows()[0]);
           return !!item;
-        }, `cmdorctrl+${key}`);
+        }, `cmdorctrl+${key}`.toLowerCase());
         expect(found, `menu item for ⌘${key}`).toBe(true);
       } else {
         await win.locator("body").press(`${mod}+${key}`);
