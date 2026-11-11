@@ -493,7 +493,7 @@ function isTyping() {
   return (/^(INPUT|TEXTAREA|SELECT)$/.test(a?.tagName) && !["checkbox", "radio", "button", "range"].includes(a.type)) || !!a?.isContentEditable;
 }
 
-// The menu's keys (⌘1 to ⌘9, ⌘, ⌘I ⌘N ⌘Z ⌘A ⌘D, ⌘[ ⌘]).
+// The menu's keys (⌘1 to ⌘9, ⌘, ⇧⌘I ⌘I ⌘N ⌘Z ⌘A ⌘D, ⌘[ ⌘]).
 const TAB_KEYS = { 1: "today", 2: "library", 3: "faces", 4: "students", 5: "posts", 6: "calendar", 7: "books", 8: "coverage", 9: "cleanup" };
 function menuKey(e, typing) {
   const k = e.key.toLowerCase();
@@ -501,11 +501,13 @@ function menuKey(e, typing) {
   const plain = !e.altKey && !e.shiftKey;
   if (plain && TAB_KEYS[k]) return e.preventDefault(), go(TAB_KEYS[k]), true;
   if (plain && k === ",") return e.preventDefault(), go("settings"), true;
-  if (plain && k === "i" && !App.overlayKeys) return e.preventDefault(), go("import"), true;
+  // ⇧⌘I imports (as in Apple Photos); ⌘I shows the info panel.
+  if (e.shiftKey && !e.altKey && k === "i" && !App.overlayKeys) return e.preventDefault(), go("import"), true;
   if (plain && (k === "[" || k === "]")) return e.preventDefault(), (k === "[" ? goBack() : goForward()), true;
   if (typing) return false; // ⌘Z, ⌘A and the rest keep their usual meaning in a text box
   if (App.overlayKeys) return false; // the photo view and dialogs have their own
   // On the Mac ⌘Z belongs to the Edit menu (it also undoes typing).
+  if (plain && k === "i") return e.preventDefault(), view?.onCommand?.("info"), true;
   if (plain && k === "z" && !isMac()) return e.preventDefault(), doUndo(), true;
   if (plain && k === "n") return e.preventDefault(), newPost(), true;
   if (plain && k === "a" && view?.onCommand) return e.preventDefault(), view.onCommand("selectAll"), true;
@@ -550,6 +552,7 @@ window.hub.onCommand(function onMenu(c) {
   if (c === "post") return newPost();
   if (c === "search") return palette();
   if (c === "shortcuts") return shortcutSheet();
+  if (c === "info" && App.overlayKeys === viewerKeys) return $("#v-side")?.classList.toggle("hide");
   if (c === "back") return goBack();
   if (c === "forward") return goForward();
   App.views[App.view]?.onCommand?.(c);

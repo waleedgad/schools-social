@@ -30,7 +30,7 @@ for (const language of ["en", "ar"] as const) {
     // Screens by number, settings, import.
     // On the Mac these keys belong to the app menu, which robot key presses
     // can't reach, so there the menu item that owns the key is clicked.
-    for (const [key, name] of [["2", "library"], ["3", "faces"], ["4", "students"], ["5", "posts"], ["1", "today"], [",", "settings"], ["i", "import"]]) {
+    for (const [key, name] of [["2", "library"], ["3", "faces"], ["4", "students"], ["5", "posts"], ["1", "today"], [",", "settings"], ["Shift+i", "import"]]) {
       if (mac) {
         const found = await app.evaluate(({ Menu, BrowserWindow }, acc) => {
           const walk = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => {

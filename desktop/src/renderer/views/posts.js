@@ -176,10 +176,8 @@ App.views.posts = {
       };
     });
   },
-  onKey(e) {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === "n") newPostMenu();
-  },
+  // A new post is ⌘N, as everywhere (N alone no longer opens one).
+  keys: () => [["⌘ N", L("New post", "منشور جديد")]],
 };
 
 // Right-click on a post anywhere (board, list, calendar).
@@ -462,7 +460,8 @@ async function openPost(id, startStep) {
   App.overlayKeys = (e, typing) => {
     if (e.key === "Escape") closeEditor();
     if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); act("save"); }
-    if (!typing && e.key === "a" && canApprove()) act("approve");
+    // ⌘Return approves (A alone did, so a stray A could approve a post).
+    if (modKey(e) && !e.shiftKey && !e.altKey && e.key === "Enter" && canApprove()) { e.preventDefault(); act("approve"); }
     if (!typing && ["1", "2", "3", "4"].includes(e.key)) { step = ["photos", "words", "details", "team"][Number(e.key) - 1]; draw(); }
   };
   function closeEditor() {
