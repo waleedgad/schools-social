@@ -1,7 +1,8 @@
 # The whole Mac app on real faces (release 0.9): import, face finding,
 # naming, re-scan and moved folders, with the freely licensed stand-in
 # photos of the face test (never stored in the repository; GitHub keeps them
-# in its cache). Runs on Linux and Windows.
+# in its cache). Runs on Linux, Windows and the Mac (the Mac one also uses
+# Apple Vision's second look, on by default in the app).
 name: Faces in the app
 
 on:
@@ -11,6 +12,8 @@ on:
       - desktop/src/core/faces.ts
       - desktop/src/core/engine.ts
       - desktop/src/main.ts
+      - desktop/src/core/vision.ts
+      - desktop/src/core/privacy.ts
       - desktop/src/features/faces.ts
       - desktop/e2e/faces-real.spec.ts
       - desktop/bench/faces/**
@@ -21,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
@@ -45,8 +48,10 @@ jobs:
       - run: npm run build
       - if: runner.os == 'Linux'
         run: FACE_PHOTOS=~/face-bench-photos xvfb-run -a npx playwright test e2e/faces-real.spec.ts
-      - if: runner.os != 'Linux'
+      - if: runner.os == 'Windows'
         run: FACE_PHOTOS="$(cygpath -w ~/face-bench-photos)" npx playwright test e2e/faces-real.spec.ts
+      - if: runner.os == 'macOS'
+        run: FACE_PHOTOS=~/face-bench-photos npx playwright test e2e/faces-real.spec.ts
       - if: always()
         uses: actions/upload-artifact@v4
         with:

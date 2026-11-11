@@ -41,10 +41,19 @@ function run(argv) {
 }
 `;
 
-let broken = false;
+// One slow or failed look (a busy Mac, a huge photo) used to switch the
+// second look off until the app was restarted, so hands and drums were
+// suggested as students again (B-86). Now it's off only after several
+// failures in a row.
+let failures = 0;
+export const VISION_GIVE_UP = 4;
 
 export function visionAvailable() {
-  return process.platform === "darwin" && !broken;
+  return process.platform === "darwin" && failures < VISION_GIVE_UP;
+}
+export function visionFailed(ok: boolean) {
+  failures = ok ? 0 : failures + 1;
+  return failures;
 }
 
 // One photo (an upright JPEG). Boxes come back as fractions of the photo,
@@ -61,11 +70,12 @@ export async function visionFaces(jpeg: Buffer): Promise<VisionFace[] | null> {
       execFile("/usr/bin/osascript", ["-l", "JavaScript", script, file], { timeout: 30_000 }, (e, stdout) => (e ? reject(e) : resolve(stdout))),
     );
     const [faces] = JSON.parse(text.trim()) as ({ x: number; y: number; w: number; h: number; q: number }[] | null)[];
+    visionFailed(!!faces);
     if (!faces) return null;
     return faces.map((f) => ({ box: [f.x, f.y, f.w, f.h], quality: f.q }));
   } catch {
     // Older macOS, or the bridge refused: carry on without the second look.
-    broken = true;
+    visionFailed(false);
     return null;
   } finally {
     await rm(dir, { recursive: true, force: true });

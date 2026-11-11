@@ -1,0 +1,47 @@
+# Mac only: how often Apple Vision's "second look" (on by default in the Mac
+# app) throws away a real face, on the freely licensed stand-in photos of the
+# face test (never stored in the repository). Report on the run's summary
+# page and in the "vision-report" artifact.
+name: Face test (Apple Vision)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - desktop/src/core/vision.ts
+      - desktop/src/core/faces.ts
+      - desktop/bench/faces/vision.mjs
+      - .github/workflows/face-vision.yml
+
+jobs:
+  vision:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run build
+      - uses: actions/cache@v4
+        with:
+          path: ~/face-bench-photos
+          key: face-bench-photos-mac-v1-${{ hashFiles('desktop/bench/faces/people.json', 'desktop/bench/faces/fetch.mjs') }}
+      - name: Download the stand-in photos
+        run: node bench/faces/fetch.mjs ~/face-bench-photos 50
+      - name: Check Apple Vision
+        run: node bench/faces/vision.mjs ~/face-bench-photos 12
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vision-report
+          path: ~/face-bench-photos/vision-report.md
+          if-no-files-found: ignore

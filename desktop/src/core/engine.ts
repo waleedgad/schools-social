@@ -223,7 +223,11 @@ export class Engine {
         this.db.prepare("update photos set missing = 0 where id = ?").run(existing.id as number);
         return;
       }
-      this.db.prepare("update photos set size = ?, mtime = ?, hash = null, thumb = 0, missing = 0 where id = ?").run(size, mtime, existing.id as number);
+      // The file itself changed (cropped, rotated or retouched in another
+      // app): its pictures and faces are made again from the new file, and
+      // names stay with faces found in the same place (B-81).
+      this.db.prepare("update photos set size = ?, mtime = ?, hash = null, thumb = 0, missing = 0, faces_scanned = 0 where id = ?").run(size, mtime, existing.id as number);
+      void rm(this.previewPath(existing.id as number), { force: true }).catch(() => {}); // Windows: may be open; it's only a cache
       this.work.push(existing.id as number);
       return;
     }
@@ -474,7 +478,7 @@ export class Engine {
 
   private async faces(id: number) {
     busy.set("finding faces");
-    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, width, height, class_name, coalesce(taken_at, event_date) as at from photos where id = ?").get(id) as Row | undefined;
+    const p = this.db.prepare("select path, missing, faces_scanned, sharpness, brightness, width, height, class_name, year, coalesce(taken_at, event_date) as at from photos where id = ?").get(id) as Row | undefined;
     if (!p || p.missing || p.faces_scanned) return;
     try {
       const found = await findFaces(this.o.models, await source(p.path as string), { aura: this.o.aura?.() ?? null, vision: this.o.vision });
@@ -495,7 +499,7 @@ export class Engine {
       const lost = old.filter((r) => (r.w as number) > 0 && r.student_id && ["confirmed", "manual"].includes(r.status as string) && !(r.status === "confirmed" && r.auto) && !keptIds.has(r.id as number)).map((r) => r.id as number);
       for (const r of old) if (lost.includes(r.id as number)) named.add(r.student_id as string);
       // (never learning from this photo's own earlier names)
-      const known = this.knownFor(p.class_name as string | null, p.at as string | null, this.knownFaces(model, true).filter((k) => !(k.learned && k.photoId === id)));
+      const known = this.knownFor(p.class_name as string | null, p.at as string | null, this.knownFaces(model, true).filter((k) => !(k.learned && k.photoId === id)), p.year as string | null);
       const traits = traitCentres(known.filter((k) => !k.learned), found[0]?.embedding.length ?? 0);
       const people = this.peopleInfo();
       const fits = (i: number, sid: string) => {
@@ -650,7 +654,12 @@ export class Engine {
   // A class photo is matched against that class (and the adults) first;
   // whole-school events (no class folder) against everyone. Students who had
   // left, or hadn't joined yet, on the photo's date are never suggested.
-  private knownFor(className: string | null, at: string | null, known = this.knownFaces()) {
+  //
+  // A class folder from an earlier school year holds that year's class: the
+  // students kept for that year in their school history (B-80). Without a
+  // history for that year, nobody's class then is known, so everyone is
+  // looked at.
+  private knownFor(className: string | null, at: string | null, known = this.knownFaces(), photoYear: string | null = null) {
     const info = this.peopleInfo();
     const day = at?.slice(0, 10) ?? null;
     // Students change as they grow: examples more than two years away from
@@ -665,8 +674,25 @@ export class Engine {
       return true;
     });
     if (!className) return inTime;
-    const mine = inTime.filter((k) => k.className === className || k.kind !== "student");
+    const then = this.classesIn(photoYear);
+    if (then === "unknown") return inTime;
+    const classOf = (k: { studentId: string; className?: string | null }) => (then ? then.get(k.studentId) ?? null : k.className);
+    const mine = inTime.filter((k) => classOf(k) === className || k.kind !== "student");
     return mine.some((k) => k.kind === "student") ? mine : inTime;
+  }
+
+  // Each student's class in an earlier school year (from the school
+  // history), null for this year (their class now), "unknown" for an
+  // earlier year with no history.
+  private yearClasses = new Map<string, { at: number; map: Map<string, string | null> | "unknown" }>();
+  private classesIn(year: string | null): Map<string, string | null> | null | "unknown" {
+    if (!year || year >= schoolYear(new Date())) return null;
+    const c = this.yearClasses.get(year);
+    if (c && Date.now() - c.at < 5000) return c.map;
+    const rows = this.db.prepare("select student_id, class_name from school_history where year = ?").all(year) as { student_id: string; class_name: string | null }[];
+    const map = rows.length ? new Map(rows.map((r) => [r.student_id, r.class_name])) : ("unknown" as const);
+    this.yearClasses.set(year, { at: Date.now(), map });
+    return map;
   }
 
   // People whose faces look alike (twins, siblings, or just similar): the
@@ -700,12 +726,12 @@ export class Engine {
   // to, boy or girl, student or adult.
   guesses(faceId: number, n = 3) {
     const f = this.db
-      .prepare("select f.id, f.photo_id, f.embedding, f.model, f.rejected, f.why, p.class_name, coalesce(p.taken_at, p.event_date) at from faces f join photos p on p.id = f.photo_id where f.id = ?")
-      .get(faceId) as { id: number; photo_id: number; embedding: Uint8Array | null; model: string; rejected: string; why: string | null; class_name: string | null; at: string | null } | undefined;
+      .prepare("select f.id, f.photo_id, f.embedding, f.model, f.rejected, f.why, p.class_name, p.year, coalesce(p.taken_at, p.event_date) at from faces f join photos p on p.id = f.photo_id where f.id = ?")
+      .get(faceId) as { id: number; photo_id: number; embedding: Uint8Array | null; model: string; rejected: string; why: string | null; class_name: string | null; year: string | null; at: string | null } | undefined;
     if (!f?.embedding) return [];
     const model = (f.model as Recogniser) ?? "sface";
     const all = this.knownFaces(model);
-    const known = this.knownFor(f.class_name, f.at, all);
+    const known = this.knownFor(f.class_name, f.at, all, f.year);
     const emb = fromBlob(f.embedding);
     const taken = new Set((this.db.prepare("select student_id from faces where photo_id = ? and id != ? and status in ('confirmed', 'manual') and student_id is not null").all(f.photo_id, f.id) as { student_id: string }[]).map((r) => r.student_id));
     const rejected = new Set((f.rejected ?? "").split(",").filter(Boolean));
@@ -745,23 +771,26 @@ export class Engine {
     if (!all.length) return 0;
     const rows = this.db
       .prepare(
-        `select f.id, f.photo_id, f.embedding, f.suggest_id, f.suggest_score, f.rejected, f.status, f.why, p.class_name, coalesce(p.taken_at, p.event_date) as at from faces f join photos p on p.id = f.photo_id
+        `select f.id, f.photo_id, f.embedding, f.suggest_id, f.suggest_score, f.rejected, f.status, f.why, p.class_name, p.year, coalesce(p.taken_at, p.event_date) as at from faces f join photos p on p.id = f.photo_id
          where f.status in ('unknown', 'suggested') and f.embedding is not null and f.model = ? and p.missing = 0 order by f.photo_id`,
       )
-      .all(model) as { id: number; photo_id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string; why: string | null; class_name: string | null; at: string | null }[];
+      .all(model) as { id: number; photo_id: number; embedding: Uint8Array; suggest_id: string | null; suggest_score: number | null; rejected: string; status: string; why: string | null; class_name: string | null; year: string | null; at: string | null }[];
     const update = this.db.prepare("update faces set status = ?, suggest_id = ?, suggest_score = ? where id = ?");
     const name = this.db.prepare("update faces set status = 'confirmed', student_id = ?, suggest_id = ?, suggest_score = ?, auto = 1, named_by = 'auto', why = null where id = ?");
     const namedIn = this.db.prepare("select student_id from faces where photo_id = ? and status in ('confirmed', 'manual') and student_id is not null");
     const traits = traitCentres(all.filter((k) => !k.learned), all[0]?.embedding.length ?? 0);
     const info = this.peopleInfo();
     const named: number[] = [];
+    // Photos whose likely people changed: the website's check of who can't
+    // appear looks at them again (B-85).
+    const touched = new Set<number>();
     let changed = 0;
     const byPhoto = new Map<number, typeof rows>();
     for (const r of rows) byPhoto.set(r.photo_id, [...(byPhoto.get(r.photo_id) ?? []), r]);
     tx(this.db, () => {
       for (const [photoId, faces] of byPhoto) {
         const taken = new Set((namedIn.all(photoId) as { student_id: string }[]).map((x) => x.student_id));
-        const known = this.knownFor(faces[0].class_name, faces[0].at, all);
+        const known = this.knownFor(faces[0].class_name, faces[0].at, all, faces[0].year);
         const embs = faces.map((f) => fromBlob(f.embedding));
         const matches = assignPhoto(embs, known, model, taken, (i, sid) => {
           if ((faces[i].rejected ? faces[i].rejected.split(",") : []).includes(sid)) return false;
@@ -782,9 +811,11 @@ export class Engine {
           } else if (m && (m.studentId !== r.suggest_id || Math.abs(m.score - (r.suggest_score ?? 0)) > 0.005)) {
             update.run(m.score >= SHOW_FROM && r.why !== "far" ? "suggested" : "unknown", m.studentId, m.score, r.id);
             changed++;
+            touched.add(r.photo_id);
           } else if (!m && r.suggest_id) {
             update.run("unknown", null, null, r.id);
             changed++;
+            touched.add(r.photo_id);
           }
         });
       }
@@ -792,8 +823,9 @@ export class Engine {
     if (changed) this.o.onChange("faces");
     if (named.length) {
       const photos = this.db.prepare(`select distinct photo_id from faces where id in (${named.map(() => "?").join(",")})`).all(...named) as { photo_id: number }[];
-      this.o.onNamed?.(photos.map((p) => p.photo_id));
+      for (const p of photos) touched.add(p.photo_id);
     }
+    if (touched.size) this.o.onNamed?.([...touched]);
     // New sure names are new learned examples: look once more (a few rounds).
     if (named.length && round < 3) changed += this.rematch(studentIds, round + 1);
     return changed;
@@ -804,9 +836,11 @@ export class Engine {
   unknownGroups(limit = 60) {
     const rows = this.db
       .prepare(
-        "select f.id, f.embedding from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and coalesce(f.why, '') != 'far' and f.embedding is not null and p.missing = 0 and f.w > 0.025 order by f.id desc limit 2500",
+        "select f.id, f.embedding from faces f join photos p on p.id = f.photo_id where f.status = 'unknown' and coalesce(f.why, '') != 'far' and f.embedding is not null and f.model = ? and p.missing = 0 and f.w > 0.025 order by f.id desc limit 2500",
       )
-      .all() as { id: number; embedding: Uint8Array }[];
+      // Only faces described by the same recogniser can be compared: while
+      // a library is described again, old and new descriptions are mixed (B-84).
+      .all(this.faceModel) as { id: number; embedding: Uint8Array }[];
     const items = rows.map((r) => ({ id: r.id, e: fromBlob(r.embedding) }));
     const groups: { ids: number[]; centre: Float32Array }[] = [];
     for (const it of items) {

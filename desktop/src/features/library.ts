@@ -131,8 +131,8 @@ export function libraryApi(ctx: Ctx): Api {
     if (f.term) (where.push("p.term = ?"), args.push(f.term));
     const named = "f.status in ('confirmed','manual')";
     if (f.className) {
-      where.push(`(p.class_name = ? or exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and ${named} and s.class_name = ?))`);
-      args.push(f.className, f.className);
+      where.push(`(p.class_name = ? or exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and ${named} and ${CLASS_THEN} = ?))`);
+      args.push(f.className, schoolYear(new Date()), f.className);
     } else if (f.grade) {
       where.push(`(exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and ${named} and s.grade = ?) or p.class_name in (select class_name from students where grade = ?))`);
       args.push(f.grade, f.grade);
@@ -424,13 +424,17 @@ type AlbumRule = {
   minRating?: number; picked?: boolean; className?: string; event?: string; student?: string; from?: string; to?: string;
   people?: "none" | "some" | "group"; sent?: boolean; label?: string; category?: string; photographer?: string; posted?: boolean; kind?: string;
 };
+// A named student's class when the photo was taken: from their school
+// history for an earlier year, else their class now (B-80). Takes this
+// school year as its one argument.
+const CLASS_THEN = "coalesce((select h.class_name from school_history h where h.student_id = s.id and h.year = p.year and p.year < ?), s.class_name)";
 const LOCAL_DAY = "(case when p.taken_at is null then p.event_date else date(p.taken_at, 'localtime') end)";
 export function ruleWhere(r: AlbumRule, where: string[], args: unknown[]) {
   if (r.minRating) (where.push("p.rating >= ?"), args.push(r.minRating));
   if (r.picked) where.push("p.flag = 1");
   // A class: photos filed in its folder, or with one of its students named
   // (the same as the Class filter, B-65).
-  if (r.className) (where.push("(p.class_name = ? or exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed','manual') and s.class_name = ?))"), args.push(r.className, r.className));
+  if (r.className) (where.push(`(p.class_name = ? or exists (select 1 from faces f join students s on s.id = f.student_id where f.photo_id = p.id and f.status in ('confirmed','manual') and ${CLASS_THEN} = ?))`), args.push(r.className, schoolYear(new Date()), r.className));
   if (r.event) (where.push("p.event_title like ?"), args.push(`%${r.event}%`));
   if (r.student) (where.push("exists (select 1 from faces f where f.photo_id = p.id and f.student_id = ? and f.status in ('confirmed', 'manual'))"), args.push(r.student));
   // Dates are the school's own days: a photo taken at 00:30 on 12 October

@@ -377,12 +377,23 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
     let why = faceProblem(f, sharpness, width, height);
     if (!why && vision) {
       const v = vision.find((vf) => iou(vf.box, box) > 0.25 || inside(box, vf.box));
-      if (!v) why = "not-a-face";
-      else if (v.quality < 0.12) why = "blurred";
+      // Vision looks at a 1600 px copy and misses small faces at the back of
+      // a class photo: only a face big enough for it to see is ruled out
+      // because it saw nothing there (B-86).
+      if (!v && visionCanSee(box, width, height)) why = "not-a-face";
+      else if (v && v.quality < 0.12) why = "blurred";
     }
     result.push({ box, score: f.score, landmarks: f.landmarks, embedding, usable: !why, why, sharpness });
   }
   return Object.assign(result, { recogniser: kind });
+}
+
+// Is a face big enough that Apple Vision, looking at the 1600 px copy,
+// would surely have seen it?
+export const VISION_MIN_PX = 80;
+export function visionCanSee(box: number[], width: number, height: number) {
+  const k = Math.min(1, 1600 / Math.max(width, height));
+  return box[2] * width * k >= VISION_MIN_PX && box[3] * height * k >= VISION_MIN_PX;
 }
 
 // How crisp the face itself is: variance of the Laplacian on the aligned

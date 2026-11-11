@@ -859,9 +859,12 @@ function students(f: { className?: string; search?: string; year?: string; term?
   );
 }
 
+// Undo puts every part of a face back, including who named it: a name the
+// app gave by itself must not come back as a name a person gave, or it
+// would be learned from as if someone had checked it (B-79).
 function faceRowsFor(ids: number[]) {
-  return all<{ id: number; student_id: string | null; status: string; suggest_id: string | null; suggest_score: number | null; rejected: string; photo_id: number }>(
-    `select id, student_id, status, suggest_id, suggest_score, rejected, photo_id from faces where id in (${marks(ids.length)})`,
+  return all<{ id: number; student_id: string | null; status: string; suggest_id: string | null; suggest_score: number | null; rejected: string; photo_id: number; auto?: number; named_by?: string | null; why?: string | null }>(
+    `select id, student_id, status, suggest_id, suggest_score, rejected, photo_id, auto, named_by, why from faces where id in (${marks(ids.length)})`,
     ...ids,
   );
 }
@@ -869,7 +872,12 @@ function faceRowsFor(ids: number[]) {
 function restoreFaces(rows: ReturnType<typeof faceRowsFor>, inserted: number[] = []) {
   tx(db, () => {
     const up = db.prepare("update faces set student_id = ?, status = ?, suggest_id = ?, suggest_score = ?, rejected = ? where id = ?");
-    for (const r of rows) up.run(r.student_id, r.status, r.suggest_id, r.suggest_score, r.rejected, r.id);
+    // (steps saved by 0.10 and before have no auto / named_by / why)
+    const who = db.prepare("update faces set auto = ?, named_by = ?, why = ? where id = ?");
+    for (const r of rows) {
+      up.run(r.student_id, r.status, r.suggest_id, r.suggest_score, r.rejected, r.id);
+      if (r.auto !== undefined) who.run(r.auto, r.named_by ?? null, r.why ?? null, r.id);
+    }
     if (inserted.length) db.prepare(`delete from faces where id in (${marks(inserted.length)})`).run(...inserted);
   });
   syncOptedOut([...new Set(rows.map((r) => r.photo_id))]);
@@ -916,12 +924,19 @@ function confirmFaces(faceIds: number[], studentId: string) {
   faceIds = [...perPhoto.values()];
   const photoIds = [...perPhoto.keys()];
   const others = photoIds.length
-    ? all<{ id: number }>(`select id from faces where photo_id in (${marks(photoIds.length)}) and id not in (${marks(faceIds.length)}) and (student_id = ? or suggest_id = ?) and status in ('confirmed', 'suggested') and (auto = 1 or status = 'suggested')`, ...photoIds, ...faceIds, studentId, studentId).map((r) => r.id)
+    ? all<{ id: number }>(`select id from faces where photo_id in (${marks(photoIds.length)}) and id not in (${marks(faceIds.length)}) and (student_id = ? or suggest_id = ?) and status in ('confirmed', 'suggested') and w > 0`, ...photoIds, ...faceIds, studentId, studentId).map((r) => r.id)
     : [];
   const before = faceRowsFor([...faceIds, ...others]);
   const who = settings.get().email ?? "me";
   db.prepare(`update faces set student_id = ?, status = 'confirmed', suggest_id = null, suggest_score = null, auto = 0, named_by = ? where id in (${marks(faceIds.length)})`).run(studentId, who, ...faceIds);
-  if (others.length) db.prepare(`update faces set status = 'unknown', student_id = null, suggest_id = null, suggest_score = null, auto = 0 where id in (${marks(others.length)})`).run(...others);
+  // Anyone else in those photos named or suggested as this person (even
+  // named by hand earlier) isn't them: one face per person per photo (B-83).
+  if (others.length)
+    db.prepare(
+      `update faces set status = 'unknown', student_id = null, suggest_id = null, suggest_score = null, auto = 0, named_by = null,
+         rejected = case when rejected = '' then ? when instr(',' || rejected || ',', ',' || ? || ',') > 0 then rejected else rejected || ',' || ? end
+       where id in (${marks(others.length)})`,
+    ).run(studentId, studentId, studentId, ...others);
   remember("tag", `${faceIds.length}:${studentId}`, { kind: "faces", rows: before });
   syncOptedOut([...new Set(before.map((r) => r.photo_id))]);
   engine?.rematchSoon();
@@ -1940,11 +1955,22 @@ app.whenReady().then(async () => {
       push("students");
       return id;
     },
+    // Their faces become unnamed faces again; nothing is left suggesting
+    // or linking someone who isn't in the list, and photos the website
+    // blocked because of them are checked again (B-82).
     removeStudent: (id: string) => {
-      db.prepare("delete from faces where student_id = ? and status = 'portrait'").run(id);
-      db.prepare("update faces set student_id = null, status = 'unknown' where student_id = ?").run(id);
-      db.prepare("delete from students where id = ?").run(id);
+      const photoIds = all<{ photo_id: number }>("select distinct photo_id from faces where (student_id = ? or suggest_id = ?) and portrait = 0", id, id).map((r) => r.photo_id);
+      tx(db, () => {
+        db.prepare("delete from faces where student_id = ? and status = 'portrait'").run(id);
+        db.prepare("delete from faces where student_id = ? and w = 0 and status = 'manual'").run(id);
+        db.prepare("update faces set student_id = null, status = 'unknown', auto = 0, named_by = null, suggest_id = null, suggest_score = null where student_id = ?").run(id);
+        db.prepare("update faces set status = case when status = 'suggested' then 'unknown' else status end, suggest_id = null, suggest_score = null where suggest_id = ?").run(id);
+        db.prepare("delete from students where id = ?").run(id);
+      });
+      syncOptedOut(photoIds);
+      engine?.rematchSoon();
       push("students");
+      push("faces");
     },
 
     suggestions: (limit = 40) => {
