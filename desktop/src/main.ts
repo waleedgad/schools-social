@@ -442,6 +442,15 @@ async function restart() {
       watch: false,
       paused: () => settings.get().paused,
       onChange: () => push("queue"),
+      // The file of a photo already on the website changed (B-89): its web
+      // copy is replaced. If it showed someone who can't appear, it stays
+      // blocked until its faces are looked at again.
+      replaces: (file) => {
+        const p = one<{ id: number; remote_id: string | null; opted: number }>(`select p.id, p.remote_id, ${noPostPhoto("p")} opted from photos p where p.path = ?`, file);
+        if (!p?.remote_id) return null;
+        db.prepare("update photos set web_blur = null where id = ?").run(p.id);
+        return { remoteId: p.remote_id, block: !!p.opted };
+      },
       onUploaded: (file, hash, id) => {
         if (!id) return;
         db.prepare("update photos set remote_id = ? where path = ? or hash = ?").run(id, file, hash);
@@ -477,7 +486,8 @@ async function photoReady(id: number) {
       .then(() => settings.set({ lastBackup: Date.now() }))
       .catch(() => {});
   }
-  if (!p.dup_of && !p.pair_of && !known && (s.sendMode === "all" || p.flag === 1) && !isArchived(p.path)) await sync?.enqueue(p.path);
+  // (a photo already on the website whose file changed goes again, to replace its copy: B-89)
+  if (!p.dup_of && !p.pair_of && !known && (s.sendMode === "all" || p.flag === 1 || p.remote_id) && !isArchived(p.path)) await sync?.enqueue(p.path);
 }
 
 // ---------- Backup copy ----------

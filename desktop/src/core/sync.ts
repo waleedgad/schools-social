@@ -9,6 +9,7 @@ import { exclusive } from "./lock";
 import { fileHash, prepare } from "./photo";
 import type { Job, UploadQueue } from "./queue";
 import { JsonStore } from "./store";
+import { updateWebCopy } from "./web";
 
 export type SyncOptions = {
   supabase: SupabaseClient;
@@ -25,6 +26,9 @@ export type SyncOptions = {
   allow?: (file: string) => boolean;
   paused?: () => boolean;
   onUploaded?: (file: string, hash: string, photoId: string | null) => void;
+  // A photo already on the website whose file changed (retouched, cropped):
+  // its web copy is replaced instead of a second photo being sent (B-89).
+  replaces?: (file: string, hash: string) => { remoteId: string; block: boolean } | null;
 };
 
 const MAX_ATTEMPTS = 8;
@@ -124,7 +128,8 @@ export class LibrarySync {
     }
     try {
       const hash = await fileHash(job.file);
-      const id = queue.isDone(hash) ? null : await this.upload(job.file, hash);
+      const earlier = queue.isDone(hash) ? null : this.o.replaces?.(job.file, hash) ?? null;
+      const id = queue.isDone(hash) ? null : earlier ? await this.replace(job.file, hash, earlier) : await this.upload(job.file, hash);
       // Every original is backed up, even one already sent from another folder.
       if (this.o.backup) await this.backup(job.file);
       queue.finish(job, hash, id);
@@ -135,6 +140,20 @@ export class LibrarySync {
       if (e instanceof BrokenPhoto || job.attempts + 1 >= MAX_ATTEMPTS) queue.fail(job, message);
       else queue.retryLater(job, message);
     }
+  }
+
+  private async replace(file: string, hash: string, r: { remoteId: string; block: boolean }) {
+    try {
+      const p = await exclusive(() => prepare(file)).catch(() => {
+        throw new BrokenPhoto("Can't read this photo file");
+      });
+      await updateWebCopy(this.o.supabase, r.remoteId, p, hash, r.block);
+    } catch (e) {
+      // The website copy is gone (deleted there): send it as a new photo.
+      if (/no web copy|0 rows|multiple \(or no\) rows/i.test(String((e as Error).message))) return this.upload(file, hash);
+      throw e;
+    }
+    return r.remoteId;
   }
 
   private async upload(file: string, hash: string) {
