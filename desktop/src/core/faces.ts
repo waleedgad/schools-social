@@ -475,7 +475,7 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
     const [x, y, w, h] = f.box;
     const box: Face["box"] = [clamp(x / width), clamp(y / height), clamp(w / width), clamp(h / height)];
     const sharpness = faceSharpness(aligned, kind);
-    let why = faceProblem({ box: boxS, score: f.score, landmarks: lm }, sharpness, src.width, src.height);
+    let why = faceProblem({ box: boxS, score: f.score, landmarks: lm }, sharpness, src.width, src.height, { zoomScore });
     if (!why && vision) {
       const v = vision.find((vf) => iou(vf.box, box) > 0.25 || inside(box, vf.box));
       // Vision looks at a 1600 px copy and misses small faces at the back of
@@ -558,11 +558,15 @@ export function faceSharpness(aligned: Float32Array, kind: Recogniser = "sface")
 // Hands and objects rarely have eyes above a nose above a mouth.
 // The face finder's own confidence below which a face is "unsure".
 export const UNSURE_SCORE = 0.86;
-export function faceProblem(f: { box: number[]; score: number; landmarks: number[] }, sharpness: number, width: number, height: number, o: { minScore?: number } = {}): string | null {
+// A face the finder was unsure of on the whole photo counts as found when
+// its closer second look is sure (zoomScore): face test, 11 Nov 2026, that
+// brings back 2-6% of masked, dark and covered faces and 2% of the faces in
+// big class photos, and lets in 1 of 14 unsure things that aren't faces.
+export function faceProblem(f: { box: number[]; score: number; landmarks: number[] }, sharpness: number, width: number, height: number, o: { minScore?: number; zoomScore?: number | null } = {}): string | null {
   const [x, y, w, h] = f.box;
   const lm = f.landmarks;
   if (w < 40 || h < 40) return "too-small";
-  if (f.score < (o.minScore ?? UNSURE_SCORE)) return "unsure";
+  if (Math.max(f.score, o.zoomScore ?? 0) < (o.minScore ?? UNSURE_SCORE)) return "unsure";
   const ratio = w / h;
   if (ratio < 0.55 || ratio > 1.45) return "not-a-face";
   const [lx, ly, rx, ry, nx, ny, mlx, mly, mrx, mry] = lm;
@@ -614,7 +618,8 @@ export function learnFrom(raw: number) {
 }
 export function handAgrees(embedding: Float32Array, known: Known[], studentId: string, r: Recogniser = "sface", o: { strong?: number } = {}) {
   if (!known.some((k) => k.learned)) return true;
-  // (face test only, for now: a face nearly identical to a learned example)
+  // (face test only: a face nearly identical to a learned example. Tried 11
+  // Nov 2026: +0.1%, so the app doesn't use it.)
   if (o.strong != null) for (const k of known) if (k.learned && k.studentId === studentId && k.embedding.length === embedding.length && cosine(embedding, k.embedding) - (k.penalty ?? 0) >= o.strong) return true;
   const own = ranked(embedding, known.filter((k) => !k.learned), r);
   if (!own.length || own[0].studentId !== studentId) return false;

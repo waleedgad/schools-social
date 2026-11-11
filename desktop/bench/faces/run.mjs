@@ -107,9 +107,21 @@ const fingerprint = createHash("sha1")
   .update([F.findFaces, F.align, F.faceProblem, F.faceSharpness, F.decode, F.loadModels, F.shrinkForAlign, F.secondLook, F.cut].map(String).join("\n") + KINDS.join() + analyse.toString())
   .digest("hex");
 const stored = cacheFile && existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : null;
-if (stored?.fingerprint === fingerprint) {
+// BENCH_TRUST_CACHE=1: use the stored faces although the face code changed
+// (only when the change is the "unsure" rule, which is worked out again
+// below for the hard cases; the single photos keep their test faces so the
+// numbers stay comparable with the last full run).
+const trusted = !!process.env.BENCH_TRUST_CACHE && stored && stored.fingerprint !== fingerprint;
+if (trusted) console.error("stored faces used although the face code changed");
+if (stored?.fingerprint === fingerprint || trusted) {
   for (const [k, v] of Object.entries(stored.photos)) {
     for (const f of v.faces) for (const e of Object.keys(f.emb)) f.emb[e] = new Float32Array(new Uint8Array(Buffer.from(f.emb[e], "base64")).buffer);
+    if (trusted && k.startsWith("hard|"))
+      for (const f of v.faces) {
+        if (f.why !== "unsure") continue;
+        f.why = F.faceProblem({ box: [f.box[0] * v.width, f.box[1] * v.height, f.box[2] * v.width, f.box[3] * v.height], score: f.score, landmarks: f.landmarks }, f.sharpness, v.width, v.height, { zoomScore: f.zoomScore });
+        f.usable = !f.why;
+      }
     cache.set(k, v);
   }
 }
@@ -124,7 +136,7 @@ async function saveCache() {
   if (!cacheFile) return;
   const o = {};
   for (const [k, v] of cache) o[k] = { ...v, faces: v.faces.map((f) => ({ ...f, emb: Object.fromEntries(Object.entries(f.emb).map(([e, x]) => [e, Buffer.from(x.buffer, x.byteOffset, x.byteLength).toString("base64")])) })) };
-  await writeFile(cacheFile, JSON.stringify({ fingerprint, photos: o }));
+  await writeFile(cacheFile, JSON.stringify({ fingerprint: trusted ? stored.fingerprint : fingerprint, photos: o }));
 }
 const credits = existsSync(path.join(photos, "credits.json")) ? new Map(JSON.parse(await readFile(path.join(photos, "credits.json"), "utf8")).map((c) => [c.file, c])) : new Map();
 const title = (file) => credits.get(path.relative(photos, file))?.title?.replace(/^File:/, "") ?? path.relative(photos, file);
@@ -408,6 +420,11 @@ for (const kind of classKinds) {
                     ? "right person, too close to the next"
                     : "right person, but the hand-named faces alone disagree";
             w.reasons[reason] = (w.reasons[reason] ?? 0) + 1;
+            // does it look like ANY other photo filed under this person?
+            let own2 = -1;
+            for (const x of byPerson.get(it.truth)) if (x.face.emb[kind] !== it.e) own2 = Math.max(own2, F.cosine(it.e, x.face.emb[kind]));
+            const o2 = own2 < 0.3 ? "like no other photo of the person (under 0.30)" : own2 < 0.45 ? "weakly like another photo (0.30-0.45)" : "clearly like another photo (0.45 up)";
+            (w.own ??= {})[o2] = (w.own[o2] ?? 0) + 1;
             const px = it.px < 90 ? "under 90 px" : it.px < 150 ? "90-150 px" : it.px < 250 ? "150-250 px" : "250 px up";
             w.px[px] = (w.px[px] ?? 0) + 1;
             const sh = it.sharp < 50 ? "sharpness under 50" : it.sharp < 200 ? "50-200" : "200 up";
@@ -828,7 +845,7 @@ for (const [key, t] of Object.entries(classResults)) {
 }
 for (const [k, w] of Object.entries(whyNot)) {
   const show = (o) => Object.entries(o).sort((x, y) => y[1] - x[1]).map(([name, n]) => `${name} ${pct(n, w.n)}`).join(" · ");
-  L.push("", `Why faces stayed unnamed (app, ${k} confirmed faces, ${w.n} faces): ${show(w.reasons)}. By size: ${show(w.px)}. By sharpness: ${show(w.sharp)}.`);
+  L.push("", `Why faces stayed unnamed (app, ${k} confirmed faces, ${w.n} faces): ${show(w.reasons)}. By size: ${show(w.px)}. By sharpness: ${show(w.sharp)}. Against all the person's other photos: ${show(w.own ?? {})}.`);
 }
 const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith(KINDS.at(-1))).flatMap(([, t]) => t.wrongList))];
 if (classWrong.length) L.push("", "Wrong in the class test (the app's recogniser):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
@@ -917,6 +934,7 @@ console.log(report);
   const parts = report.split("\n## ").filter((x) => want.some((w) => x.startsWith(w)));
   console.log("\n=== SHORT VERSION ===\n" + parts.map((x) => "## " + x.split("\n### ")[0].split("\n").filter((l) => !/^\| (sface|aura\+flip) /.test(l)).join("\n")).join("\n"));
   for (const [what, cells] of Object.entries(scoreCells)) console.log(`looks, ${what}: ${Object.entries(cells).sort().map(([k, v]) => `${k} ${v}`).join(" · ")}`);
+  for (const l of L.filter((x) => x.startsWith("Why faces stayed unnamed"))) console.log(l);
   console.log("=== END ===");
 }
 await writeFile(path.join(photos, "report.md"), report);

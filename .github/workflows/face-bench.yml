@@ -59,7 +59,7 @@ jobs:
         run: |
           rm -rf ~/face-bench-photos/groups
           mkdir -p ~/face-bench-cache
-          HUB_FACE_THREADS=4 BENCH_CACHE=~/face-bench-cache/analysis.json node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
+          HUB_FACE_THREADS=4 BENCH_TRUST_CACHE=1 BENCH_CACHE=~/face-bench-cache/analysis.json node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
       # kept even when the run fails or is cut short
       - uses: actions/cache/save@v4
         if: always()

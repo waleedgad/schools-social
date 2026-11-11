@@ -6,7 +6,7 @@ import { test } from "node:test";
 import sharp from "sharp";
 import { openDb } from "./db";
 import { Engine } from "./engine";
-import { assignPhoto, cosine, cut, findFaces, isSure, shrinkForAlign, similarity } from "./faces";
+import { assignPhoto, cosine, cut, faceProblem, findFaces, isSure, shrinkForAlign, similarity } from "./faces";
 
 // 0.12: faces are read better (Waleed, 11 Nov 2026: about 95% named by
 // themselves). Small faces in a big photo come from the original photo, each
@@ -125,4 +125,14 @@ test("an old library: big photos with small faces are read again once", () => {
   assert.equal(engine.upgradeReading(), 1);
   const rows = db.prepare("select id, faces_scanned from photos order by id").all() as { id: number; faces_scanned: number }[];
   assert.deepEqual(rows.map((r) => r.faces_scanned), [0, 1, 1, 1]);
+});
+
+test("a face the finder was unsure of counts when its closer look is sure", () => {
+  const face = { box: [100, 100, 100, 120], score: 0.8, landmarks: [130, 140, 170, 140, 150, 165, 135, 185, 165, 185] };
+  assert.equal(faceProblem(face, 80, 2000, 1500), "unsure");
+  assert.equal(faceProblem(face, 80, 2000, 1500, { zoomScore: 0.7 }), "unsure");
+  assert.equal(faceProblem(face, 80, 2000, 1500, { zoomScore: 0.9 }), null);
+  assert.equal(faceProblem(face, 80, 2000, 1500, { zoomScore: null }), "unsure");
+  // every other check still applies
+  assert.equal(faceProblem(face, 5, 2000, 1500, { zoomScore: 0.9 }), "blurred");
 });
