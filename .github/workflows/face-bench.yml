@@ -18,7 +18,7 @@ on:
 jobs:
   faces:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 350
     defaults:
       run:
         working-directory: desktop
@@ -43,7 +43,7 @@ jobs:
           key: auraface-v1
       # Faces found in each photo, from the last run (reused only while the
       # face finding code is unchanged), so trying new settings is quick.
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         with:
           path: ~/face-bench-cache
           key: face-bench-analysis-${{ github.run_id }}
@@ -59,7 +59,13 @@ jobs:
         run: |
           rm -rf ~/face-bench-photos/groups
           mkdir -p ~/face-bench-cache
-          BENCH_CACHE=~/face-bench-cache/analysis.json node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
+          HUB_FACE_THREADS=4 BENCH_CACHE=~/face-bench-cache/analysis.json node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
+      # kept even when the run fails or is cut short
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ~/face-bench-cache
+          key: face-bench-analysis-${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

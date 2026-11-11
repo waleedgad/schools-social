@@ -167,7 +167,9 @@ export function loadModels(modelsDir: string, auraFile?: string | null) {
       key,
       (async () => {
         const ort: Ort = require("onnxruntime-node");
-        const options = { logSeverityLevel: 3 as const, intraOpNumThreads: 2 };
+        // Two threads keep the app quick while faces are read in the background
+        // (HUB_FACE_THREADS: the face test on its own machine uses more).
+        const options = { logSeverityLevel: 3 as const, intraOpNumThreads: Number(process.env.HUB_FACE_THREADS) || 2 };
         const detector = await ort.InferenceSession.create(path.join(modelsDir, "face_detection_yunet_2023mar.onnx"), options);
         const sface = await ort.InferenceSession.create(path.join(modelsDir, "face_recognition_sface_2021dec.onnx"), options);
         if (auraFile) {

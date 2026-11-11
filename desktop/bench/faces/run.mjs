@@ -144,6 +144,11 @@ for (const person of people) {
       continue;
     }
     scanned++;
+    // kept as it goes, so a run that is cut short doesn't start again from nothing
+    if (scanned % 300 === 0) {
+      await saveCache();
+      console.error(`${scanned} photos read, ${((Date.now() - t0) / 60000).toFixed(0)} min`);
+    }
     // The person the photo is filed under is its biggest usable face, when
     // that face is clearly the main one (photos of a crowd are left out).
     const usable = a.faces.filter((f) => f.usable).sort((x, y) => y.box[2] * y.box[3] - x.box[2] * x.box[3]);
