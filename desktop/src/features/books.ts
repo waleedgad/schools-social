@@ -9,6 +9,8 @@ import { safeName } from "../core/library";
 import { exclusive } from "../core/lock";
 import { readable } from "../core/media";
 import { q, type Api, type Ctx } from "./ctx";
+import { noPostFace } from "../core/privacy";
+import { createHash } from "node:crypto";
 
 // The Yearbooks tab: books kept on this Mac (spec, pages, versions), the
 // page editor's questions, AI page texts through the website (titles and
@@ -89,10 +91,14 @@ export function booksApi(ctx: Ctx): Api {
   async function printFile(id: number, spec: BookSpec) {
     const p = one<{ path: string; ext: string }>("select path, ext from photos where id = ?", id);
     if (!p || !existsSync(p.path)) return `hub://preview/${id}`;
+    // Faces that can't appear: the same rule as the website check, likely
+    // matches too (B-88). The saved print copy is named after the faces it
+    // blurs, so a face named later is never printed from an old copy.
     const boxes = spec.cantAppear === "blur"
-      ? all<{ x: number; y: number; w: number; h: number }>("select f.x, f.y, f.w, f.h from faces f join students s on s.id = f.student_id where f.photo_id = ? and f.status in ('confirmed', 'manual') and s.can_post = 0", id)
+      ? all<{ x: number; y: number; w: number; h: number }>(`select f.x, f.y, f.w, f.h from faces f where f.photo_id = ? and f.w > 0 and ${noPostFace("f")} order by f.id`, id)
       : [];
-    const out = ctx.data(`cache/book/${id}${boxes.length ? "-b" : ""}.jpg`);
+    const key = boxes.length ? "-b" + createHash("sha1").update(JSON.stringify(boxes)).digest("hex").slice(0, 10) : "";
+    const out = ctx.data(`cache/book/${id}${key}.jpg`);
     if (!existsSync(out)) {
       await mkdir(path.dirname(out), { recursive: true });
       await exclusive(async () => {

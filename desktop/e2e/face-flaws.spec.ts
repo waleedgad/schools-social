@@ -110,6 +110,11 @@ test("naming faces: undo, removing a person, one face per person, class of the y
     // This year: Sara's photos are 5A
     expect(ids(await inClass("5A", "2026-2027"))).toEqual([...ofThisYear].sort());
 
+    // Naming last year's 4A class photo row by row offers last year's 4A
+    const cp = await call<{ className: string; people: { id: string }[] }>("classPhoto", ofLastYear[0]);
+    expect(cp.className).toBe("4A");
+    expect(cp.people.map((p) => p.id).sort(), "B-80: last year's 4A, not this year's").toEqual(["NOUR", "SARA"]);
+
     // ---------- B-82: removing a person ----------
     await call("removeStudent", "NOUR");
     expect(row(sugNour), "B-82: no suggestion left for someone who's gone").toMatchObject({ status: "unknown", suggest_id: null });

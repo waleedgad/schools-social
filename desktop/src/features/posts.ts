@@ -7,6 +7,7 @@ import { exclusive } from "../core/lock";
 import { source } from "../core/media";
 import { hijriOf, OCCASIONS, type Filter } from "./library";
 import { marks, q, type Api, type Ctx } from "./ctx";
+import { noPostFace } from "../core/privacy";
 
 // Posts made on the Mac: the photos chosen from any filter (one post, one
 // per class or one per day), the crop to each platform's shape done from the
@@ -72,10 +73,19 @@ async function frameFile(ctx: Ctx, url: string | null, id: string | null) {
 export function postsApi(ctx: Ctx): Api {
   const { one, all } = q(ctx);
 
-  const facesOf = (id: number) => all<Box & { student_id: string | null; can_post: number | null }>(
-    "select f.x, f.y, f.w, f.h, f.student_id, s.can_post from faces f left join students s on s.id = f.student_id where f.photo_id = ? and f.status <> 'notface' and f.w > 0.015",
-    id,
-  );
+  // Every face of a photo, and whether it can't appear: the same rule as
+  // the website check (core/privacy.ts), so a likely match with a student
+  // who can't appear is blurred too, however small (B-88). Before, only
+  // faces named for sure were blurred, and only from 1.5% of the photo's
+  // width. "Not a face" and background faces don't steer the crop.
+  const facesOf = (id: number) =>
+    all<Box & { student_id: string | null; can_post: number; crop: number }>(
+      `select f.x, f.y, f.w, f.h, f.student_id, case when ${noPostFace("f")} then 0 else 1 end can_post,
+         (f.status not in ('rejected', 'background') and f.w > 0.015) crop
+       from faces f where f.photo_id = ? and f.w > 0 and f.status <> 'rejected'`,
+      id,
+    );
+  const cropFaces = (id: number) => facesOf(id).filter((f) => f.crop && f.can_post !== 0);
   const localOf = (remote: string[]) =>
     remote.length ? all<{ id: number; path: string; remote_id: string; width: number; height: number; missing: number; posts: number }>(`select id, path, remote_id, width, height, missing, posts from photos where remote_id in (${marks(remote.length)})`, ...remote) : [];
 
@@ -90,7 +100,7 @@ export function postsApi(ctx: Ctx): Api {
       const ratio = SHAPES[o.shape] ?? null;
       let box = { left: 0, top: 0, width: W, height: H };
       if (ratio) {
-        box = smartCrop(W, H, ratio, faces.filter((f) => f.can_post !== 0));
+        box = smartCrop(W, H, ratio, faces.filter((f) => f.crop && f.can_post !== 0));
         // A hand-moved crop (0..1 along the long side) wins over the faces.
         if (o.position != null) {
           if (box.width < W) box.left = Math.round((W - box.width) * o.position);
@@ -187,8 +197,8 @@ export function postsApi(ctx: Ctx): Api {
       const local = localOf(remote);
       if (!local.length) return { people: [], cantAppear: [], unnamed: 0, notOnMac: remote.length };
       const ids = local.map((p) => p.id);
-      const rows = all<{ photo_id: number; student_id: string | null; status: string; name_en: string | null; name_ar: string | null; class_name: string | null; can_post: number | null; kind: string | null }>(
-        `select f.photo_id, f.student_id, f.status, s.name_en, s.name_ar, s.class_name, s.can_post, s.kind from faces f left join students s on s.id = f.student_id where f.photo_id in (${marks(ids.length)}) and f.status <> 'notface' and f.w > 0.015`,
+      const rows = all<{ photo_id: number; student_id: string | null; status: string; name_en: string | null; name_ar: string | null; class_name: string | null; can_post: number | null; kind: string | null; np: number }>(
+        `select f.photo_id, f.student_id, f.status, s.name_en, s.name_ar, s.class_name, s.can_post, s.kind, ${noPostFace("f")} np from faces f left join students s on s.id = f.student_id where f.photo_id in (${marks(ids.length)}) and f.status not in ('rejected', 'background') and f.w > 0.015`,
         ...ids,
       );
       const posted = new Map(
@@ -209,7 +219,8 @@ export function postsApi(ctx: Ctx): Api {
       }
       const list = [...people.values()].sort((a, b) => (a.class_name ?? "").localeCompare(b.class_name ?? "", undefined, { numeric: true }) || (a.name_en ?? "").localeCompare(b.name_en ?? ""));
       const byPhoto = new Map<string, number>();
-      for (const r of rows) if (r.can_post === 0 && ["confirmed", "manual"].includes(r.status)) {
+      // (a likely match counts here too, B-88)
+      for (const r of rows) if (r.np) {
         const remoteId = local.find((l) => l.id === r.photo_id)?.remote_id;
         if (remoteId) byPhoto.set(remoteId, (byPhoto.get(remoteId) ?? 0) + 1);
       }
@@ -284,7 +295,7 @@ export function postsApi(ctx: Ctx): Api {
         if (!p || !existsSync(p.path)) continue;
         const input = await exclusive(async () => {
           const base = await sharp(await source(p.path), { failOn: "none" }).rotate().toBuffer({ resolveWithObject: true });
-          const box = smartCrop(base.info.width, base.info.height, w / h, facesOf(local[i]).filter((f) => f.can_post !== 0));
+          const box = smartCrop(base.info.width, base.info.height, w / h, cropFaces(local[i]));
           return sharp(base.data).extract(box).resize(w, h, { fit: "cover" }).toBuffer();
         });
         parts.push({ input, left: Math.round(c.x), top: Math.round(c.y) });

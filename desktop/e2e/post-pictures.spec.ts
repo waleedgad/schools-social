@@ -78,7 +78,9 @@ test("post pictures: sizes, faces kept in, frame on, blur only where needed", as
   const photoId = (db.prepare("select id from photos").get() as { id: number }).id;
   const face = db.prepare("insert into faces (photo_id, x, y, w, h, score, status, student_id) values (?, ?, 0.25, 0.1, 0.2, 0.99, 'confirmed', ?)");
   face.run(photoId, 1920 / 2400, "P1");
-  face.run(photoId, 1440 / 2400, "P2");
+  // Nour isn't named for sure: the app thinks it's probably her (B-88: a
+  // likely match is blurred like a named face).
+  db.prepare("insert into faces (photo_id, x, y, w, h, score, status, suggest_id, suggest_score) values (?, ?, 0.25, 0.1, 0.2, 0.99, 'suggested', 'P2', 0.6)").run(photoId, 1440 / 2400);
   face.run(photoId, 120 / 2400, "P3");
   db.close();
   // The photo goes to the website for the post.

@@ -4,6 +4,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { exclusive } from "../core/lock";
 import { SHOW_FROM } from "../core/faces";
+import { schoolYear } from "../core/library";
 import { makeThumb, source } from "../core/media";
 import { marks, q, type Api, type Ctx } from "./ctx";
 
@@ -87,7 +88,7 @@ export function facesApi(ctx: Ctx): Api {
   // A class photo: faces in rows, top to bottom and left to right, with the
   // names already known and the class list to choose from.
   function classPhoto(photoId: number) {
-    const p = one<{ id: number; width: number; height: number; class_name: string | null; event_title: string | null }>("select id, width, height, class_name, event_title from photos where id = ?", photoId);
+    const p = one<{ id: number; width: number; height: number; class_name: string | null; event_title: string | null; year: string | null }>("select id, width, height, class_name, event_title, year from photos where id = ?", photoId);
     if (!p) return null;
     const faces = all<{ id: number; x: number; y: number; w: number; h: number; status: string; student_id: string | null; suggest_id: string | null; suggest_score: number | null }>(
       "select id, x, y, w, h, status, student_id, suggest_id, suggest_score from faces where photo_id = ? and w > 0 and status not in ('rejected', 'background')",
@@ -103,14 +104,23 @@ export function facesApi(ctx: Ctx): Api {
       else rows.push([f]);
     }
     rows.forEach((r) => r.sort((a, b) => a.x - b.x));
+    // A class photo from an earlier school year: that year's class, from the
+    // school history, not the students in that class now (B-80).
+    const past = !!p.year && p.year < schoolYear(new Date()) && !!one("select 1 from school_history where year = ? limit 1", p.year);
     const named = faces.map((f) => f.student_id).filter(Boolean) as string[];
     const counts = new Map<string, number>();
     for (const id of named) {
-      const c = one<{ class_name: string | null }>("select class_name from students where id = ?", id)?.class_name;
+      const c = past
+        ? one<{ class_name: string | null }>("select class_name from school_history where student_id = ? and year = ?", id, p.year)?.class_name
+        : one<{ class_name: string | null }>("select class_name from students where id = ?", id)?.class_name;
       if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
     }
     const className = p.class_name ?? [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-    const people = className ? all(`select ${PERSON} from students where class_name = ? and kind = 'student' and left_on is null order by coalesce(name_en, name_ar)`, className) : [];
+    const people = !className
+      ? []
+      : past
+        ? all(`select ${PERSON.split(", ").map((c) => (c === "class_name" ? "h.class_name" : `s.${c}`)).join(", ")} from school_history h join students s on s.id = h.student_id where h.year = ? and h.class_name = ? and s.kind = 'student' order by coalesce(s.name_en, s.name_ar)`, p.year, className)
+        : all(`select ${PERSON} from students where class_name = ? and kind = 'student' and left_on is null order by coalesce(name_en, name_ar)`, className);
     const names = new Map(all<{ id: string; name_en: string | null; name_ar: string | null }>(`select id, name_en, name_ar from students where id in (${marks(faces.length * 2 || 1)})`, ...(faces.length ? faces.flatMap((f) => [f.student_id ?? "", f.suggest_id ?? ""]) : [""])).map((s) => [s.id, s]));
     return {
       photo: p,

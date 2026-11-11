@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { noPostPhoto } from "./privacy";
 
 // Yearbooks laid out on this Mac: a book for a grade or for one class, a
 // book for each student, and graduation books (KG2, Grade 12). The Mac makes
@@ -56,7 +57,9 @@ const MAIN_FACE = `coalesce(s.main_face, (select f.id from faces f join photos p
 export const YEARBOOK_ALBUMS = ["Yearbook picks", "اختيارات الكتاب السنوي"];
 const PICKED = `exists (select 1 from album_photos ap join albums a on a.id = ap.album_id where ap.photo_id = p.id and a.name in ('${YEARBOOK_ALBUMS.join("', '")}'))`;
 const USABLE = "p.missing = 0 and p.pair_of is null and p.dup_of is null and p.flag >= 0 and p.hidden = 0 and coalesce(p.problems, '') = ''";
-const NOPOST = "exists (select 1 from faces f2 join students s2 on s2.id = f2.student_id where f2.photo_id = p.id and f2.status in ('confirmed', 'manual') and s2.can_post = 0)";
+// A photo with someone who can't appear: the website's rule, likely
+// matches too (B-88).
+const NOPOST = noPostPhoto("p");
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 let seq = 0;
 const pid = () => `p${Date.now().toString(36)}${(seq++).toString(36)}`;

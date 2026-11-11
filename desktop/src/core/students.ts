@@ -239,6 +239,23 @@ export function schoolYear(d = new Date()) {
   return d.getMonth() >= 8 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 }
 
+const shiftYear = (y: string, by: number) => y.replace(/(\d{4})-(\d{4})/, (_, a, b) => `${Number(a) + by}-${Number(b) + by}`);
+
+// Which year's classes "New school year" keeps (latest = the newest year
+// already kept in the school history). Done in June, it's the year that is
+// ending. Done in September to December (when new class lists arrive), the
+// school year has already turned: it's the year that just ended, and the new
+// year is this one (B-87). Before, a school that moved up in September kept
+// last year's classes under the new year, and one that moved up in June was
+// offered it again in September as not done (applying moved everyone up
+// two classes).
+export function promoteYears(now: Date, latest: string | null) {
+  const cur = schoolYear(now);
+  const prev = shiftYear(cur, -1);
+  if (now.getMonth() >= 8 && (!latest || latest <= prev)) return { year: prev, next: cur, alreadyDone: latest === prev };
+  return { year: cur, next: shiftYear(cur, 1), alreadyDone: !!latest && latest >= cur };
+}
+
 // Students who are probably the same person entered twice: same name by
 // spelling (Mohamed/Muhammad), different IDs.
 export function likelyDuplicates(rows: { id: string; name_en: string | null; name_ar: string | null; class_name: string | null; kind: string | null }[], key: (s: string | null) => string) {

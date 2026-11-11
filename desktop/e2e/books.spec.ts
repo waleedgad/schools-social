@@ -91,6 +91,9 @@ test("yearbooks, graduation books, student books and flipbooks", async () => {
   // Nour is in one Sports day photo, over the checkerboard.
   const nourPhoto = photos.find((p) => p.path.includes("Sports day"))!;
   faceOf.S3 = Number(face.run(nourPhoto.id, 0.4, "S3").lastInsertRowid);
+  // B-88: a Museum trip photo where the app thinks it's probably Nour (not yet checked).
+  const likelyNour = photos.find((p) => p.path.includes("Museum trip"))!;
+  db.prepare("insert into faces (photo_id, x, y, w, h, score, status, suggest_id, suggest_score) values (?, 0.4, 0.3, 0.2, 0.27, 0.99, 'suggested', 'S3', 0.6)").run(likelyNour.id);
   db.close();
 
   // ---------- A Grade 12 yearbook ----------
@@ -105,6 +108,7 @@ test("yearbooks, graduation books, student books and flipbooks", async () => {
   // Only this year's photos, and none with Nour (the book leaves her out).
   const used = book.pages.filter((p) => p.type !== "cover").flatMap((p) => p.photos);
   expect(used).not.toContain(nourPhoto.id);
+  expect(used, "B-88: a likely match with Nour is left out too").not.toContain(likelyNour.id);
   expect(used.every((pid) => photos.find((p) => p.id === pid)!.year === "2025-2026")).toBe(true);
   const checks = await call<{ students: number; cantAppear: { id: string }[]; missing: { id: string }[]; lowRes: number[] }>("bookChecks", id);
   expect(checks.students).toBe(3);
@@ -137,13 +141,20 @@ test("yearbooks, graduation books, student books and flipbooks", async () => {
   expect(html).toMatch(/<span>N<\/span><figcaption><b>Nour Adel/);
   expect(html).not.toContain(`hub://face/${faceOf.S3}"`);
   expect((await call<{ missing: number }>("bookPdf", id)).missing).toBe(0);
-  const blurred = path.join(userData, "cache", "book", `${nourPhoto.id}-b.jpg`);
-  expect(existsSync(blurred), "the printed copy with Nour blurred").toBe(true);
+  const printed = (id: number) => readdirSync(path.join(userData, "cache", "book")).filter((f) => f.startsWith(`${id}-b`)).map((f) => path.join(userData, "cache", "book", f))[0];
+  const blurred = printed(nourPhoto.id);
+  expect(blurred && existsSync(blurred), "the printed copy with Nour blurred").toBeTruthy();
   const region = { left: 1000, top: 580, width: 400, height: 400 };
   const sharpness = async (file: string) => (await sharp(await sharp(file).extract(region).toBuffer()).stats()).channels[0].stdev;
   const before = await sharpness(nourPhoto.path);
   const after = await sharpness(blurred);
   expect(after, `checkerboard contrast ${before.toFixed(0)} -> ${after.toFixed(0)}`).toBeLessThan(before / 3);
+  // B-88: where the book uses the photo with a likely match with Nour, that face is blurred too.
+  if (book.pages.flatMap((p) => p.photos).includes(likelyNour.id)) {
+    const likely = printed(likelyNour.id);
+    expect(likely, "B-88: the likely match is blurred in print").toBeTruthy();
+    expect(await sharpness(likely)).toBeLessThan((await sharpness(likelyNour.path)) / 3);
+  }
 
   // In Arabic, right to left.
   await call("saveBook", id, { spec: { language: "ar" } });

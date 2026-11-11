@@ -1,5 +1,5 @@
 import { nameKey, nameMatches } from "../core/names";
-import { likelyDuplicates, nextClass, schoolYear, stageFor } from "../core/students";
+import { likelyDuplicates, nextClass, promoteYears, schoolYear, stageFor } from "../core/students";
 import { marks, q, type Api, type Ctx } from "./ctx";
 
 // Students, teachers, staff and parents: the lists by Stage → Grade → Class,
@@ -243,15 +243,16 @@ export function studentsApi(ctx: Ctx): Api {
       `select class_name, grade, count(*) n from students where kind = 'student' and left_on is null group by class_name, grade
        order by case when grade like 'KG%' then 0 else 1 end, cast(replace(replace(grade, 'Grade ', ''), 'KG', '') as integer), class_name`,
     );
-    const done = one<{ n: number }>("select count(*) n from school_history where year = ?", schoolYear())?.n ?? 0;
-    return { year: schoolYear(), next: nextYear(schoolYear()), alreadyDone: done > 0, classes: classes.map((c) => ({ from: c.class_name, n: c.n, ...nextClass(c.class_name, c.grade) })) };
+    const { year, next, alreadyDone } = closingYear();
+    return { year, next, alreadyDone, classes: classes.map((c) => ({ from: c.class_name, n: c.n, ...nextClass(c.class_name, c.grade) })) };
   }
-  const nextYear = (y: string) => y.replace(/(\d{4})-(\d{4})/, (_, a, b) => `${Number(a) + 1}-${Number(b) + 1}`);
+
+  const closingYear = (now = new Date()) => promoteYears(now, one<{ y: string | null }>("select max(year) y from school_history")?.y ?? null);
 
   // Each student's year is kept in their school history, then everyone moves
   // up; those graduating are kept, as left (graduated), for their books.
   function promote(plan: { from: string | null; to: string | null; graduates: boolean }[]) {
-    const year = schoolYear();
+    const { year } = closingYear();
     const ids = all<{ id: string }>("select id from students where kind = 'student' and left_on is null").map((r) => r.id);
     const before = snapshot(ids);
     const steps: unknown[] = [...restoreSteps(before), ["delete from school_history where year = ? and student_id in (" + marks(ids.length || 1) + ")", [year, ...(ids.length ? ids : [""])]]];
