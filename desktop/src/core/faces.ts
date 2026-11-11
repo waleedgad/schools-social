@@ -612,8 +612,10 @@ export const LEARN_LEAD = 0.02;
 export function learnFrom(raw: number) {
   return raw >= LEARN_ADD;
 }
-export function handAgrees(embedding: Float32Array, known: Known[], studentId: string, r: Recogniser = "sface") {
+export function handAgrees(embedding: Float32Array, known: Known[], studentId: string, r: Recogniser = "sface", o: { strong?: number } = {}) {
   if (!known.some((k) => k.learned)) return true;
+  // (face test only, for now: a face nearly identical to a learned example)
+  if (o.strong != null) for (const k of known) if (k.learned && k.studentId === studentId && k.embedding.length === embedding.length && cosine(embedding, k.embedding) - (k.penalty ?? 0) >= o.strong) return true;
   const own = ranked(embedding, known.filter((k) => !k.learned), r);
   if (!own.length || own[0].studentId !== studentId) return false;
   const top = unscaled(own[0].score, r), next = own[1] ? unscaled(own[1].score, r) : -1;

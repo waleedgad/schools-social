@@ -325,7 +325,16 @@ const WAYS = {
   learn: { addMin: -1, handMin: LEARN_HAND, handLead: 0 },
   strict: { addMin: Number(process.env.BENCH_ADD_MIN ?? 0.55), handMin: Number(process.env.BENCH_HAND_MIN ?? 0.4), handLead: Number(process.env.BENCH_HAND_LEAD ?? 0.04) },
   app: { app: true },
+  // the app's rules, and also: a face nearly identical (raw score) to a
+  // learned example of that person is named even when the hand-named faces
+  // alone wouldn't have picked them
+  "app+0.60": { app: true, strong: 0.6 },
+  "app+0.55": { app: true, strong: 0.55 },
+  "app+0.50": { app: true, strong: 0.5 },
 };
+// Why faces stay unnamed (class of 30, the app's rules): for each face of a
+// named person, what stopped it.
+const whyNot = {};
 const classResults = {};
 const classKinds = KINDS;
 function bestPer(e, known) {
@@ -342,6 +351,7 @@ for (const kind of classKinds) {
     for (const [way, opt] of Object.entries(WAYS)) {
       if (way === "strict" && kind !== "both") continue;
       if (way === "app" && !kind.startsWith("both")) continue;
+      if (way.startsWith("app+") && kind !== "both") continue;
       const t = { n: 0, right: 0, wrong: 0, strangers: 0, strangerNamed: 0, byEvent: 0, wrongList: [] };
       const cr = rng(1000 + k);
       for (let trial = 0; trial < 20; trial++) {
@@ -349,8 +359,9 @@ for (const kind of classKinds) {
         const hand = [];
         for (const p of cls) for (const x of byPerson.get(p).slice(0, k)) hand.push({ studentId: p, embedding: x.face.emb[kind] });
         const items = [];
-        for (const p of cls) for (const x of byPerson.get(p).slice(5, 35)) items.push({ truth: p, e: x.face.emb[kind], file: x.file });
-        for (const p of strangers) for (const x of byPerson.get(p).slice(0, 15)) items.push({ truth: null, e: x.face.emb[kind], file: x.file });
+        const more = (x) => ({ px: x.face.px ?? x.face.box[2] * x.size[0], sharp: x.face.sharpness });
+        for (const p of cls) for (const x of byPerson.get(p).slice(5, 35)) items.push({ truth: p, e: x.face.emb[kind], file: x.file, ...more(x) });
+        for (const p of strangers) for (const x of byPerson.get(p).slice(0, 15)) items.push({ truth: null, e: x.face.emb[kind], file: x.file, ...more(x) });
         if (way === "plain")
           for (const it of items) {
             const sorted = bestPer(it.e, hand);
@@ -368,7 +379,7 @@ for (const kind of classKinds) {
             if (!m || !F.isSure(m, rk)) return;
             m.raw = F.unscaled(m.score, rk);
             if (opt?.app) {
-              if (!F.handAgrees(it.e, [...hand, ...learned], m.studentId, rk)) return;
+              if (!F.handAgrees(it.e, [...hand, ...learned], m.studentId, rk, { strong: opt.strong })) return;
             } else if (opt) {
               const own = bestPer(it.e, hand);
               if (own[0]?.[0] !== m.studentId || own[0][1] < opt.handMin || own[0][1] - (own[1]?.[1] ?? -1) < opt.handLead) return;
@@ -381,6 +392,27 @@ for (const kind of classKinds) {
           });
           if (!added) break;
         }
+        if (way === "app" && kind === KINDS.at(-1))
+          items.forEach((it, i) => {
+            if (!it.truth || name.has(i)) return;
+            const w = (whyNot[k] ??= { n: 0, reasons: {}, px: {}, sharp: {} });
+            w.n++;
+            const all = bestPer(it.e, [...hand, ...learned]);
+            const own = bestPer(it.e, hand);
+            const reason =
+              all[0][0] !== it.truth
+                ? own[0][0] === it.truth ? "learned faces point to someone else" : "first guess is someone else"
+                : all[0][1] < F.unscaled(0.62, rk) - 1e-9
+                  ? `right person, score too low (${all[0][1] < 0.3 ? "under 0.30" : all[0][1] < 0.38 ? "0.30-0.38" : "0.38-0.45"})`
+                  : all[0][1] - (all[1]?.[1] ?? -1) < 0.06
+                    ? "right person, too close to the next"
+                    : "right person, but the hand-named faces alone disagree";
+            w.reasons[reason] = (w.reasons[reason] ?? 0) + 1;
+            const px = it.px < 90 ? "under 90 px" : it.px < 150 ? "90-150 px" : it.px < 250 ? "150-250 px" : "250 px up";
+            w.px[px] = (w.px[px] ?? 0) + 1;
+            const sh = it.sharp < 50 ? "sharpness under 50" : it.sharp < 200 ? "50-200" : "200 up";
+            w.sharp[sh] = (w.sharp[sh] ?? 0) + 1;
+          });
         items.forEach((it, i) => {
           const nm = name.get(i);
           if (it.truth) {
@@ -794,6 +826,10 @@ for (const [key, t] of Object.entries(classResults)) {
   const [kind, k, way] = key.split("|");
   L.push(`| ${kind} | ${k} | ${way} | ${pct(t.right, t.n)} | ${t.wrong} | ${t.strangerNamed} of ${t.strangers} |`);
 }
+for (const [k, w] of Object.entries(whyNot)) {
+  const show = (o) => Object.entries(o).sort((x, y) => y[1] - x[1]).map(([name, n]) => `${name} ${pct(n, w.n)}`).join(" · ");
+  L.push("", `Why faces stayed unnamed (app, ${k} confirmed faces, ${w.n} faces): ${show(w.reasons)}. By size: ${show(w.px)}. By sharpness: ${show(w.sharp)}.`);
+}
 const classWrong = [...new Set(Object.entries(classResults).filter(([k]) => k.startsWith(KINDS.at(-1))).flatMap(([, t]) => t.wrongList))];
 if (classWrong.length) L.push("", "Wrong in the class test (the app's recogniser):", "", ...classWrong.slice(0, 20).map((x) => `- ${x}`));
 for (const [into, head] of [["groups", "Group photos (2400 px, 3 confirmed faces each)"], ["big", `Big class photos (6000 x 4000 px, 30 faces each 150-200 px wide, ${bigTruth.length} photos)`]]) {
@@ -875,6 +911,14 @@ L.push("", `Faces left out as not usable: ${Object.entries(whyCount).map(([k, v]
 L.push("", "Photos: Wikimedia Commons, free licences (CC0 / public domain / CC BY / CC BY-SA); authors and licences in credits.json.");
 const report = L.join("\n");
 console.log(report);
+// The main tables once more at the very end, where the log is quick to read.
+{
+  const want = ["Single photos", "Class-sized", "Group photos", "Big class photos", "Hard cases", "Fair comparison"];
+  const parts = report.split("\n## ").filter((x) => want.some((w) => x.startsWith(w)));
+  console.log("\n=== SHORT VERSION ===\n" + parts.map((x) => "## " + x.split("\n### ")[0].split("\n").filter((l) => !/^\| (sface|aura\+flip) /.test(l)).join("\n")).join("\n"));
+  for (const [what, cells] of Object.entries(scoreCells)) console.log(`looks, ${what}: ${Object.entries(cells).sort().map(([k, v]) => `${k} ${v}`).join(" · ")}`);
+  console.log("=== END ===");
+}
 await writeFile(path.join(photos, "report.md"), report);
 await writeFile(path.join(photos, "report.json"), JSON.stringify({ results, raw }, null, 1));
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, report + "\n");
