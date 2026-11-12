@@ -7,7 +7,7 @@ name: Mac release
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   mac:
     runs-on: macos-latest
@@ -50,3 +50,10 @@ jobs:
             desktop/release/*.blockmap
             desktop/release/latest-mac.yml
           retention-days: 30
+      - name: Keep the Mac zip in a draft release you can download from the Releases page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="desktop-v$(node -p "require('./package.json').version")-mac"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" release/*.zip release/*.blockmap --draft --target "$GITHUB_SHA" --title "School Social Hub Library $TAG (Mac, draft)" --notes "Draft: Apple Silicon Mac zip for the Versions folder. Not published."
