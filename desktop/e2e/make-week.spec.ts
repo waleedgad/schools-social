@@ -64,7 +64,7 @@ test("make a week on the Mac: days off skipped, taken days unticked, only ideas 
   expect(taken.map((p) => p.date)).toContain(busy);
 
   // The box: taken days start unticked and say why.
-  await expect.poll(() => win.evaluate("S.signedIn"), { timeout: 30_000 }).toBeTruthy();
+  await expect.poll(() => win.evaluate("!!(typeof S !== 'undefined' && S && S.signedIn)"), { timeout: 30_000 }).toBeTruthy();
   await win.locator('button.nav[data-go="posts"]').click();
   await win.locator("#p-week").click();
   const rows = win.locator(".wkrow");

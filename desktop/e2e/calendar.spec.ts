@@ -63,7 +63,7 @@ for (const language of ["en", "ar"] as const) {
     const win = await app.firstWindow();
     const r = await win.evaluate(([e, pw]) => (window as unknown as Hub).hub.call("signIn", e, pw), [email, password] as const);
     expect(r.ok, JSON.stringify(r)).toBe(true);
-    await expect.poll(() => win.evaluate("S.signedIn"), { timeout: 30_000 }).toBeTruthy();
+    await expect.poll(() => win.evaluate("!!(typeof S !== 'undefined' && S && S.signedIn)"), { timeout: 30_000 }).toBeTruthy();
 
     await win.evaluate((k) => (window as unknown as { go: (v: string, p: object) => void }).go("calendar", { view: "month", day: k }), from);
     const cell = (k: string) => win.locator(`.cday[data-day="${k}"]`);
