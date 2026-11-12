@@ -110,11 +110,19 @@ const stored = cacheFile && existsSync(cacheFile) ? JSON.parse(await readFile(ca
 // BENCH_TRUST_CACHE=1: use the stored faces although the face code changed
 // (only when the change is the "unsure" rule, which is worked out again
 // below for the hard cases; the single photos keep their test faces so the
-// numbers stay comparable with the last full run).
+// numbers stay comparable with the last full run). Off in the workflow: a
+// stored photo that lacks any of the descriptions this run needs is read
+// again either way (a cache from another branch or an older test).
 const trusted = !!process.env.BENCH_TRUST_CACHE && stored && stored.fingerprint !== fingerprint;
 if (trusted) console.error("stored faces used although the face code changed");
+const NEED = auraFile ? ["sface", "aura+flip", "both@v1", "both@aa", "both"] : ["sface"];
+let staleCache = 0;
 if (stored?.fingerprint === fingerprint || trusted) {
   for (const [k, v] of Object.entries(stored.photos)) {
+    if (!v.faces.every((f) => f.emb && NEED.every((e) => typeof f.emb[e] === "string"))) {
+      staleCache++;
+      continue; // read again below
+    }
     for (const f of v.faces) for (const e of Object.keys(f.emb)) f.emb[e] = new Float32Array(new Uint8Array(Buffer.from(f.emb[e], "base64")).buffer);
     if (trusted && k.startsWith("hard|"))
       for (const f of v.faces) {
@@ -125,6 +133,7 @@ if (stored?.fingerprint === fingerprint || trusted) {
     cache.set(k, v);
   }
 }
+if (staleCache) console.error(`${staleCache} stored photos lacked a description and are read again`);
 async function analyseCached(file) {
   const key = path.relative(photos, file);
   if (!cache.has(key)) cache.set(key, await analyse(file, auraFile ? { variants: ["v1", "aa"] } : {}));
