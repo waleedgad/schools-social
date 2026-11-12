@@ -30,7 +30,7 @@ jobs:
       - run: npm ci
       - name: Build (signed and notarised when the secrets are there)
         run: |
-          if [ -z "$CSC_LINK" ]; then export CSC_IDENTITY_AUTO_DISCOVERY=false; echo "No certificate yet: building unsigned"; fi
+          if [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; export CSC_IDENTITY_AUTO_DISCOVERY=false; echo "No certificate yet: building unsigned"; fi
           npm run build && npx electron-builder --mac zip dmg --arm64 --publish never
       - name: Check the signature and Apple's approval
         if: env.CSC_LINK != ''
