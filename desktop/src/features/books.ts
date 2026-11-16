@@ -7,7 +7,7 @@ import sharp from "sharp";
 import { bookChecks, bookHtml, draftPages, pageCandidates, pageSize, type BookSpec, type Page, type Resolver } from "../core/books";
 import { safeName } from "../core/library";
 import { exclusive } from "../core/lock";
-import { readable } from "../core/media";
+import { source } from "../core/media";
 import { q, type Api, type Ctx } from "./ctx";
 import { noPostFace } from "../core/privacy";
 import { createHash } from "node:crypto";
@@ -111,7 +111,9 @@ export function booksApi(ctx: Ctx): Api {
     if (!existsSync(out)) {
       await mkdir(path.dirname(out), { recursive: true });
       await exclusive(async () => {
-        const base = sharp(original ? await readable(src) : src, { failOn: "none" }).rotate().resize(4200, 4200, { fit: "inside", withoutEnlargement: true });
+        // Read like every screen reads it: a RAW file's own picture, a HEIC
+        // converted. Before, a book with such a photo could not be saved.
+        const base = sharp(original ? await source(src) : src, { failOn: "none" }).rotate().resize(4200, 4200, { fit: "inside", withoutEnlargement: true });
         const { data, info } = await base.jpeg({ quality: 92 }).toBuffer({ resolveWithObject: true });
         if (!boxes.length) return writeFile(out, data);
         const parts = await Promise.all(
