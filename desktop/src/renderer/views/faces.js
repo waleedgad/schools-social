@@ -9,6 +9,19 @@ const FC = { tab: "people", kind: "student", className: "", search: "", event: "
 const faceImg = (s, big = false) => (s?.face ? `<img class="pface ${big ? "big" : ""}" loading="lazy" src="hub://face/${s.face}" />` : avatar(s, big));
 const undoToast = (msg) => toastAction(msg, L("Undo", "تراجع"), () => doUndo(), 7000);
 
+// The face being asked about is never a blank square (B-96): grey while its
+// picture is made, and a plain figure when there is no picture to show.
+function noBlankFaces(box) {
+  $$("img.q, img.ref", box).forEach((img) => (img.onerror = () => {
+    const el = document.createElement("span");
+    el.className = `${img.className} nopic`;
+    el.innerHTML = icon("user", img.classList.contains("q") ? 72 : 36);
+    img.replaceWith(el);
+  }));
+  // No copy of the photo at all: no empty frame with a ring on it.
+  $$(".boxphoto img", box).forEach((img) => (img.onerror = () => img.closest(".boxphoto").remove()));
+}
+
 // The whole photo with one face (or several, numbered) marked on it.
 function photoWithBoxes(photoId, boxes, cls = "") {
   return `<div class="boxphoto ${cls}"><img src="hub://preview/${photoId}" onerror="this.src='hub://thumb/${photoId}'" />${boxes
@@ -138,6 +151,8 @@ App.views.faces = {
         return;
       }
       const d = await quiet("faceDetail", f.id);
+      // The photo was read again meanwhile and this face is gone: nothing to ask (B-96).
+      if (!d) return i++, draw();
       const studentNo = order.indexOf(f.student_id) + 1;
       const left = queue.filter((x, k) => k >= i && x.student_id === f.student_id).length;
       box.innerHTML = `<div class="zoomconfirm">
@@ -153,6 +168,7 @@ App.views.faces = {
       // The next few face pictures are cut while this one is answered, so
       // the tile is never blank when the next question comes (B-96).
       for (const nx of queue.slice(i + 1, i + 5)) new Image().src = `hub://face/${nx.id}`;
+      noBlankFaces(box);
       $("#a-no", box).onclick = () => FC.answer(false);
       $("#a-yes", box).onclick = () => FC.answer(true);
       $("#a-skip", box).onclick = () => FC.answer(null);
@@ -213,6 +229,7 @@ App.views.faces = {
           <div class="row"><button class="btn" id="w-type">${L("Type a name", "كتابة اسم")} <span class="k">T</span></button><button class="btn" id="w-hide">${L("Not a face", "ليس وجهًا")} <span class="k">H</span></button><button class="btn ghost" id="w-skip">${L("Skip", "تخطٍّ")} <span class="k">S</span></button></div>
         </div>
         ${photoWithBoxes(f.photo_id, [{ x: f.x, y: f.y, w: f.w, h: f.h, on: true }])}</div>`;
+      noBlankFaces(box);
       $$("[data-g]", box).forEach((b) => (b.onclick = () => FC.pick(Number(b.dataset.g))));
       $("#w-type", box).onclick = () => FC.pick("type");
       $("#w-hide", box).onclick = () => FC.pick("hide");
