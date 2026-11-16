@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { copyFile, readdir, rm, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
@@ -272,6 +272,15 @@ export class Engine {
         fields.class_name,
         Date.now(),
       );
+    // A photo's number can be one an emptied Bin or an earlier library
+    // used: that old photo's copies must never be shown as this photo.
+    for (const f of [this.thumbPath(Number(r.lastInsertRowid)), this.previewPath(Number(r.lastInsertRowid))]) {
+      try {
+        rmSync(f, { force: true });
+      } catch {
+        // Windows: may be open; it's only a cache
+      }
+    }
     this.work.push(Number(r.lastInsertRowid));
   }
 
