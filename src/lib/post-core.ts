@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AiLimitError, getAi, type CaptionOptions, type Captions, type SchoolProfile } from "./ai";
 import { notify } from "./alerts";
+import { loadLearning } from "./caption-learning";
+import { avoidList, hintText } from "./captions";
 import { thumbPath } from "./images";
 import { isPaused, nextFreeSlot, spread, type Slot } from "./posting";
 import { loadPost } from "./posts";
@@ -201,15 +203,25 @@ export async function generateFor(ctx: PostCtx, id: string, options: CaptionOpti
     )
   ).filter((x) => x !== null);
 
+  // The school's saved hashtag sets and banned words, and what its own
+  // results and edits teach, all go to the AI with the facts.
+  const { data: snippets } = await supabase.from("snippets").select("kind, title, body").eq("school_id", schoolId).in("kind", ["hashtags", "avoid"]);
+  const profile = (school?.profile ?? {}) as SchoolProfile;
+  const languages = school?.caption_languages ?? "ar_en";
+  const learning = await loadLearning(supabase, schoolId, { categoryId: post.category?.id ?? null, languages, except: id }).catch(() => null);
+
   const ai = getAi();
   let versions: Captions[];
   try {
     versions = await ai.writeCaptions({
       schoolName: membership.school.name,
       brandVoice: school?.brand_voice ?? null,
-      profile: (school?.profile ?? {}) as SchoolProfile,
+      profile,
+      avoid: avoidList(profile.avoidWords, ...(snippets ?? []).filter((x) => x.kind === "avoid").map((x) => x.body as string)),
+      hashtagSets: (snippets ?? []).filter((x) => x.kind === "hashtags").slice(0, 12).map((x) => ({ title: String(x.title).slice(0, 60), tags: String(x.body).slice(0, 300) })),
+      learning: learning ? { best: learning.best, hints: learning.hints.map(hintText) } : null,
       hashtags: [school?.hashtags, post.category?.hashtags].filter(Boolean).join(" ") || null,
-      languages: school?.caption_languages ?? "ar_en",
+      languages,
       eventTitle: post.event?.title ?? null,
       eventDate: post.event?.event_date ?? null,
       className: post.event?.class_name ?? null,

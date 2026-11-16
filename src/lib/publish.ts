@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notify } from "./alerts";
+import { readsRight } from "./captions";
 import { addComment, MetaError, publishStory, publishToFacebook, publishToInstagram } from "./meta";
 
 type Post = {
@@ -19,12 +20,13 @@ type Post = {
 };
 
 export function captionText(p: Pick<Post, "caption_ar" | "caption_en" | "hashtags">) {
-  return [p.caption_ar, p.caption_en, p.hashtags].map((s) => s?.trim()).filter(Boolean).join("\n\n");
+  // readsRight: an Arabic line that starts with an English name still reads right-to-left on Facebook and Instagram.
+  return readsRight([p.caption_ar, p.caption_en, p.hashtags].map((s) => s?.trim()).filter(Boolean).join("\n\n"));
 }
 
 // Instagram can have its own caption (shorter, hashtags inside).
 export function instagramText(p: Pick<Post, "caption_ar" | "caption_en" | "caption_ig" | "hashtags">) {
-  return p.caption_ig?.trim() ? p.caption_ig.trim() : captionText(p);
+  return p.caption_ig?.trim() ? readsRight(p.caption_ig.trim()) : captionText(p);
 }
 
 // Publishes one post that is already marked "publishing". Runs with the

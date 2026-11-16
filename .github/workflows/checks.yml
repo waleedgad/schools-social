@@ -23,6 +23,8 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npx tsc --noEmit
       - run: npm run lint
+      # Caption rules: Arabic punctuation, hashtags, banned words, learning from results, AI retries.
+      - run: npm test
       # Website and Mac app share one set of colours (design/tokens.json).
       - run: node scripts/design-tokens.mjs
       - run: node scripts/check-forms.mjs

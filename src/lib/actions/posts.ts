@@ -216,9 +216,10 @@ export async function pickVariation(formData: FormData) {
 // Small AI helpers called straight from the editor; they return text and
 // change nothing until the writer saves.
 export async function aiRewrite(locale: string, text: string, instruction: string, language: "ar" | "en") {
-  await curator({ locale });
+  const { supabase, schoolId } = await curator({ locale });
+  const { profile } = await aiContext(supabase, schoolId);
   try {
-    return { text: await getAi().rewrite(text.slice(0, 2200), instruction.slice(0, 300), language) };
+    return { text: await getAi().rewrite(text.slice(0, 2200), instruction.slice(0, 300), language, profile) };
   } catch (e) {
     return { error: e instanceof AiLimitError ? "limit" : "error" };
   }
