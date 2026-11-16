@@ -52,7 +52,10 @@ export type BookSpec = {
 type Student = { id: string; name_en: string | null; name_ar: string | null; class_name: string | null; grade: string | null; face: number | null; portrait: string | null; can_post: number; since: string | null; left_on: string | null; kind: string };
 type Photo = { id: number; event_key: string | null; event_title: string | null; event_date: string | null; category: string | null; quality: number | null; width: number | null; height: number | null };
 
-const MAIN_FACE = `coalesce(s.main_face, (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
+// The main face someone chose counts only while that face is still theirs:
+// a photo read again stores its faces anew, and the old number is then no
+// face at all (a blank circle) or someone else's face.
+const MAIN_FACE = `coalesce((select m.id from faces m where m.id = s.main_face and m.student_id = s.id), (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
 // Photos put into the "Yearbook picks" album (from a post or by hand) lead.
 export const YEARBOOK_ALBUMS = ["Yearbook picks", "اختيارات الكتاب السنوي"];
 const PICKED = `exists (select 1 from album_photos ap join albums a on a.id = ap.album_id where ap.photo_id = p.id and a.name in ('${YEARBOOK_ALBUMS.join("', '")}'))`;
