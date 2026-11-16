@@ -5,7 +5,7 @@ import { marks, q, type Api, type Ctx } from "./ctx";
 // Students, teachers, staff and parents: the lists by Stage → Grade → Class,
 // each person's page, bulk changes, clubs and teams, achievements, the class
 // teacher, the new school year, and students entered twice.
-export const MAIN_FACE = `coalesce(s.main_face, (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
+export const MAIN_FACE = `coalesce((select m.id from faces m where m.id = s.main_face and m.student_id = s.id), (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
 const NAMED = "f.status in ('confirmed', 'manual')";
 const EDITABLE = ["name_en", "name_ar", "class_name", "stage", "grade", "gender", "birthday", "joined", "left_on", "left_why", "notes", "campus", "email", "phone", "kind", "can_post"] as const;
 type Field = (typeof EDITABLE)[number];

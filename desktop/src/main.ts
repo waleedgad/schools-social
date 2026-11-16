@@ -1104,7 +1104,7 @@ async function commitStudents(portraitFolder: string | null, opts: { markLeft?: 
 
 // Each student's main face: the one chosen, else the biggest clear face
 // someone confirmed (never an auto-named one).
-const MAIN_FACE = `coalesce(s.main_face, (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
+const MAIN_FACE = `coalesce((select m.id from faces m where m.id = s.main_face and m.student_id = s.id), (select f.id from faces f join photos p on p.id = f.photo_id where f.student_id = s.id and f.status in ('confirmed', 'manual', 'portrait') and p.missing = 0 order by f.auto, f.status = 'portrait' desc, f.w * f.score desc limit 1))`;
 
 function people(f: { className?: string; kind?: string; left?: boolean }) {
   const where: string[] = [];
