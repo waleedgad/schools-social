@@ -245,8 +245,10 @@ export function libraryApi(ctx: Ctx): Api {
 
   function tree() {
     const base = "missing = 0 and pair_of is null and dup_of is null and edited_of is null and hidden = 0";
+    // The card's picture is the first photo that can be read: an unreadable
+    // first file left the event's card an empty picture.
     const rows = all(
-      `select year, term, event_key, max(event_title) event_title, max(event_date) event_date, count(*) n, sum(flag = 1) picks, min(id) cover from photos
+      `select year, term, event_key, max(event_title) event_title, max(event_date) event_date, count(*) n, sum(flag = 1) picks, min(case when thumb >= 0 then id end) cover from photos
        where ${base} group by year, term, event_key order by year desc, term desc, max(event_date) desc`,
     );
     const classes = all(`select event_key, class_name, count(*) n from photos where ${base} and class_name is not null group by event_key, class_name order by class_name`);
