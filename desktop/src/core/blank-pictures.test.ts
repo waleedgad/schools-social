@@ -46,3 +46,24 @@ test("after Clean up removes the big copies, a big photo is still made big", asy
   rmSync(path.join(dir, "cache", "previews"), { recursive: true, force: true });
   assert.doesNotMatch(await engine.faceCrop(face), /-small\.jpg$/);
 });
+
+test("a new photo never shows the big copy of an old photo that had its number", async () => {
+  const { dir, db, engine, look } = setup();
+  const old = path.join(dir, "Photos", "old.jpg"), fresh = path.join(dir, "Photos", "new.jpg");
+  await plain(old, RED);
+  engine.seen(old, statSync(old).size, statSync(old).mtimeMs);
+  const first = (db.prepare("select id from photos where path = ?").get(old) as { id: number }).id;
+  assert.equal((await look(await engine.preview(first))).red, true);
+  await engine.thumb(first);
+  // The old photo is binned and the Bin is emptied: the library forgets it.
+  rmSync(old);
+  db.prepare("delete from photos where id = ?").run(first);
+  // The next photo to come in gets the same number.
+  await plain(fresh, BLUE);
+  engine.seen(fresh, statSync(fresh).size, statSync(fresh).mtimeMs);
+  const second = (db.prepare("select id from photos where path = ?").get(fresh) as { id: number }).id;
+  assert.equal(second, first);
+  // Before: the old (red) photo opened in the big view under the new photo's name.
+  assert.equal((await look(await engine.preview(second))).blue, true);
+  assert.equal((await look(await engine.thumb(second))).blue, true);
+});
