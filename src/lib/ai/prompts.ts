@@ -39,6 +39,7 @@ export function arabicRules(dialect: SchoolProfile["dialect"]) {
     "- Write the Arabic as Arabic from the start. It must not read like a translation of the English: no English word order, no literal phrases (not «قضاء وقت ممتع», not «نحن متحمسون لمشاركة»).",
     "- Avoid official-letter wording unless the tone is formal: no «في إطار حرص المدرسة على», no «تتشرف إدارة المدرسة», no «قامت المدرسة بتنظيم». Start with the students and what they did.",
     "- People: طلابنا، طالباتنا or طلابنا وطالباتنا; معلمونا ومعلماتنا; أولياء الأمور. Match gender and number to what the facts say; when unsure use the plural that includes everyone.",
+    "- KG and the youngest grades too: they are طلابنا (our students), never أطفالنا، أطفال، صغارنا or براعمنا.",
     "- Egyptian month names (يناير، فبراير، مارس، أبريل، مايو، يونيو، يوليو، أغسطس، سبتمبر، أكتوبر، نوفمبر، ديسمبر), never كانون، شباط، آذار. One kind of digits in a caption.",
     "- Arabic punctuation (، ؛ ؟). No stretched letters (كـــبير). No vowel marks except a tanween that is normally written (شكرًا، أهلًا).",
     "- Never begin an Arabic sentence with a word in English letters. Put an English name (KG2, STEM, a competition's name) inside the sentence, and keep class and grade names exactly as given in the facts.",
@@ -50,6 +51,7 @@ const ENGLISH_RULES = [
   "English rules:",
   "- Plain, warm international English that a parent reads in five seconds. Written fresh from the same facts, not translated from the Arabic.",
   "- No marketing clichés: no \"we are thrilled to announce\", \"unforgettable\", \"shining stars\", \"little ones\".",
+  "- KG and the youngest grades too: \"our students\", never \"kids\", \"children\" or \"little ones\".",
 ].join("\n");
 
 const SAFETY =

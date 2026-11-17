@@ -125,6 +125,11 @@ export function foldArabic(s: string) {
     .replace(/ئ/g, "ي");
 }
 
+// Words no school caption uses (Waleed: students are "our students", KG
+// included). They go to the AI with the school's own banned words, and a
+// version that still uses one is dropped when a clean one exists.
+export const ALWAYS_AVOID = "أطفال، أطفالنا، طفل، صغارنا، براعمنا، child, children, kids";
+
 export function avoidList(...sources: (string | null | undefined)[]) {
   const seen = new Set<string>();
   return sources

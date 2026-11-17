@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AiLimitError, getAi, type CaptionOptions, type Captions, type SchoolProfile } from "./ai";
 import { notify } from "./alerts";
 import { loadLearning } from "./caption-learning";
-import { avoidList, hintText } from "./captions";
+import { ALWAYS_AVOID, avoidList, hintText } from "./captions";
 import { thumbPath } from "./images";
 import { isPaused, nextFreeSlot, spread, type Slot } from "./posting";
 import { loadPost } from "./posts";
@@ -217,7 +217,7 @@ export async function generateFor(ctx: PostCtx, id: string, options: CaptionOpti
       schoolName: membership.school.name,
       brandVoice: school?.brand_voice ?? null,
       profile,
-      avoid: avoidList(profile.avoidWords, ...(snippets ?? []).filter((x) => x.kind === "avoid").map((x) => x.body as string)),
+      avoid: avoidList(ALWAYS_AVOID, profile.avoidWords, ...(snippets ?? []).filter((x) => x.kind === "avoid").map((x) => x.body as string)),
       hashtagSets: (snippets ?? []).filter((x) => x.kind === "hashtags").slice(0, 12).map((x) => ({ title: String(x.title).slice(0, 60), tags: String(x.body).slice(0, 300) })),
       learning: learning ? { best: learning.best, hints: learning.hints.map(hintText) } : null,
       hashtags: [school?.hashtags, post.category?.hashtags].filter(Boolean).join(" ") || null,

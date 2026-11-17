@@ -287,7 +287,7 @@
       "optedOut": "{count, plural, one {# photo is} other {# photos are}} marked not for posting. Remove them.",
       "blurred": "{count, plural, one {# photo has} other {# photos have}} faces blurred (people who can't appear). Check they look right.",
       "aiSensitive": "AI thinks {count, plural, one {# photo is} other {# photos are}} sensitive. Remove them or tick \"Sensitive post\" so the principal checks.",
-      "studentName": "The caption names a student ({names}). Remove the name.",
+      "studentName": "The caption names a student ({names}). Check the school is happy to name them before it goes out.",
       "classConsent": "{count} students in {className} have no consent. Check no one of them appears in the photos.",
       "igRatio": "{count, plural, one {# photo has} other {# photos have}} a shape Instagram won't accept. Edit it to square or portrait.",
       "igTen": "Instagram shows only the first 10 photos.",

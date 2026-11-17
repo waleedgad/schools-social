@@ -131,3 +131,21 @@ test("the team's own edits are learnt, and win over the results", () => {
   assert.deepEqual(l.hints.map((h) => h.code), ["team_shortens", "team_drops_emoji"]);
   assert.equal(l.edited, 4);
 });
+
+test("KG students are our students: the words for children are always avoided", async () => {
+  const { ALWAYS_AVOID } = await import("./captions.ts");
+  const avoid = avoidList(ALWAYS_AVOID, "cheap");
+  assert.ok(avoid.includes("cheap"));
+  assert.deepEqual(avoidedIn("فرحة أطفالنا في الروضة", avoid), ["أطفالنا"]);
+  assert.deepEqual(avoidedIn("Our KG kids had fun", avoid), ["kids"]);
+  assert.deepEqual(avoidedIn("طلابنا في KG1 استمتعوا", avoid), []);
+  const out = finishCaptions(
+    [
+      { ar: "فرحة أطفالنا في يوم الرياضة.", en: "Our children enjoyed Sports Day.", hashtags: "" },
+      { ar: "طلابنا في KG2 استمتعوا بيوم الرياضة.", en: "Our KG2 students enjoyed Sports Day.", hashtags: "" },
+    ],
+    { languages: "ar_en", avoid },
+  );
+  assert.equal(out.length, 1);
+  assert.match(out[0].en, /students/);
+});
