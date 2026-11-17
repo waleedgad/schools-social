@@ -19,7 +19,7 @@ function englishOnArabic(text: string) {
 
 const pages = [
   "today", "library", "upload", "posts", "posts/new", "posts/new/announcement", "calendar",
-  "inbox", "coverage", "students", "staff", "albums", "books", "shots", "categories",
+  "inbox", "coverage", "students", "staff", "albums", "books", "shots", "categories", "categories?tab=brand",
   "analytics", "digest", "reports", "activity", "accounts", "settings", "help", "setup", "check",
 ];
 
@@ -44,7 +44,7 @@ for (const locale of ["en", "ar"] as const) {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (overflow > 1) problems.push(`${path}: ${overflow}px wider than the screen`);
       if (errors.length) problems.push(`${path}: ${errors[0].slice(0, 160)}`);
-      await page.screenshot({ path: info.outputPath(`${locale}-${path.replace(/\//g, "-")}.png`), fullPage: true, caret: "initial" });
+      await page.screenshot({ path: info.outputPath(`${locale}-${path.replace(/[/?=]/g, "-")}.png`), fullPage: true, caret: "initial" });
     }
     expect(problems).toEqual([]);
   });
