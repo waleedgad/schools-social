@@ -21,7 +21,7 @@ const choose = (key, value, options, type = "") =>
   `<select data-set="${key}" ${type ? `data-type="${type}"` : ""}>${options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
 const toggle = (key, on, disabled = false) => sw(`data-set="${key}"`, on, disabled ? "disabled" : "");
 const actBtn = (name, label, cls = "", extra = "") => `<button class="btn small ${cls}" data-act="${name}" ${extra}>${label}</button>`;
-const pathText = (p) => (p ? `<span class="ltr small muted pathtxt" title="${esc(p)}">${esc(p.split(/[\\/]/).slice(-2).join("/"))}</span>` : "");
+const pathText = (p) => (p ? `<span class="ltr small muted pathtxt" title="${esc(p)}">${esc(p.split(/[\\/]/).filter(Boolean).slice(-2).join(S.platform === "win32" ? "\\" : "/"))}</span>` : "");
 
 function settingGroups(page, extra) {
   const onMac = S.platform === "darwin";
