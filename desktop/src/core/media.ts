@@ -28,6 +28,26 @@ export async function rawPreview(file: string): Promise<Buffer> {
 }
 
 // iPhone HEIC photos: sharp can't decode them, but every Mac can, with sips.
+// Windows 10 and 11 can too when Microsoft's free "HEIF Image Extensions" is
+// installed (it is on most new PCs): its decoder is reached through WPF from
+// PowerShell, so the app carries no HEVC decoder of its own.
+export function heicPowerShell(file: string, out: string) {
+  const q = (p: string) => `'${p.replace(/'/g, "''")}'`;
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    "Add-Type -AssemblyName PresentationCore",
+    `$in = [IO.File]::OpenRead(${q(file)})`,
+    "try {",
+    "  $d = [Windows.Media.Imaging.BitmapDecoder]::Create($in, [Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat, [Windows.Media.Imaging.BitmapCacheOption]::OnLoad)",
+    "  $e = New-Object Windows.Media.Imaging.JpegBitmapEncoder",
+    "  $e.QualityLevel = 90",
+    "  $e.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($d.Frames[0]))",
+    `  $o = [IO.File]::Create(${q(out)})`,
+    "  try { $e.Save($o) } finally { $o.Close() }",
+    "} finally { $in.Close() }",
+  ].join("\n");
+}
+
 async function heicToJpeg(file: string): Promise<Buffer> {
   const { execFile } = await import("node:child_process");
   const { mkdtemp, readFile: read, rm } = await import("node:fs/promises");
@@ -36,6 +56,15 @@ async function heicToJpeg(file: string): Promise<Buffer> {
   const dir = await mkdtemp(path.join(tmpdir(), "hub-heic-"));
   const out = path.join(dir, "photo.jpg");
   try {
+    if (process.platform === "win32") {
+      await new Promise<void>((resolve, reject) =>
+        execFile("powershell", ["-NoProfile", "-NonInteractive", "-Command", heicPowerShell(path.resolve(file), out)], { timeout: 60_000, windowsHide: true }, (e) =>
+          e ? reject(new Error("This HEIC photo can't be opened: install HEIF Image Extensions from the Microsoft Store")) : resolve(),
+        ),
+      );
+      // Windows' decoder turns the picture upright itself (the HEIF "irot" box), so no extra turn here.
+      return await read(out);
+    }
     await new Promise<void>((resolve, reject) =>
       execFile("/usr/bin/sips", ["-s", "format", "jpeg", "-s", "formatOptions", "90", file, "--out", out], (e) => (e ? reject(e) : resolve())),
     );
