@@ -40,3 +40,10 @@ review thread noted but did not log or fix:
    true so every picture job waits for ever.
 These need B-numbers from the tracker (`/mnt/project-files/tracker/bugs.md`,
 which this session cannot see): the manager should log them and renumber.
+
+## Update: scan drive-unplug + lock sync-throw (READY FOR REVIEW)
+- PR #5 -> `claude/project-thread-syqjmv`, branch `fix/scan-drive-unplug`. Details: `docs/handoff/scan-drive-unplug.md` on that branch.
+- Unit 71/71, tsc clean, robot missing-folders 3/3. Still to run: library, imports, nothing-hangs, big-import robot specs.
+- Fable needed usage credits, so this was done by Sonnet 5.5 directly.
+- Needs B-numbers from the tracker.
+- Open PRs from this helper: #1 (superseded), #2 (handoff notes), #3 (blank pictures), #5 (this). Nothing pushed to main.
