@@ -701,7 +701,9 @@ function missingOriginals() {
 }
 
 function missingSummary() {
-  const rows = missingOriginals();
+  // The library drive isn't plugged in: nothing is missing, it's all away.
+  const lib = settings.get().library;
+  const rows = lib && !existsSync(lib) ? [] : missingOriginals();
   // Some came back (drive plugged in, or found): ask again if more go.
   if (rows.length < settings.get().missingAck) settings.set({ missingAck: rows.length });
   const byFolder = new Map<string, number>();

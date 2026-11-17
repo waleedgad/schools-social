@@ -100,3 +100,44 @@ test("start a new library keeps the old one archived", async () => {
   expect(n.value).toBe(0);
   await again.app.close();
 });
+
+// Found 17 Nov 2026 (tricky bugs): with the library drive unplugged, the
+// folder watch reported every folder as deleted, so every photo was marked
+// missing and the Library offered "Forget them" for the whole library
+// (which also removes their web copies). Unplugged is not deleted: no
+// missing notice, and everything is there when the drive is back.
+test("the library drive unplugged: photos are not missing, nothing to forget", async () => {
+  test.setTimeout(150_000);
+  const { lib } = await makeLibrary();
+  const away = `${lib}-unplugged`;
+  const userData = mkdtempSync(path.join(tmpdir(), "hub-test-"));
+  writeFileSync(path.join(userData, "settings.json"), JSON.stringify({ language: "en", setupDone: true, tourDone: true, wizard: true, library: lib, faces: false }));
+  const { app, win } = await launch(userData);
+  const call = (f: string) => win.evaluate((f) => (window as unknown as { hub: { call: (f: string) => Promise<{ value: unknown }> } }).hub.call(f), f);
+  await openLibrary(win);
+  await expect(win.locator("#grid .tile, #grid [data-id]").first()).toBeVisible({ timeout: 60_000 });
+
+  const { renameSync } = await import("node:fs");
+  for (let i = 0; ; i++) {
+    try {
+      renameSync(lib, away); // the drive goes
+      break;
+    } catch (e) {
+      if (i > 100) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  await expect(win.locator(".macstatus")).toContainText("Library drive not found", { timeout: 30_000 });
+  await win.waitForTimeout(4000); // the folder watch has had its say
+  const m = (await call("missingSummary")).value as { n: number };
+  expect(m.n, "no photo counts as missing while the drive is away").toBe(0);
+  await expect(win.locator("#missingbar")).toBeEmpty();
+
+  renameSync(away, lib); // plugged in again
+  await expect(win.locator(".macstatus")).not.toContainText("Library drive not found", { timeout: 30_000 });
+  // The app reads the library again by itself.
+  await win.waitForTimeout(6000);
+  expect(((await call("missingSummary")).value as { n: number }).n).toBe(0);
+  await expect.poll(() => win.evaluate("lib.list.length"), { timeout: 30_000 }).toBe(6);
+  await app.close();
+});

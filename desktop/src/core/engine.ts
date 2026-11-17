@@ -126,8 +126,11 @@ export class Engine {
     });
     this.watcher.on("add", (file, stats) => stats && this.seen(file, stats.size, stats.mtimeMs));
     this.watcher.on("change", (file, stats) => stats && this.seen(file, stats.size, stats.mtimeMs));
-    this.watcher.on("unlink", (file) => this.gone(file));
+    // The library drive unplugged looks like every folder deleted: that's
+    // not every photo missing (the whole library offered to "Forget").
+    this.watcher.on("unlink", (file) => existsSync(this.o.library) && this.gone(file));
     this.watcher.on("unlinkDir", (dir) => {
+      if (!existsSync(this.o.library)) return;
       this.db.prepare("update photos set missing = 1 where path like ? escape '\\'").run(like(dir + path.sep));
       this.o.onChange("photos");
     });
