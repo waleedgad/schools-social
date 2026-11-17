@@ -19,8 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Stops on any serious known security hole in the libraries the website ships with.
-      - run: npm audit --omit=dev --audit-level=high
+      # Stops on any serious known security hole in the libraries the website ships with (scripts/audit-check.mjs; its short allow-list says why and when to remove an entry).
+      - run: node scripts/audit-check.mjs
       - run: npx tsc --noEmit
       - run: npm run lint
       # Website and Mac app share one set of colours (design/tokens.json).
