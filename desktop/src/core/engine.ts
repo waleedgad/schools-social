@@ -959,7 +959,7 @@ export class Engine {
     if (!p) throw new Error("no photo");
     try {
       if (!existsSync(p.path as string)) throw new Error("original missing");
-      await exclusive(async () => existsSync(out) || (await makeThumb(await source(p.path as string), out, PREVIEW)));
+      await exclusive(async () => existsSync(out) || (await makeThumb(await source(p.path as string), out, PREVIEW)), { urgent: true });
       return out;
     } catch (e) {
       this.o.log?.(`preview ${path.basename(p.path as string)}: ${e instanceof Error ? e.message : e}`);
@@ -981,7 +981,7 @@ export class Engine {
     if (existsSync(out)) return out;
     const p = this.db.prepare("select path from photos where id = ?").get(id) as Row | undefined;
     if (!p) throw new Error("no photo");
-    await exclusive(async () => existsSync(out) || (await makeThumb(await source(p.path as string), out, THUMB)));
+    await exclusive(async () => existsSync(out) || (await makeThumb(await source(p.path as string), out, THUMB)), { urgent: true });
     return out;
   }
 
@@ -989,7 +989,8 @@ export class Engine {
   faceCrop(faceId: number) {
     const out = path.join(this.o.cache, "faces", `${faceId}.jpg`);
     if (existsSync(out)) return Promise.resolve(out);
-    return exclusive(() => this.cropFace(faceId));
+    // A person is waiting for this picture: it goes ahead of the background work (B-96).
+    return exclusive(() => this.cropFace(faceId), { urgent: true });
   }
 
   private async cropFace(faceId: number) {
