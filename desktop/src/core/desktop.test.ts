@@ -226,3 +226,20 @@ test("refused for another reason, a photo is still parked after 8 tries", async 
   assert.ok(!isOffline("new row violates row-level security policy"));
   assert.ok(!isOffline("The object exceeded the maximum allowed size"));
 });
+
+// Found 17 Nov 2026 (tricky bugs): binning a photo removes its web copy;
+// put back from the Bin (same place, same size and date) it could never be
+// sent again, so a post with it failed with "upload-failed".
+test("a photo whose web copy was removed can be sent again from the same place", () => {
+  const root = temp();
+  const queue = new UploadQueue(path.join(root, "queue.json"));
+  const file = path.join(root, "Photos", "a.jpg");
+  assert.equal(queue.add(file, "10:1000"), true);
+  queue.finish(queue.find(file)!, "hash-a", "web-a");
+  assert.equal(queue.add(file, "10:1000"), false, "sent already: not again");
+  queue.unmark("hash-a", [file]);
+  assert.equal(queue.isDone("hash-a"), false);
+  assert.equal(queue.add(file, "10:1000"), true, "after its web copy went, it may go again");
+  // Saved to disk: still so after a restart.
+  assert.equal(new UploadQueue(path.join(root, "queue.json")).find(file)?.file, file);
+});

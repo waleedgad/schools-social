@@ -1223,7 +1223,8 @@ function removeWebCopiesOf(rows: { id: number; hash: string | null; remote_id: s
     .then((gone) => {
       for (const r of sent.filter((x) => gone.includes(x.remote_id!))) {
         db.prepare("update photos set remote_id = null where id = ?").run(r.id);
-        if (r.hash) queue.unmark(r.hash);
+        const file = one<{ path: string }>("select path from photos where id = ?", r.id)?.path;
+        queue.unmark(r.hash ?? "", file ? [file] : []);
       }
     })
     .catch((e) => (lastMessage = String(e)));

@@ -78,13 +78,17 @@ export class UploadQueue {
     this.store.set({ done: { ...this.store.get().done, [hash]: photoId } });
   }
 
-  // The web copy was removed; a restored original may be sent again.
-  unmark(hash: string) {
-    const { done } = this.store.get();
-    if (!(hash in done)) return;
-    const next = { ...done };
-    delete next[hash];
-    this.store.set({ done: next });
+  // The web copy was removed; a restored original may be sent again. Its
+  // file is forgotten too, or a photo put back from the Bin (same place,
+  // same size and date) could never be sent again, and a post with it
+  // failed with "upload-failed".
+  unmark(hash: string, files: string[] = []) {
+    const { done, seen } = this.store.get();
+    const nextDone = { ...done };
+    delete nextDone[hash];
+    const nextSeen = { ...seen };
+    for (const f of files) delete nextSeen[f];
+    if (hash in done || files.some((f) => f in seen)) this.store.set({ done: nextDone, seen: nextSeen });
   }
 
   retryFailed() {
