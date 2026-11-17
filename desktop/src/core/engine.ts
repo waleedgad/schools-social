@@ -147,7 +147,7 @@ export class Engine {
     this.watcher = null;
   }
 
-  // Walks the whole library once. Files that haven't changed are skipped.
+  // Walks the whole library once. Files whose size and date haven't changed are skipped.
   async scan() {
     busy.set("reading the library folder");
     // The library drive isn't there: that's not every photo deleted.
@@ -177,14 +177,17 @@ export class Engine {
         } else if (e.isFile() && isLibraryFile(full)) {
           present.add(full);
           const k = known.get(full);
-          if (k) continue;
+          let s;
           try {
-            const s = await stat(full);
-            this.seen(full, s.size, s.mtimeMs);
-            this.status.found++;
+            s = await stat(full);
           } catch {
-            // vanished while scanning
+            continue; // vanished while scanning
           }
+          // A known photo edited while the app was closed (no watch saw it)
+          // is read again, like one changed while the app is open (B-81).
+          if (k && k.size === s.size && k.mtime === Math.round(s.mtimeMs)) continue;
+          this.seen(full, s.size, s.mtimeMs);
+          if (!k) this.status.found++;
         }
       }
     };
