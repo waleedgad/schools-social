@@ -87,7 +87,11 @@ const firstOwner = (f, id) => {
 const used = new Set();
 
 // ---------- writing photos ----------
-const exifDate = (d) => d.toISOString().slice(0, 19).replace("T", " ").replace(/-/g, ":");
+// Cameras write local time (the school is in Cairo); file times are the real moment.
+const exifDate = (d) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.year}:${p.month}:${p.day} ${p.hour}:${p.minute}:${p.second}`;
+};
 async function save(from, to, { when, camera = ["Canon", "Canon EOS R6"], long = null, quality = 90, op = null, exif = true, orientation = null } = {}) {
   let img = sharp(from, { failOn: "none" }).rotate();
   if (long) img = img.resize(long, long, { fit: "inside", withoutEnlargement: long < 2500, kernel: "lanczos3" });
@@ -281,7 +285,7 @@ for (const [i, { f, p }] of cardQueue.entries()) {
 // a PNG with a .JPG name, CMYK, grey, a 64 px thumbnail, a huge panorama,
 // macOS ._ files and the camera's own folders.
 {
-  const t = new Date(at("2026-11-12", 300));
+  const t = new Date(clock[2] + 60_000);
   const cap = path.join(canon, imgName());
   await sharp({ create: { width: 3000, height: 2000, channels: 3, background: { r: 6, g: 6, b: 8 } } }).jpeg().withExif({ IFD0: { Make: "Canon", Model: "Canon EOS R6", DateTime: exifDate(t) }, IFD2: { DateTimeOriginal: exifDate(t) } }).toFile(cap);
   note(cap, { kind: "lens-cap", people: [] });
@@ -318,6 +322,8 @@ for (const [i, { f, p }] of cardQueue.entries()) {
     writeFileSync(path.join(canon, `._${f}`), Buffer.alloc(4096, 0));
     note(path.join(canon, `._${f}`), { kind: "junk", note: "macOS resource file" });
   }
+  // On a card every file's time is when the camera wrote it.
+  for (const f of readdirSync(canon)) if (statSync(path.join(canon, f)).mtimeMs > Date.now() - 86_400_000) utimesSync(path.join(canon, f), t, t);
   writeFileSync(path.join(out, "Cards", "CANON_R6", ".DS_Store"), Buffer.alloc(6148, 0));
   dir("Cards", "CANON_R6", "MISC");
   writeFileSync(path.join(out, "Cards", "CANON_R6", "MISC", "AUTPRINT.MRK"), "[HDR]\n");
