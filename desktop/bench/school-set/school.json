@@ -1,0 +1,59 @@
+{
+  "note": "Stand-in school for the realistic test set. Photos: NASA astronaut classes on Wikimedia Commons (NASA photos are public domain). Each astronaut plays a made-up student or teacher; the Arabic/English names are invented. 'commons' lists Commons category names to try, 'search' the name used in file titles.",
+  "school": { "en": "Al Nour Test School", "ar": "مدرسة النور التجريبية" },
+  "classes": [
+    { "name": "9A", "grade": "Grade 9", "section": "A", "groupCategory": "NASA Astronaut Group 23", "students": [
+      { "id": "S9001", "en": "Nour Adel", "ar": "نور عادل", "gender": "F", "search": "Nichole Ayers", "commons": ["Nichole Ayers"] },
+      { "id": "S9002", "en": "Karim Mostafa", "ar": "كريم مصطفى", "gender": "M", "search": "Marcos Berríos", "commons": ["Marcos Berríos", "Marcos Berrios"] },
+      { "id": "S9003", "en": "Salma Hany", "ar": "سلمى هاني", "gender": "F", "search": "Christina Birch", "commons": ["Christina Birch"] },
+      { "id": "S9004", "en": "Farida Sherif", "ar": "فريدة شريف", "gender": "F", "search": "Deniz Burnham", "commons": ["Deniz Burnham"] },
+      { "id": "S9005", "en": "Youssef Tarek", "ar": "يوسف طارق", "gender": "M", "search": "Luke Delaney", "commons": ["Luke Delaney", "Luke Delaney (astronaut)"] },
+      { "id": "S9006", "en": "Omar Khaled", "ar": "عمر خالد", "gender": "M", "search": "Andre Douglas", "commons": ["Andre Douglas", "Andre Douglas (astronaut)"] },
+      { "id": "S9007", "en": "Hassan Ibrahim", "ar": "حسن إبراهيم", "gender": "M", "search": "Jack Hathaway", "commons": ["Jack Hathaway", "Jack Hathaway (astronaut)"] },
+      { "id": "S9008", "en": "Adham Samir", "ar": "أدهم سمير", "gender": "M", "search": "Anil Menon", "commons": ["Anil Menon"] },
+      { "id": "S9009", "en": "Ziad Walid", "ar": "زياد وليد", "gender": "M", "search": "Christopher Williams", "commons": ["Christopher Williams (astronaut)", "Chris Williams (astronaut)"], "canPost": false },
+      { "id": "S9010", "en": "Laila Magdy", "ar": "ليلى مجدي", "gender": "F", "search": "Jessica Wittner", "commons": ["Jessica Wittner"] }
+    ] },
+    { "name": "10A", "grade": "Grade 10", "section": "A", "groupCategory": "NASA Astronaut Group 22", "students": [
+      { "id": "S1001", "en": "Mariam Ashraf", "ar": "مريم أشرف", "gender": "F", "search": "Kayla Barron", "commons": ["Kayla Barron"] },
+      { "id": "S1002", "en": "Hana Yasser", "ar": "هنا ياسر", "gender": "F", "search": "Zena Cardman", "commons": ["Zena Cardman"] },
+      { "id": "S1003", "en": "Mohamed Ali", "ar": "محمد علي", "gender": "M", "search": "Raja Chari", "commons": ["Raja Chari"] },
+      { "id": "S1004", "en": "Ahmed Fathy", "ar": "أحمد فتحي", "gender": "M", "search": "Matthew Dominick", "commons": ["Matthew Dominick"] },
+      { "id": "S1005", "en": "Mahmoud Gamal", "ar": "محمود جمال", "gender": "M", "search": "Bob Hines", "commons": ["Robert Hines", "Bob Hines", "Robert Hines (astronaut)"] },
+      { "id": "S1006", "en": "Seif Hesham", "ar": "سيف هشام", "gender": "M", "search": "Warren Hoburg", "commons": ["Warren Hoburg", "Woody Hoburg"] },
+      { "id": "S1007", "en": "Ali Hussein", "ar": "علي حسين", "gender": "M", "search": "Jonny Kim", "commons": ["Jonny Kim"] },
+      { "id": "S1008", "en": "Mostafa Nabil", "ar": "مصطفى نبيل", "gender": "M", "search": "Robb Kulin", "commons": ["Robb Kulin"] },
+      { "id": "S1009", "en": "Yasmin Reda", "ar": "ياسمين رضا", "gender": "F", "search": "Jasmin Moghbeli", "commons": ["Jasmin Moghbeli"] },
+      { "id": "S1010", "en": "Jana Osama", "ar": "جنى أسامة", "gender": "F", "search": "Loral O'Hara", "commons": ["Loral O'Hara"] },
+      { "id": "S1011", "en": "Amr Ramadan", "ar": "عمرو رمضان", "gender": "M", "search": "Frank Rubio", "commons": ["Francisco Rubio", "Frank Rubio", "Francisco Rubio (astronaut)"] },
+      { "id": "S1012", "en": "Malak Emad", "ar": "ملك عماد", "gender": "F", "search": "Jessica Watkins", "commons": ["Jessica Watkins"] }
+    ] },
+    { "name": "11A", "grade": "Grade 11", "section": "A", "groupCategory": "NASA Astronaut Group 21", "students": [
+      { "id": "S1101", "en": "Hamza Ayman", "ar": "حمزة أيمن", "gender": "M", "search": "Josh Cassada", "commons": ["Josh A. Cassada", "Josh Cassada"] },
+      { "id": "S1102", "en": "Abdelrahman Saeed", "ar": "عبد الرحمن سعيد", "gender": "M", "search": "Victor Glover", "commons": ["Victor J. Glover", "Victor Glover"] },
+      { "id": "S1103", "en": "Marwan Fouad", "ar": "مروان فؤاد", "gender": "M", "search": "Nick Hague", "commons": ["Tyler N. Hague", "Nick Hague"] },
+      { "id": "S1104", "en": "Rana Medhat", "ar": "رنا مدحت", "gender": "F", "search": "Christina Koch", "commons": ["Christina Koch", "Christina H. Koch"] },
+      { "id": "S1105", "en": "Habiba Wael", "ar": "حبيبة وائل", "gender": "F", "search": "Nicole Mann", "commons": ["Nicole Aunapu Mann", "Nicole Mann"] },
+      { "id": "S1106", "en": "Dina Essam", "ar": "دينا عصام", "gender": "F", "search": "Anne McClain", "commons": ["Anne McClain", "Anne C. McClain"] },
+      { "id": "S1107", "en": "Aya Mahmoud", "ar": "آية محمود", "gender": "F", "search": "Jessica Meir", "commons": ["Jessica Meir", "Jessica U. Meir"] },
+      { "id": "S1108", "en": "Khaled Sobhy", "ar": "خالد صبحي", "gender": "M", "search": "Andrew Morgan", "commons": ["Andrew R. Morgan", "Andrew Morgan (astronaut)"] }
+    ] },
+    { "name": "12A", "grade": "Grade 12", "section": "A", "groupCategory": "NASA Astronaut Group 20", "students": [
+      { "id": "S1201", "en": "Nada Hamdy", "ar": "ندى حمدي", "gender": "F", "search": "Serena Auñón", "commons": ["Serena Auñón-Chancellor", "Serena M. Auñón-Chancellor"] },
+      { "id": "S1202", "en": "Sara Mohsen", "ar": "سارة محسن", "gender": "F", "search": "Jeanette Epps", "commons": ["Jeanette Epps", "Jeanette J. Epps"] },
+      { "id": "S1203", "en": "Tamer Ezzat", "ar": "تامر عزت", "gender": "M", "search": "Jack Fischer", "commons": ["Jack D. Fischer", "Jack Fischer"] },
+      { "id": "S1204", "en": "Karim Adel", "ar": "كريم عادل", "gender": "M", "search": "Michael Hopkins", "commons": ["Michael S. Hopkins", "Michael Hopkins (astronaut)"] },
+      { "id": "S1205", "en": "Sherif Lotfy", "ar": "شريف لطفي", "gender": "M", "search": "Kjell Lindgren", "commons": ["Kjell N. Lindgren", "Kjell Lindgren"] },
+      { "id": "S1206", "en": "Reem Kamal", "ar": "ريم كمال", "gender": "F", "search": "Kathleen Rubins", "commons": ["Kathleen Rubins", "Kate Rubins"] },
+      { "id": "S1207", "en": "Wael Shawky", "ar": "وائل شوقي", "gender": "M", "search": "Scott Tingle", "commons": ["Scott D. Tingle", "Scott Tingle"] },
+      { "id": "S1208", "en": "Hossam Atef", "ar": "حسام عاطف", "gender": "M", "search": "Vande Hei", "commons": ["Mark T. Vande Hei", "Mark Vande Hei"] },
+      { "id": "S1209", "en": "Islam Fawzy", "ar": "إسلام فوزي", "gender": "M", "search": "Reid Wiseman", "commons": ["Gregory R. Wiseman", "Reid Wiseman"] }
+    ] }
+  ],
+  "teachers": [
+    { "id": "T001", "en": "Ms. Hoda Sami", "ar": "أ. هدى سامي", "gender": "F", "classes": ["9A"], "search": "Peggy Whitson", "commons": ["Peggy Whitson", "Peggy A. Whitson"] },
+    { "id": "T002", "en": "Ms. Mona Fekry", "ar": "أ. منى فكري", "gender": "F", "classes": ["10A"], "search": "Sunita Williams", "commons": ["Sunita Williams", "Sunita L. Williams"] },
+    { "id": "T003", "en": "Mr. Sameh Lotfy", "ar": "أ. سامح لطفي", "gender": "M", "classes": ["11A"], "search": "Scott Kelly", "commons": ["Scott Kelly", "Scott J. Kelly"] },
+    { "id": "T004", "en": "Mr. Ehab Nour", "ar": "أ. إيهاب نور", "gender": "M", "classes": ["12A"], "search": "Chris Cassidy", "commons": ["Christopher Cassidy", "Christopher J. Cassidy", "Chris Cassidy"] }
+  ]
+}
