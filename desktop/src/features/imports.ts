@@ -532,6 +532,10 @@ export function importsApi(ctx: Ctx) {
     // The library drive is back: an import waiting for it carries on.
     const root = s().library as string | null;
     if (!running && root && existsSync(root) && one("select id from import_jobs where state = 'waiting' and error = 'library-missing' limit 1")) void tick(true);
+    // A card pulled out and put back between two looks (Windows looks every
+    // 8 s) never counted as new, so its import waited up to a minute. An
+    // import waiting for its card carries on as soon as the card is there.
+    else if (!running && waitingCardBack()) void tick();
     const has = await iphonePlugged();
     if (has && !phone && !first && s().importAutoOpen !== false) {
       ctx.win()?.show();
@@ -552,6 +556,14 @@ export function importsApi(ctx: Ctx) {
       }
     } catch {
       // no USB list
+    }
+    return false;
+  }
+
+  function waitingCardBack() {
+    for (const j of all<{ id: number }>("select id from import_jobs where state = 'waiting' and error is null")) {
+      const src = one<{ src: string }>("select src from job_files where job_id = ? and state = 'todo' limit 1", j.id);
+      if (src && existsSync(src.src)) return true;
     }
     return false;
   }

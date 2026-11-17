@@ -218,6 +218,26 @@ test("pulling the card out mid-import waits for it, then carries on where it sto
   await app.close();
 });
 
+// B-107: a card pulled out and put straight back (before the app's next
+// look for cards) never counted as new, so the import waited up to a minute.
+test("a card pulled out and put straight back carries on at once", async () => {
+  test.setTimeout(300_000);
+  const { base, lib, volumes, userData } = setup();
+  const card = path.join(volumes, "CARD5");
+  const away = path.join(base, "CARD5-away");
+  await makeCard(path.join(card, "DCIM"), 250);
+  const { app, win } = await launch(userData, volumes);
+  const { job } = await startImport(win, path.join(card, "DCIM"));
+  await expect.poll(async () => (await jobOf(win, job))?.done ?? 0, { timeout: 60_000, intervals: [50] }).toBeGreaterThanOrEqual(8);
+  await move(card, away);
+  await expect.poll(async () => (await jobOf(win, job))?.waitingForCard, { timeout: 30_000, intervals: [50] }).toBe(true);
+  await move(away, card);
+  // Well inside the once-a-minute retry.
+  await expect.poll(async () => (await jobOf(win, job))?.state, { timeout: 40_000 }).toBe("done");
+  expect(checkLibrary(lib, card)).toBe(250);
+  await app.close();
+});
+
 test("Pause stops copying at once and Resume carries on where it stopped", async () => {
   test.setTimeout(300_000);
   const { lib, volumes, userData } = setup();
