@@ -8,6 +8,7 @@ import { guessEvent, schoolYear, setTermDates, type TermDates } from "../core/li
 import { readSheet } from "../core/students";
 import { marks, q, type Api, type Ctx } from "./ctx";
 import { relInside } from "../core/paths";
+import { retryBusy } from "../core/retry-busy";
 
 // Folders, the archive drive for old years, the app's own Bin (30 days,
 // everything can be put back), the school calendar's term dates, import
@@ -156,9 +157,11 @@ export function manageApi(ctx: Ctx): Api {
         const to = path.join(archive, rel);
         try {
           await mkdir(path.dirname(to), { recursive: true });
-          await copyFile(r.path, to);
+          // Windows: a photo being read for its small copy (or by antivirus) is
+          // busy for a moment; try again instead of leaving it behind.
+          await retryBusy(() => copyFile(r.path, to));
           if ((await stat(to)).size !== statSync(r.path).size) throw new Error("size");
-          await unlink(r.path);
+          await retryBusy(() => unlink(r.path));
           run("update photos set path = ? where id = ?", to, r.id);
           moved++;
         } catch (e) {
