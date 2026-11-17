@@ -79,7 +79,24 @@ export async function measure(input: string | Buffer): Promise<Quality> {
     .greyscale()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const w = info.width, h = info.height;
+  return measureGrey(input, data, info.width, info.height);
+}
+
+// The small picture and the measures from one opening of the photo (each
+// opening of a camera's big photo is the slow part of reading it).
+export async function thumbAndMeasure(input: string | Buffer, out: string, size: number): Promise<Quality> {
+  if (size > 512) {
+    await makeThumb(input, out, size);
+    return measure(input);
+  }
+  const small = await sharp(input, { failOn: "none" }).rotate().resize({ width: 512, height: 512, fit: "inside" }).raw().toBuffer({ resolveWithObject: true });
+  const raw = { raw: { width: small.info.width, height: small.info.height, channels: small.info.channels } };
+  await sharp(small.data, raw).resize({ width: size, height: size, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 78 }).toFile(out);
+  const { data, info } = await sharp(small.data, raw).greyscale().raw().toBuffer({ resolveWithObject: true });
+  return measureGrey(input, data, info.width, info.height);
+}
+
+async function measureGrey(input: string | Buffer, data: Buffer, w: number, h: number): Promise<Quality> {
   let sum = 0, sum2 = 0, n = 0, light = 0;
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
