@@ -59,7 +59,7 @@ function Card({ p, locale, labels, picked, onPick }: { p: BoardPost; locale: str
       <Link href={`/posts/${p.id}`} className="block space-y-2">
         {p.cover && (
           // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
-          <img src={p.cover} alt="" className="aspect-[4/3] w-full rounded-md object-cover" />
+          <img loading="lazy" decoding="async" src={p.cover} alt="" className="aspect-[4/3] w-full rounded-md object-cover" />
         )}
         <p className="line-clamp-3 text-sm">{p.text || <span className="text-muted">{labels.noCaption}</span>}</p>
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -143,7 +143,7 @@ export function PostBoard({ locale, view, posts, labels, canWrite, startIdea }: 
           {grid.map((p) => (
             <Link key={p.id} href={`/posts/${p.id}`} className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
-              <img src={p.cover!} alt="" className={`aspect-[4/5] w-full object-cover ${p.status === "published" ? "" : "opacity-80"}`} />
+              <img loading="lazy" decoding="async" src={p.cover!} alt="" className={`aspect-[4/5] w-full object-cover ${p.status === "published" ? "" : "opacity-80"}`} />
               {p.status !== "published" && <span className="absolute start-1 top-1 rounded bg-black/60 px-1 text-[10px] text-white">{when(p.when, locale)}</span>}
             </Link>
           ))}
@@ -162,7 +162,7 @@ export function PostBoard({ locale, view, posts, labels, canWrite, startIdea }: 
               {canWrite && <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} aria-label={labels.selected} />}
               {p.cover ? (
                 // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
-                <img src={p.cover} alt="" className="size-12 shrink-0 rounded-md object-cover" />
+                <img loading="lazy" decoding="async" src={p.cover} alt="" className="size-12 shrink-0 rounded-md object-cover" />
               ) : (
                 <span className="grid size-12 shrink-0 place-items-center rounded-md bg-background text-faint">
                   <Icon name={p.status === "idea" ? "ideas" : "posts"} />

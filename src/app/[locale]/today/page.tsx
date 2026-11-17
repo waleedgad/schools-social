@@ -72,6 +72,8 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
   const now = new Date();
   const week = new Date(now.getTime() + 7 * 86400_000).toISOString();
   const cols = "id, status, caption_ar, caption_en, idea, scheduled_at, due_on, publish_error, category_id, post_photos(position, photo:photos(storage_path, edited_path))";
+  // Which classes a teacher sees is asked alongside the first set of questions.
+  const scopeAsked = want.has("checks") || want.has("coverage") ? classScope(supabase, schoolId, user.id, membership.role) : null;
   const [approvals, extra, next, ideas, problems, waiting, recent, mine, school, cats, metrics] = await Promise.all([
     want.has("approvals") ? supabase.from("posts").select(cols).eq("school_id", schoolId).eq("status", "in_review").order("updated_at").limit(8).returns<PostRow[]>() : null,
     want.has("extra") ? supabase.from("posts").select(cols).eq("school_id", schoolId).eq("status", "waiting_extra").order("sent_extra_at").limit(8).returns<PostRow[]>() : null,
@@ -89,7 +91,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
   const today = now.toLocaleDateString("en-CA", { timeZone: membership.school.timezone });
   const inDays = (n: number) => new Date(Date.parse(`${today}T12:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
   const weekStart = inDays(-new Date(`${today}T12:00:00Z`).getUTCDay());
-  const scope = want.has("checks") || want.has("coverage") ? await classScope(supabase, schoolId, user.id, membership.role) : null;
+  const scope = scopeAsked ? await scopeAsked : null;
   const [waitingPosts, slots, weekPosts, upcoming, repeats, alerts, faceChecks, shotLists, books, cov] = await Promise.all([
     want.has("waiting") ? supabase.from("posts").select(cols + ", updated_at, sent_extra_at").eq("school_id", schoolId).in("status", ["in_review", "waiting_extra"]).lt("updated_at", new Date(now.getTime() - 86400_000).toISOString()).order("updated_at").limit(8).returns<(PostRow & { updated_at: string; sent_extra_at: string | null })[]>() : null,
     want.has("plan") || want.has("progress") ? supabase.from("time_slots").select("weekday, at_time, category_id").eq("school_id", schoolId) : null,
@@ -125,7 +127,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
               <Link href={`/posts/${p.id}`} className="flex items-center gap-3 py-2 hover:opacity-80">
                 {cv ? (
                   // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
-                  <img src={urls.get(cv)} alt="" className="size-11 shrink-0 rounded-md object-cover" />
+                  <img loading="lazy" decoding="async" src={urls.get(cv)} alt="" className="size-11 shrink-0 rounded-md object-cover" />
                 ) : (
                   <span className="grid size-11 shrink-0 place-items-center rounded-md bg-background text-faint">
                     <Icon name={p.status === "idea" ? "ideas" : "posts"} />
@@ -363,7 +365,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
             {mine.data.map((p) => (
               <li key={p.id as string} className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
-                <img src={urls.get(thumbPath((p.edited_path ?? p.storage_path) as string))} alt="" className="aspect-square w-full rounded-md object-cover" />
+                <img loading="lazy" decoding="async" src={urls.get(thumbPath((p.edited_path ?? p.storage_path) as string))} alt="" className="aspect-square w-full rounded-md object-cover" />
                 <span className={`absolute inset-x-0 bottom-0 rounded-b-md px-1 text-center text-[9px] text-white ${p.contains_opted_out ? "bg-danger" : p.check_status === "waiting" ? "bg-warn" : "bg-good"}`}>
                   {t(p.contains_opted_out ? "today.photoNo" : p.check_status === "waiting" ? "today.photoWaiting" : "today.photoReady")}
                 </span>

@@ -48,7 +48,7 @@ export default async function AlbumsPage({ params, searchParams }: { params: Pro
                       <label className={`relative block ${blocked ? "opacity-50" : "cursor-pointer"}`}>
                         {canPost && !blocked && <input type="checkbox" name="photo" value={p.id} className="peer absolute start-1.5 top-1.5 z-10 size-4" />}
                         {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
-                        <img src={urls.get(thumbPath(p.edited_path ?? p.storage_path))} alt="" className="aspect-square w-full rounded-md object-cover peer-checked:ring-4 peer-checked:ring-accent" />
+                        <img loading="lazy" decoding="async" src={urls.get(thumbPath(p.edited_path ?? p.storage_path))} alt="" className="aspect-square w-full rounded-md object-cover peer-checked:ring-4 peer-checked:ring-accent" />
                         {blocked && <span className="absolute inset-x-0 bottom-0 rounded-b-md bg-warn px-1 text-center text-[10px] text-white">{p.contains_opted_out ? t("albums.cantUse") : t("albums.waiting")}</span>}
                         {p.event?.title && <span className="mt-0.5 block truncate text-[10px] text-muted">{p.event.title}</span>}
                       </label>

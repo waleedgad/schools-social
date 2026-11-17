@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans_Arabic, Inter } from "next/font/google";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { ErrorReporter } from "@/components/error-reporter";
+import CLIENT_MESSAGES from "@/i18n/client-messages.json";
 import { routing } from "@/i18n/routing";
 import "../globals.css";
 
@@ -15,6 +16,21 @@ const THEME = `try{var t=localStorage.getItem("theme");if(t)document.documentEle
 // Catches errors from the very start (even before the page is ready) and hands
 // them to the error reporter once it loads (components/error-reporter.tsx).
 const ERRORS = `(function(){var q=window.__errq=[];function add(m,s){if(window.__report)window.__report(m,s);else if(q.length<20)q.push([m,s])}addEventListener("error",function(e){if(e.message||e.error)add(e.message||String(e.error),e.error&&e.error.stack)});addEventListener("unhandledrejection",function(e){var r=e.reason;add(r&&r.message||String(r),r&&r.stack)})})()`;
+
+// Only the words the in-browser parts use go with each page (checked by
+// scripts/check-client-messages.mjs): the whole dictionary is three times
+// bigger, and every page carried it.
+function clientMessages(all: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const key of CLIENT_MESSAGES) {
+    const [top, sub] = key.split(".");
+    const value = sub ? (all[top] as Record<string, unknown> | undefined)?.[sub] : all[top];
+    if (value === undefined) continue;
+    if (sub) out[top] = { ...((out[top] as object) ?? {}), [sub]: value };
+    else out[top] = value;
+  }
+  return out;
+}
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -40,6 +56,7 @@ export default async function LocaleLayout({
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();
   setRequestLocale(locale);
+  const messages = clientMessages((await getMessages()) as Record<string, unknown>);
 
   return (
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} suppressHydrationWarning>
@@ -49,7 +66,7 @@ export default async function LocaleLayout({
       </head>
       <body className={`${inter.variable} ${plex.variable} antialiased`}>
         <ErrorReporter />
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
       </body>
     </html>
   );

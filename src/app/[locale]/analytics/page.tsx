@@ -168,7 +168,7 @@ export default async function AnalyticsPage({ params, searchParams }: { params: 
                       <Link href={`/posts/${p.id}`} className="flex items-center gap-3 py-2">
                         {cv && (
                           // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
-                          <img src={urls.get(cv)} alt="" className="size-11 rounded-md object-cover" />
+                          <img loading="lazy" decoding="async" src={urls.get(cv)} alt="" className="size-11 rounded-md object-cover" />
                         )}
                         <p className="min-w-0 grow truncate text-sm">{p.caption_ar || p.caption_en}</p>
                         <span className="shrink-0 text-xs text-muted">

@@ -32,9 +32,11 @@ export async function getSession() {
   if (!isSupabaseConfigured) return { user: null, membership: null, workspaces: [] as Workspace[] };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The sign-in is checked from its signed token (no trip to the sign-in
+  // server on every page, which a phone feels); getClaims asks the server
+  // itself when the token can't be checked here.
+  const { data: claims } = await supabase.auth.getClaims();
+  const user = claims?.claims?.sub ? { id: claims.claims.sub, email: (claims.claims.email as string | undefined) ?? undefined } : null;
   if (!user) return { user: null, membership: null, workspaces: [] as Workspace[] };
 
   const { data } = await supabase
