@@ -221,7 +221,7 @@ async function whatsappSupport() {
   const st = S.signedIn ? await quiet("app", "status") : null;
   const n = st?.support?.whatsapp;
   if (!n) return toast(L("WhatsApp support isn't set up yet. Use Report a problem.", "الدعم عبر واتساب غير مُعد بعد. استخدم الإبلاغ عن مشكلة."));
-  const text = L(`Hello, I need help with School Social Hub (${S.schoolName ?? ""}, Mac ${S.version ?? ""}).`, `مرحباً، أحتاج مساعدة في School Social Hub (${S.schoolName ?? ""}، ماك ${S.version ?? ""}).`);
+  const text = L(`Hello, I need help with School Social Hub (${S.schoolName ?? ""}, ${isMac() ? "Mac" : "Windows"} ${S.version ?? ""}).`, `مرحباً، أحتاج مساعدة في School Social Hub (${S.schoolName ?? ""}، ${isMac() ? "ماك" : "ويندوز"} ${S.version ?? ""}).`);
   call("openUrl", `https://wa.me/${n}?text=${encodeURIComponent(text)}`);
 }
 
