@@ -1184,6 +1184,10 @@ async function checkWebUploads() {
         const ok = await writeFile(file, bytes, { flag: "wx" }).then(() => true, (e) => (e.code === "EEXIST" ? false : Promise.reject(e)));
         if (ok) {
           pending[file] = w.id;
+          // Written down at once: if a later download fails (or the app
+          // closes), this photo was otherwise fetched again as "name (2)",
+          // and the first copy was treated as the school's own photo.
+          webChecks.set({ pending: { ...webChecks.get().pending, [file]: w.id } });
           break;
         }
       }
