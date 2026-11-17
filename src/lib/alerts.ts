@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { can, type Permission, type PermissionOverrides, type Role } from "@/lib/roles";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
+import { publicUrl } from "@/lib/site-text";
 
 // Alerts outside the app: email (through Resend, free for small schools),
 // and a school's own Slack or Microsoft Teams channel (an incoming webhook
@@ -47,7 +48,10 @@ async function webhook(url: string, kind: "slack" | "teams", title: string, text
             },
           ],
         };
-  await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) }).catch(() => null);
+  // Only a public https address, never this server's own network (B-107).
+  const target = (() => { try { return new URL(url); } catch { return null; } })();
+  if (!target || target.protocol !== "https:" || !(await publicUrl(target))) return;
+  await fetch(target, { method: "POST", redirect: "manual", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) }).catch(() => null);
 }
 
 // Who gets email for each kind that isn't about one post waiting for a step.

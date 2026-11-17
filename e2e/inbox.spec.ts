@@ -71,6 +71,17 @@ test("inbox: comments show, AI ideas never send by themselves, replies and hidin
   const { data: audit } = await admin.from("audit_log").select("action, target").eq("school_id", schoolId).like("action", "inbox.%");
   expect(audit).toEqual([{ action: "inbox.replied", target: `${fb}_c1` }]);
 
+  // B-119: a changed comment id can't aim the Page key at another address
+  // (here: posting straight to the Page's feed, skipping approval).
+  const lovely = card("What a lovely day");
+  // Typing first: the page redraws the form while typing, which would put the real id back.
+  await lovely.getByPlaceholder("Write a reply…").fill("Posted without approval");
+  await lovely.locator('input[name="comment"]').evaluateAll((els) => els.forEach((el) => ((el as HTMLInputElement).value = "123456789/feed?x=")));
+  await lovely.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(page).toHaveURL(/sent=0/);
+  const toPage = ((await (await request.get(`${META}/__calls?prefix=123456789`)).json()) as { method: string }[]).filter((c) => c.method === "POST");
+  expect(toPage).toEqual([]);
+
   // Meta refuses a reply: the team is told.
   const refused = card("Please remove my photo");
   await refused.getByPlaceholder("Write a reply…").fill("We'll take care of it today.");

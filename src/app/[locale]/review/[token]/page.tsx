@@ -21,7 +21,9 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
 
   // Photos are private, so the server signs short links for this page.
   let urls: string[] = [];
-  if (info?.photo_paths?.length && isAdminConfigured) {
+  // A used or expired link shows no photos or words any more: a forwarded old
+  // link must not keep showing students' photos (B-109).
+  if (info?.usable && info.photo_paths?.length && isAdminConfigured) {
     const { data: signed } = await createAdminClient().storage.from("photos").createSignedUrls(info.photo_paths.map(thumbPath), 3600);
     urls = (signed ?? []).map((s) => s.signedUrl).filter(Boolean) as string[];
   }
@@ -47,8 +49,8 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
                 ))}
               </div>
             )}
-            {info.caption_ar && <p className="whitespace-pre-wrap" dir="rtl">{info.caption_ar}</p>}
-            {info.caption_en && <p className="whitespace-pre-wrap" dir="ltr">{info.caption_en}</p>}
+            {info.usable && info.caption_ar && <p className="whitespace-pre-wrap" dir="rtl">{info.caption_ar}</p>}
+            {info.usable && info.caption_en && <p className="whitespace-pre-wrap" dir="ltr">{info.caption_en}</p>}
             {info.usable && !answered ? (
               <form action={answerReview} className="space-y-3 border-t border-border pt-4">
                 <input type="hidden" name="locale" value={locale} />

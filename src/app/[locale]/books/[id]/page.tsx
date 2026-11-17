@@ -40,7 +40,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
     supabase.from("book_checks").select("student_code, ok, fixed_name, note").eq("book_id", id),
     supabase.from("book_texts").select("id, kind, class_name, student_code, body, author_name, user_id, created_at").eq("book_id", id).order("created_at"),
   ]);
-  const urls = await signPaths(supabase, tab === "pages" ? [page?.image ?? "", pages[n]?.image ?? ""] : []);
+  const urls = await signPaths(supabase, schoolId, tab === "pages" ? [page?.image ?? "", pages[n]?.image ?? ""] : []);
   const pageComments = (comments ?? []).filter((c) => c.page === n);
   const openByPage = new Map<number, number>();
   for (const c of comments ?? []) if (!c.done) openByPage.set(c.page as number, (openByPage.get(c.page as number) ?? 0) + 1);

@@ -1,0 +1,39 @@
+# Security review (17 Nov 2026): OWASP ZAP, a free scanner, visits the built
+# website (sign-in, sign-up, approval and upload link pages) like an outsider
+# and reports missing protections. Runs weekly and on demand; the report is
+# kept as "zap-report". It reports only and never stops other work.
+name: ZAP scan
+
+on:
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta
+      - run: grep -v '^#' e2e/test-db.env >> "$GITHUB_ENV"
+      - run: npm run build
+      - run: |
+          (npx next start -p 3000 > next.log 2>&1 &)
+          for i in $(seq 60); do curl -sf -o /dev/null http://localhost:3000/en/login && break; sleep 1; done
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: http://localhost:3000/en/login
+          cmd_options: -a -j
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: zap-report

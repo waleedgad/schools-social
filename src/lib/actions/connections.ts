@@ -66,6 +66,8 @@ export async function saveConnections(formData: FormData) {
   const phoneId = String(formData.get("whatsappPhoneId") ?? "").trim();
   const event = String(formData.get("whatsappEvent") ?? "");
   if ((slack && !slack.startsWith("https://hooks.slack.com/")) || (teams && !teams.startsWith("https://"))) back(locale, "connections", { error: "webhook" });
+  // The WhatsApp event must be one of this school's own events (B-108).
+  const ownEvent = /^[0-9a-f-]{36}$/.test(event) ? (await supabase.from("events").select("id").eq("id", event).eq("school_id", schoolId).maybeSingle()).data?.id ?? null : null;
   const { error } = await supabase.from("school_integrations").upsert({
     school_id: schoolId,
     slack_webhook: slack || null,
@@ -73,7 +75,7 @@ export async function saveConnections(formData: FormData) {
     email_alerts: formData.get("email") === "on",
     alert_kinds: formData.getAll("kind").map(String).filter((k) => ["approval", "failed", "import", "comment", "remind", "book", "digest"].includes(k)),
     whatsapp_phone_id: /^\d{5,40}$/.test(phoneId) ? phoneId : null,
-    whatsapp_event: /^[0-9a-f-]{36}$/.test(event) ? event : null,
+    whatsapp_event: ownEvent,
     // Quiet hours: alerts wait until they end. Both empty = no quiet hours.
     quiet_from: time(formData.get("quietFrom")),
     quiet_to: time(formData.get("quietTo")),

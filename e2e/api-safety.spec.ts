@@ -58,3 +58,14 @@ test("the app's settings address shares nothing secret", async ({ request }) => 
   const text = await r.text();
   expect(text).not.toMatch(/service_role|SERVICE_ROLE|secret|GEMINI|sk-|eyJhbGciOi[^"]*\.eyJ[^"]*role":"service/i);
 });
+
+// B-112: "go back to" addresses after sign-in stay on this site. Browsers
+// read "/\evil.com" and "/<tab>/evil.com" as another site.
+test("sign-in never sends people to another site afterwards", async ({ page }) => {
+  for (const next of ["/\\evil.example", "/\t/evil.example", "//evil.example", "https://evil.example"]) {
+    await page.goto(`/en/login?next=${encodeURIComponent(next)}`);
+    const values = await page.locator('input[name="next"]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    expect(values.length, next).toBeGreaterThan(0);
+    for (const v of values) expect(v, next).toBe("/today");
+  }
+});

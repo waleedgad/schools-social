@@ -1,0 +1,22 @@
+# Security review (17 Nov 2026): GitHub tells us about known holes in the
+# libraries both apps use and opens a small update for each, once a week.
+# Updates only open as pull requests: nothing reaches main without a check.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      website-minor:
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      app-minor:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

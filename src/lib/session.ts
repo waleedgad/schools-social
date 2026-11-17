@@ -86,8 +86,11 @@ export async function requireMembership(locale: string) {
   return { user: user!, membership: membership!, workspaces };
 }
 
+// Only a path on this site. Browsers read "/\\evil.com" (and "/" + tab +
+// "/evil.com") as another site, so backslashes and control characters are
+// refused too (B-112).
 export function safeNext(next: unknown, fallback: string) {
-  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//")
+  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") && !/[\\\x00-\x1f\x7f]/.test(next)
     ? next
     : fallback;
 }

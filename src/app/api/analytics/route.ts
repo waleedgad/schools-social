@@ -12,7 +12,8 @@ type Row = {
 };
 
 const cell = (v: unknown) => {
-  const s = String(v ?? "");
+  // A cell that starts with = + - @ would run as a formula in Excel (B-113).
+  const s = String(v ?? "").replace(/^([=+\-@\t\r])/, "'$1");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 

@@ -49,3 +49,16 @@ test("the packaged app starts, reads photos and finds faces", async () => {
   await app.close();
   expect(errors).toEqual([]);
 });
+
+// Security review (17 Nov): the hardening switches are really in the program.
+test("the packaged app can't be run as plain Node.js", async () => {
+  const { FuseV1Options, getCurrentFuseWire } = await import("@electron/fuses");
+  // Fuse states are the characters "0" (off) and "1" (on).
+  const OFF = 48;
+  const ON = 49;
+  // On a Mac the switches live in the app bundle's Electron framework.
+  const wire = await getCurrentFuseWire(exe!.includes(".app/Contents/MacOS/") ? exe!.slice(0, exe!.indexOf(".app/") + 4) : exe!);
+  expect(wire[FuseV1Options.RunAsNode]).toBe(OFF);
+  expect(wire[FuseV1Options.EnableNodeOptionsEnvironmentVariable]).toBe(OFF);
+  expect(wire[FuseV1Options.OnlyLoadAppFromAsar]).toBe(ON);
+});
