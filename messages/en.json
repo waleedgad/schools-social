@@ -967,7 +967,20 @@
     "sourceHint": "Your website's About page, a brochure or a few past posts. The AI drafts the voice and suggests categories.",
     "draft": "Draft my brand voice",
     "learnt": "What the AI learnt",
-    "learntHint": "The last {count} approved captions are used as examples of your voice."
+    "learntHint": "The last {count} approved captions are used as examples of your voice.",
+    "learntResults": "From your posts: {measured} with results, {edited} drafts the team edited.",
+    "learntNone": "Nothing clear yet. The AI starts giving tips after about 8 posts with results or 4 drafts the team changed.",
+    "learntBest": "Captions people liked most (the AI learns from them, never copies):",
+    "hints": {
+      "short_wins": "Your shorter captions get the most response. The AI aims for about {words} words.",
+      "long_wins": "Your fuller captions get the most response. The AI aims for about {words} words.",
+      "team_shortens": "Your team usually shortens the AI's drafts. It now writes about {words} words.",
+      "team_lengthens": "Your team usually adds detail to the AI's drafts. It now writes about {words} words with more detail.",
+      "emoji_wins": "Captions with an emoji do better with your parents. The AI uses one or two.",
+      "emoji_loses": "Captions without emojis do better with your parents. The AI uses none.",
+      "team_drops_emoji": "Your team removes the emojis from the AI's drafts. The AI uses none.",
+      "question_wins": "Captions that ask parents a question get more response. One option ends with a simple question."
+    }
   },
   "today": {
     "morning": "Good morning, {name}",

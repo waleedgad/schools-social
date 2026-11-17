@@ -4,7 +4,8 @@ import { AppShell } from "@/components/shell";
 import { Button, Card, Field, Notice, Pills, Select, TextArea, Toggle } from "@/components/ui";
 import { redirect } from "@/i18n/navigation";
 import { addSlot, deleteCategory, deleteFrame, deleteSlot, deleteSnippet, draftProfile, learnFromPage, saveCategory, saveProfile, saveSnippet, suggestSlots } from "@/lib/actions/brand";
-import type { SchoolProfile } from "@/lib/ai/types";
+import type { CaptionLanguages, SchoolProfile } from "@/lib/ai/types";
+import { loadLearning } from "@/lib/caption-learning";
 import { categoryName } from "@/lib/posting";
 import { signedThumbs } from "@/lib/posts";
 import { can } from "@/lib/roles";
@@ -35,13 +36,16 @@ export default async function CategoriesPage({ params, searchParams }: { params:
     supabase.from("time_slots").select("id, weekday, at_time, category_id, platforms").eq("school_id", schoolId).order("weekday").order("at_time"),
     supabase.from("frames").select("id, name, kind, storage_path, shape").eq("school_id", schoolId).order("created_at"),
     supabase.from("snippets").select("id, kind, title, body").eq("school_id", schoolId).order("kind").order("title"),
-    supabase.from("schools").select("profile").eq("id", schoolId).single(),
+    supabase.from("schools").select("profile, caption_languages").eq("id", schoolId).single(),
     supabase.from("posts").select("category_id").eq("school_id", schoolId).gte("created_at", new Date(Date.now() - 30 * 86400_000).toISOString()),
     supabase.rpc("meta_status", { p_school: schoolId }),
   ]);
   const connected = ((metaRows ?? []) as unknown[]).length > 0;
   const frameUrls = await signedThumbs(supabase, (frames ?? []).map((f) => f.storage_path as string));
   const profile = (school?.profile ?? {}) as SchoolProfile;
+  // What the school's own results and edits teach the AI: the same reading the
+  // caption writer uses (lib/captions.ts learnFromPosts), shown here in words.
+  const learning = tab === "brand" ? await loadLearning(supabase, schoolId, { languages: (school?.caption_languages ?? "ar_en") as CaptionLanguages }).catch(() => null) : null;
   const perCategory = new Map<string, number>();
   for (const r of counts ?? []) if (r.category_id) perCategory.set(r.category_id as string, (perCategory.get(r.category_id as string) ?? 0) + 1);
   const total = (counts ?? []).length || 1;
@@ -324,6 +328,32 @@ export default async function CategoriesPage({ params, searchParams }: { params:
                   </li>
                 ))}
               </ul>
+              {learning && (
+                <div className="mt-3 space-y-2 border-t border-border pt-3" data-testid="learning">
+                  <p className="text-xs text-muted">{t("brandPage.learntResults", { measured: learning.measured, edited: learning.edited })}</p>
+                  {learning.hints.length ? (
+                    <ul className="list-disc space-y-1 ps-4 text-xs">
+                      {learning.hints.map((h) => (
+                        <li key={h.code}>{"words" in h ? t(`brandPage.hints.${h.code}`, { words: h.words }) : t(`brandPage.hints.${h.code}`)}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted">{t("brandPage.learntNone")}</p>
+                  )}
+                  {learning.best.length > 0 && (
+                    <>
+                      <p className="text-xs text-muted">{t("brandPage.learntBest")}</p>
+                      <ul className="space-y-1.5">
+                        {learning.best.map((b, i) => (
+                          <li key={i} className="line-clamp-3 whitespace-pre-line rounded bg-surface-2 p-1.5 text-[11px]" dir="auto">
+                            {b}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
             </Card>
           </div>
         </div>
