@@ -1,4 +1,5 @@
 import path from "node:path";
+import { relInside } from "./paths";
 
 // How the school's photo library folder is laid out:
 //   <library>/<school year>/<term>/<YYYY-MM-DD Event name>/<photo>
@@ -107,9 +108,9 @@ export function termNumber(folder: string): number | null {
 export type Place = { year: string | null; term: string | null; event: FolderEvent | null; className: string | null };
 
 export function placeFromPath(library: string, file: string): Place {
-  const rel = path.relative(library, path.dirname(file));
+  const rel = relInside(library, path.dirname(file));
   const none: Place = { year: null, term: null, event: null, className: null };
-  if (!rel || rel.startsWith("..")) return none;
+  if (!rel) return none;
   const parts = rel.split(path.sep).filter((p) => p && p !== ".");
   let i = 0;
   const year = YEAR.test(parts[i] ?? "") ? parts[i++] : null;

@@ -37,6 +37,7 @@ import { visionFaces } from "./core/vision";
 import { downloadPhoto, finishCheck, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 import { exclusive } from "./core/lock";
 import { noPostFace, noPostPhoto, webCheck } from "./core/privacy";
+import { editorPicker, isInside, isOutside } from "./core/paths";
 
 type Watched = { path: string; label: string };
 type Settings = {
@@ -498,7 +499,7 @@ async function photoReady(id: number) {
 function libraryPhotos() {
   const s = settings.get();
   if (!s.library) return [];
-  return all<{ id: number; path: string; size: number }>("select id, path, size from photos where missing = 0 and path not like ':%'").filter((r) => !path.relative(s.library!, r.path).startsWith(".."));
+  return all<{ id: number; path: string; size: number }>("select id, path, size from photos where missing = 0 and path not like ':%'").filter((r) => !isOutside(s.library!, r.path));
 }
 const backupOf = (file: string) => path.join(settings.get().backup!, path.relative(settings.get().library!, file));
 const hasBackup = (r: { path: string; size: number }) => statNow(backupOf(r.path), { throwIfNoEntry: false })?.size === r.size;
@@ -509,7 +510,7 @@ function backupHealth() {
   const connected = existsSync(s.backup);
   const photos = libraryPhotos();
   const without = connected ? photos.filter((r) => !hasBackup(r)) : [];
-  const missing = missingOriginals().filter((r) => !path.relative(s.library!, r.path).startsWith(".."));
+  const missing = missingOriginals().filter((r) => !isOutside(s.library!, r.path));
   return {
     connected,
     total: photos.length,
@@ -560,7 +561,7 @@ async function putBackFromBackup() {
   if (!s.backup || !s.library || !existsSync(s.backup) || !existsSync(s.library)) return 0;
   let n = 0;
   for (const r of missingOriginals()) {
-    if (path.relative(s.library, r.path).startsWith("..") || existsSync(r.path) || !existsSync(backupOf(r.path))) continue;
+    if (isOutside(s.library, r.path) || existsSync(r.path) || !existsSync(backupOf(r.path))) continue;
     await mkdir(path.dirname(r.path), { recursive: true });
     await copyVerified(backupOf(r.path), r.path);
     n++;
@@ -571,7 +572,7 @@ async function putBackFromBackup() {
 }
 
 function isArchived(file: string) {
-  return all<{ path: string }>("select path from folders where archive = 1").some((f) => file.startsWith(f.path + path.sep));
+  return all<{ path: string }>("select path from folders where archive = 1").some((f) => isInside(f.path, file));
 }
 
 // Photos dropped into a watched folder (a cloud drive, Lightroom exports)
@@ -675,7 +676,7 @@ async function findMissing(dir: string) {
     if (!hit) continue;
     // Inside the library: link in place. Outside: copy it back into the library.
     let target = f;
-    if (lib && !path.resolve(f).startsWith(path.resolve(lib) + path.sep)) {
+    if (lib && !isInside(path.resolve(lib), path.resolve(f))) {
       const old = one<{ path: string }>("select path from photos where id = ?", hit.id)!;
       await mkdir(path.dirname(old.path), { recursive: true });
       target = old.path;
@@ -1865,12 +1866,15 @@ app.whenReady().then(async () => {
     openEditor: async (ids: number[]) => {
       const files = all<{ path: string }>(`select path from photos where id in (${marks(ids.length)})`, ...ids).map((p) => p.path);
       const editor = settings.get().editor;
-      const { execFile } = await import("node:child_process");
+      const { execFile, spawn } = await import("node:child_process");
       if (editor && process.platform === "darwin") execFile("/usr/bin/open", ["-a", editor, ...files]);
+      // Windows and Linux: the chosen program is started with the photos (0.12: on Windows
+      // only Mac ".app" files could be chosen and the choice was never used).
+      else if (editor && existsSync(editor)) spawn(editor, files, { detached: true, stdio: "ignore" }).on("error", (e) => log(`editor: ${e}`)).unref();
       else for (const f of files) await shell.openPath(f);
     },
     chooseEditor: async () => {
-      const r = await dialog.showOpenDialog(win!, { title: "Editing app", defaultPath: "/Applications", properties: ["openFile"], filters: [{ name: "Apps", extensions: ["app"] }] });
+      const r = await dialog.showOpenDialog(win!, editorPicker(process.platform, process.env));
       if (!r.canceled) settings.set({ editor: r.filePaths[0] });
       push();
     },

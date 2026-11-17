@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { Db } from "./db";
 import { guessEvent, placeFromPath } from "./library";
+import { relInside } from "./paths";
 
 // Self-filing (off unless the school turns it on): photos whose folder is
 // not yet Year / Term / Event are moved into place inside the same folder.
@@ -18,9 +19,9 @@ export function planFiling(db: Db, library: string, onlyIds?: number[]) {
   const moves: FilingMove[] = [];
   const unsure: number[] = [];
   for (const r of rows) {
-    const rel = path.relative(library, path.dirname(r.path));
+    const rel = relInside(library, path.dirname(r.path));
     // Already under a Year folder: filed, or put there by someone on purpose.
-    if (rel.startsWith("..") || placeFromPath(library, r.path).year) continue;
+    if (rel === null || placeFromPath(library, r.path).year) continue;
     const parts = rel ? rel.split(path.sep) : [];
     // "Drop here" files itself (see the Import tab), on its own timer.
     if (parts.some((p) => p.startsWith("_") || p.startsWith(".")) || parts[0] === "Drop here") continue;
