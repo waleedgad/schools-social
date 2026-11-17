@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { copyFile, readdir, rm, stat } from "node:fs/promises";
+import { missingAfterScan } from "./scan-missing";
 import { constants } from "node:fs";
 import path from "node:path";
 import { busy } from "./busy";
@@ -159,11 +160,16 @@ export class Engine {
       known.set(r.path, r);
     }
     const present = new Set<string>();
+    // Folders that could not be read for a reason other than being deleted
+    // (a drive that dropped out half way, no permission): their photos are not "gone".
+    const unreadable: string[] = [];
     const walk = async (dir: string) => {
       let entries;
       try {
         entries = await readdir(dir, { withFileTypes: true });
-      } catch {
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") unreadable.push(dir);
         return;
       }
       // "IMG_1.jpg" before "IMG_1 copy.jpg", so the plain name is the one kept when they match.
@@ -190,8 +196,8 @@ export class Engine {
     };
     try {
       await walk(this.o.library);
-      // Photos moved to the archive drive live outside the library: they are not missing.
-      const missing = [...known.keys()].filter((p) => !present.has(p) && !path.relative(this.o.library, p).startsWith(".."));
+      // The library drive may have been unplugged while the walk was running: that is not every photo deleted.
+      const missing = missingAfterScan(known.keys(), present, this.o.library, unreadable, existsSync(this.o.library));
       const mark = this.db.prepare("update photos set missing = 1 where path = ?");
       tx(this.db, () => missing.forEach((p) => mark.run(p)));
       const back = this.db.prepare("update photos set missing = 0 where path = ? and missing = 1");
