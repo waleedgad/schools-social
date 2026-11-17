@@ -17,9 +17,16 @@ Goal: about 95% of faces named by the app itself, with no wrong names.
 - The earlier face branch `claude/project-thread-56l8bf` was never pushed; its
   accuracy ideas below were not built yet.
 
+- Draft PR #4 (this branch into `claude/project-thread-syqjmv`). The face test
+  now runs on pull requests too, so PR #4 uses the 0.12 branch's stored faces.
+  Experiments added to `desktop/bench/faces/run.mjs` class-of-30 section:
+  `app+two…`, `app+pool…`, and 10 confirmed faces.
+
 ## Next
 
-1. Measure: run the face test (`.github/workflows/face-bench.yml`) on this branch.
+1. Read the PR #4 face test run ("Class-sized" table, `both` rows, ways app /
+   app+two / app+pool, k = 3, 5, 10). Keep only what names more with 0 wrong and
+   0 strangers; build it into `desktop/src/core/faces.ts` + engine.
 2. Ideas to measure (from the 16 Nov notes): pool an unnamed face with its
    near-identical unnamed neighbours before matching; two-step "sure" rule
    (lower score allowed with a bigger lead); up to 10 confirmed faces per person.
