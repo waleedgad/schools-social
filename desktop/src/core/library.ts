@@ -71,8 +71,14 @@ export function isoDate(date: Date) {
 }
 
 // Folder names can't hold some characters on Windows.
+// A name that is safe as a file or folder name on Mac and Windows. Windows
+// also drops dots and spaces at the end of a name ("Sports day..." became
+// "Sports day", so the app looked for photos in a folder that wasn't there)
+// and refuses device names such as CON, PRN, AUX, NUL, COM1 and LPT1.
 export function safeName(name: string) {
-  return name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Event";
+  let out = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80).replace(/[. ]+$/, "");
+  if (/^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i.test(out)) out = `${out}_`;
+  return out || "Event";
 }
 
 export function eventFolder(library: string, date: Date, eventName: string) {
