@@ -14,6 +14,13 @@ on:
       - desktop/src/core/faces.ts
       - desktop/bench/faces/**
       - .github/workflows/face-bench.yml
+  # A pull request may use its base branch's stored faces, so a new branch's
+  # first run takes minutes instead of hours.
+  pull_request:
+    paths:
+      - desktop/src/core/faces.ts
+      - desktop/bench/faces/**
+      - .github/workflows/face-bench.yml
 
 jobs:
   faces:

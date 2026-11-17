@@ -352,7 +352,17 @@ const WAYS = {
   "app+0.60": { app: true, strong: 0.6 },
   "app+0.55": { app: true, strong: 0.55 },
   "app+0.50": { app: true, strong: 0.5 },
+  // (17 Nov 2026) Two-step "sure": a lower score is enough when the lead
+  // over the next person is much bigger (raw score, lead).
+  "app+two0.40/0.12": { app: true, two: [0.4, 0.12] },
+  "app+two0.37/0.16": { app: true, two: [0.37, 0.16] },
+  // Pooling: an unnamed face is matched together with the unnamed faces that
+  // look nearly the same (raw score >= pool), as one averaged face, so one
+  // poor photo is helped by its clearer near-twins.
+  "app+pool0.55": { app: true, pool: 0.55 },
+  "app+pool0.55+two0.40/0.12": { app: true, pool: 0.55, two: [0.4, 0.12] },
 };
+const NEW_WAY = (way) => /two|pool/.test(way);
 // Why faces stay unnamed (class of 30, the app's rules): for each face of a
 // named person, what stopped it.
 const whyNot = {};
@@ -368,8 +378,12 @@ function bestPer(e, known) {
 }
 for (const kind of classKinds) {
   const rk = base(kind);
-  for (const k of [3, 5]) {
+  // 10 confirmed faces: what a school reaches after a few weeks of
+  // answering "Is this ...?" (the app's recogniser only).
+  for (const k of kind === "both" ? [3, 5, 10] : [3, 5]) {
     for (const [way, opt] of Object.entries(WAYS)) {
+      if (k === 10 && !(way === "app" || NEW_WAY(way))) continue;
+      if (NEW_WAY(way) && kind !== "both") continue;
       if (way === "strict" && kind !== "both") continue;
       if (way === "app" && !kind.startsWith("both")) continue;
       if (way.startsWith("app+") && kind !== "both") continue;
@@ -378,7 +392,8 @@ for (const kind of classKinds) {
       for (let trial = 0; trial < 20; trial++) {
         const cls = shuffle(named, cr).slice(0, 30);
         const hand = [];
-        for (const p of cls) for (const x of byPerson.get(p).slice(0, k)) hand.push({ studentId: p, embedding: x.face.emb[kind] });
+        // (never a face that is also tested: 10 = the first 5 and the 36th-40th)
+        for (const p of cls) for (const x of k <= 5 ? byPerson.get(p).slice(0, k) : [...byPerson.get(p).slice(0, 5), ...byPerson.get(p).slice(35, 30 + k)]) hand.push({ studentId: p, embedding: x.face.emb[kind] });
         const items = [];
         const more = (x) => ({ px: x.face.px ?? x.face.box[2] * x.size[0], sharp: x.face.sharpness });
         for (const p of cls) for (const x of byPerson.get(p).slice(5, 35)) items.push({ truth: p, e: x.face.emb[kind], file: x.file, ...more(x) });
@@ -391,16 +406,35 @@ for (const kind of classKinds) {
         const learned = [];
         const name = new Map(); // item index -> name
         const how = new Map();
+        const sure = (m) => {
+          if (F.isSure(m, rk)) return true;
+          if (!opt?.two) return false;
+          const top = F.unscaled(m.score, rk), next = F.unscaled(m.runnerUp, rk);
+          return top >= opt.two[0] - 1e-9 && top - next >= opt.two[1] - 1e-9;
+        };
+        // near-identical faces of each face (pooling ways only)
+        const near = opt?.pool ? items.map(() => []) : null;
+        if (near)
+          for (let a = 0; a < items.length; a++)
+            for (let b = a + 1; b < items.length; b++)
+              if (F.cosine(items[a].e, items[b].e) >= opt.pool) near[a].push(b), near[b].push(a);
         for (let round = 0; round < (opt ? 4 : 1); round++) {
           let added = 0;
           items.forEach((it, i) => {
             if (name.has(i)) return;
-            const list = F.ranked(it.e, opt ? [...hand, ...learned] : hand, rk);
+            let e = it.e;
+            const mates = near ? near[i].filter((j) => !name.has(j)) : [];
+            if (mates.length) {
+              const c = new Float32Array(e.length);
+              for (const x of [it.e, ...mates.map((j) => items[j].e)]) x.forEach((v, d) => (c[d] += v));
+              e = unit(c);
+            }
+            const list = F.ranked(e, opt ? [...hand, ...learned] : hand, rk);
             const m = list.length && list[0].score >= F.SAME_PERSON ? { studentId: list[0].studentId, score: list[0].score, runnerUp: list[1]?.score ?? 0 } : null;
-            if (!m || !F.isSure(m, rk)) return;
+            if (!m || !sure(m)) return;
             m.raw = F.unscaled(m.score, rk);
             if (opt?.app) {
-              if (!F.handAgrees(it.e, [...hand, ...learned], m.studentId, rk, { strong: opt.strong })) return;
+              if (!F.handAgrees(e, [...hand, ...learned], m.studentId, rk, { strong: opt.strong })) return;
             } else if (opt) {
               const own = bestPer(it.e, hand);
               if (own[0]?.[0] !== m.studentId || own[0][1] < opt.handMin || own[0][1] - (own[1]?.[1] ?? -1) < opt.handLead) return;
