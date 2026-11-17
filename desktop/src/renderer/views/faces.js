@@ -19,7 +19,13 @@ function noBlankFaces(box) {
     img.replaceWith(el);
   }));
   // No copy of the photo at all: no empty frame with a ring on it.
-  $$(".boxphoto img", box).forEach((img) => (img.onerror = () => img.closest(".boxphoto").remove()));
+  // The big copy can't be made (original unplugged): the small copy first,
+  // as the inline fallback did; nothing at all: no frame.
+  $$(".boxphoto img", box).forEach((img) => (img.onerror = () => {
+    const small = img.src.replace("hub://preview/", "hub://thumb/");
+    if (small !== img.src) img.src = small;
+    else img.closest(".boxphoto")?.remove();
+  }));
 }
 
 // The whole photo with one face (or several, numbered) marked on it.

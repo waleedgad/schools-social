@@ -100,7 +100,15 @@ test("Is this …?: the face is never a blank square and is easy to find in the 
     await expect.poll(async () => (await tile.count()) === 1 && (await shown()), { timeout: 30_000, message: "B-96: the face shows (from the small copy) when the original can't be reached" }).toBe(true);
 
     await win.keyboard.press("s");
-    await expect(win.locator(".zoomconfirm span.q.nopic svg"), "B-96: a plain figure, never a blank square").toBeVisible({ timeout: 30_000 });
+    // The window may still hold the picture it cut ahead of time (then the
+    // face shows); otherwise a plain figure. Never a blank square.
+    await expect
+      .poll(() => win.evaluate(() => {
+        const q = document.querySelector(".zoomconfirm .q");
+        if (q instanceof HTMLImageElement) return q.complete && q.naturalWidth > 0 ? "face" : "waiting";
+        return q?.classList.contains("nopic") && q.querySelector("svg") ? "figure" : "blank";
+      }), { timeout: 30_000, message: "B-96: the face or a plain figure, never a blank square" })
+      .toMatch(/^(face|figure)$/);
     await expect(win.locator(".zoomconfirm .fbox"), "no ring on an empty frame").toHaveCount(0);
     const grey = await win.locator(".zoomconfirm .q").evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(grey).not.toBe("rgba(0, 0, 0, 0)");
