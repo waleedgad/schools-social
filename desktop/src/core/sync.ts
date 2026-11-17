@@ -10,6 +10,7 @@ import { fileHash, prepare } from "./photo";
 import type { Job, UploadQueue } from "./queue";
 import { JsonStore } from "./store";
 import { updateWebCopy } from "./web";
+import { isInside } from "./paths";
 
 export type SyncOptions = {
   supabase: SupabaseClient;
@@ -270,7 +271,7 @@ async function listPhotos(dir: string): Promise<string[]> {
 // library, filed as <year>/<term>/<date event>. The watcher then uploads them.
 export async function importFolder(library: string, source: string, eventName: string, date: Date) {
   const target = eventFolder(library, date, eventName);
-  if (path.resolve(source).startsWith(path.resolve(library) + path.sep)) throw new Error("That folder is already inside the library");
+  if (isInside(path.resolve(library), path.resolve(source))) throw new Error("That folder is already inside the library");
   await mkdir(target, { recursive: true });
   let copied = 0;
   for (const file of await listPhotos(source)) {

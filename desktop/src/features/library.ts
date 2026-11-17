@@ -6,6 +6,7 @@ import { finderTags } from "../core/vision";
 import { schoolYear, term } from "../core/library";
 import { marks, q, type Api, type Ctx } from "./ctx";
 import { noPostFace, noPostPhoto } from "../core/privacy";
+import { isOutside } from "../core/paths";
 
 // The Library's questions: which photos, which albums, which events. Albums
 // come in sections: smart, to do, my albums, categories, occasions, people,
@@ -232,7 +233,7 @@ export function libraryApi(ctx: Ctx): Api {
     const rows = all<Record<string, any>>(`select ${PHOTO_COLUMNS} from photos p where ${where.join(" and ")} order by ${order} limit ?`, ...args, f.limit ?? 8000);
     // Photos on an archive drive that is unplugged show from their small copy.
     for (const r of rows) {
-      r.offline = r.missing ? 1 : lib && path.relative(lib, r.path).startsWith("..") && !existsSync(r.path) ? 1 : 0;
+      r.offline = r.missing ? 1 : lib && isOutside(lib, r.path) && !existsSync(r.path) ? 1 : 0;
       delete r.path;
     }
     return rows;
@@ -312,7 +313,7 @@ export function libraryApi(ctx: Ctx): Api {
       albums,
       import: imp,
       there: !p.missing && existsSync(p.path),
-      archived: !!lib && path.relative(lib, p.path).startsWith(".."),
+      archived: !!lib && isOutside(lib, p.path),
       category: categoryOf(p.event_title, p.category),
     };
   }

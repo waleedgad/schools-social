@@ -8,7 +8,7 @@ import sharp from "sharp";
 import { openDb } from "./db";
 import { importPhotos, listFiles } from "./engine";
 import { similarity } from "./faces";
-import { guessEvent, placeFromPath, termNumber } from "./library";
+import { guessEvent, placeFromPath, safeName, termNumber } from "./library";
 import { fileHash } from "./photo";
 import { classFrom, gradeLabel, parseRows } from "./students";
 
@@ -94,4 +94,16 @@ test("term folders in English and Arabic are read as Term N", () => {
   assert.equal(p.term, "Term 1");
   assert.equal(p.event?.title, "اليوم الرياضي");
   assert.equal(p.event?.date, "2025-10-12");
+});
+
+test("names made into folders work on Windows: no dots or spaces at the end, no device names", () => {
+  assert.equal(safeName("Sports day..."), "Sports day");
+  assert.equal(safeName("Trip to Luxor . "), "Trip to Luxor");
+  assert.equal(safeName("CON"), "CON_");
+  assert.equal(safeName("nul.txt"), "nul.txt_");
+  assert.equal(safeName("Com1"), "Com1_");
+  assert.equal(safeName("Console club"), "Console club");
+  assert.equal(safeName("..."), "Event");
+  assert.equal(safeName("يوم الرياضة."), "يوم الرياضة");
+  assert.equal(safeName('Art: "colours"?'), "Art colours");
 });

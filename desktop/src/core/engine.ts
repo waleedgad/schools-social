@@ -15,6 +15,7 @@ import { exclusive } from "./lock";
 import { retryBusy } from "./retry-busy";
 import { fileHash } from "./photo";
 import type { StudentRow } from "./students";
+import { isAtOrInside, isOutside, relInside } from "./paths";
 
 // The library on this computer: finds every photo under the library folder,
 // keeps the index up to date as files are added, renamed or moved, makes
@@ -72,14 +73,14 @@ export class Engine {
   }
 
   private skipped(file: string) {
-    const rel = path.relative(this.o.library, file);
-    if (rel.startsWith("..")) return true;
+    const rel = relInside(this.o.library, file);
+    if (rel === null) return true;
     // "_" folders (for example "_Staff", and the app's own "_Bin") are never read or sent.
     if (rel.split(path.sep).some((p) => p.startsWith(".") || p.startsWith("_") || p === "Bin")) return true;
     // "Drop here" sorts itself: its photos are filed by the importer first.
     if (rel.split(path.sep)[0] === "Drop here") return true;
     const skips = this.db.prepare("select path from folders where skip = 1").all() as { path: string }[];
-    return skips.some((s) => file === s.path || file.startsWith(s.path + path.sep));
+    return skips.some((s) => isAtOrInside(s.path, file));
   }
 
   // 0.3 could name one person twice in a photo. Keep the strongest face for
@@ -203,7 +204,8 @@ export class Engine {
     try {
       await walk(this.o.library);
       // The library drive may have been unplugged while the walk was running: that is not every photo deleted.
-      const missing = missingAfterScan(known.keys(), present, this.o.library, unreadable, existsSync(this.o.library));
+      // Photos moved to the archive drive live outside the library: they are not missing.
+      const missing = missingAfterScan(known.keys(), present, this.o.library, unreadable, existsSync(this.o.library)).filter((p) => !isOutside(this.o.library, p));
       const mark = this.db.prepare("update photos set missing = 1 where path = ?");
       tx(this.db, () => missing.forEach((p) => mark.run(p)));
       const back = this.db.prepare("update photos set missing = 0 where path = ? and missing = 1");

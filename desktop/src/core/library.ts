@@ -1,4 +1,5 @@
 import path from "node:path";
+import { relInside } from "./paths";
 
 // How the school's photo library folder is laid out:
 //   <library>/<school year>/<term>/<YYYY-MM-DD Event name>/<photo>
@@ -70,8 +71,14 @@ export function isoDate(date: Date) {
 }
 
 // Folder names can't hold some characters on Windows.
+// A name that is safe as a file or folder name on Mac and Windows. Windows
+// also drops dots and spaces at the end of a name ("Sports day..." became
+// "Sports day", so the app looked for photos in a folder that wasn't there)
+// and refuses device names such as CON, PRN, AUX, NUL, COM1 and LPT1.
 export function safeName(name: string) {
-  return name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Event";
+  let out = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80).replace(/[. ]+$/, "");
+  if (/^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i.test(out)) out = `${out}_`;
+  return out || "Event";
 }
 
 export function eventFolder(library: string, date: Date, eventName: string) {
@@ -107,9 +114,9 @@ export function termNumber(folder: string): number | null {
 export type Place = { year: string | null; term: string | null; event: FolderEvent | null; className: string | null };
 
 export function placeFromPath(library: string, file: string): Place {
-  const rel = path.relative(library, path.dirname(file));
+  const rel = relInside(library, path.dirname(file));
   const none: Place = { year: null, term: null, event: null, className: null };
-  if (!rel || rel.startsWith("..")) return none;
+  if (!rel) return none;
   const parts = rel.split(path.sep).filter((p) => p && p !== ".");
   let i = 0;
   const year = YEAR.test(parts[i] ?? "") ? parts[i++] : null;

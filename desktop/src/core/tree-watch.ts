@@ -2,6 +2,7 @@ import { realpathSync, watch as fsWatch, type Stats } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { watch as chokidar } from "chokidar";
+import { relInside } from "./paths";
 
 // Watches a whole folder tree (the library, a watched cloud folder) for new,
 // changed and removed photos.
@@ -124,8 +125,8 @@ export function watchTree(root: string, o: TreeWatchOptions): TreeWatcher {
   }
   const back = (name: string) => {
     const full = path.isAbsolute(name) ? name : path.join(real, name);
-    const rel = path.relative(real, full);
-    return rel.startsWith("..") || path.isAbsolute(rel) ? null : path.join(root, rel);
+    const rel = relInside(real, full);
+    return rel === null ? null : path.join(root, rel);
   };
   let w: ReturnType<typeof fsWatch> | null = null;
   try {

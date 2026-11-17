@@ -9,6 +9,7 @@ import { freeName, listFiles } from "../core/engine";
 import { bursts, calendarName, copyVerified, day, hashFile, junkReason, likelyClass, linkKind, lookAt, oneDriveShareId, parseDriveFolder, readSource, splitByGaps, type CalendarItem, type SourceFile } from "../core/importer";
 import { eventFolder, guessEvent, isLibraryFile, safeName } from "../core/library";
 import { marks, q, type Api, type Ctx } from "./ctx";
+import { isAtOrInside, relInside } from "../core/paths";
 
 const run$ = promisify(execFile);
 
@@ -76,7 +77,7 @@ export function importsApi(ctx: Ctx) {
   async function startScan(sources: string[], kind: Scan["kind"], label?: string, volume: string | null = null, temp: string | null = null) {
     const root = s().library as string | null;
     if (!root) throw new Error("no-library");
-    sources = sources.filter((d) => !(path.resolve(d) + path.sep).startsWith(path.resolve(root) + path.sep) || kind === "drop");
+    sources = sources.filter((d) => !isAtOrInside(path.resolve(root), path.resolve(d)) || kind === "drop");
     if (!sources.length) throw new Error("inside-library");
     const id = createHash("sha1").update(sources.join("|") + Date.now()).digest("hex").slice(0, 12);
     const scan: Scan = { id, kind, label: label ?? (sources.length === 1 ? path.basename(sources[0]) : `${sources.length} folders`), volume, sources, files: [], events: [], cameras: [], done: 0, total: 0, ready: false, tooBig: null };
@@ -387,8 +388,8 @@ export function importsApi(ctx: Ctx) {
   // folder itself: if the drive was just unplugged this fails, instead of
   // making a new, empty library where the drive was (B-63).
   async function mkdirInside(root: string, dir: string) {
-    const rel = path.relative(root, dir);
-    if (rel.startsWith("..") || path.isAbsolute(rel)) throw new Error("outside-library");
+    const rel = relInside(root, dir);
+    if (rel === null) throw new Error("outside-library");
     let at = root;
     for (const part of rel.split(path.sep).filter(Boolean)) {
       at = path.join(at, part);
@@ -778,12 +779,12 @@ foreach ($f in $dcim.GetFolder.Items()) { $dest.CopyHere($f, 4 + 16 + 1024); Wri
   const api: Api = {
     importChoose: async (dirs?: string[]) => {
       if (!dirs?.length) {
-        const r = await dialog.showOpenDialog(ctx.win()!, { title: "Folders to import: a card, a phone folder or a photographer's folders (choose several with ⌘ or ⇧)", properties: ["openDirectory", "multiSelections"] });
+        const r = await dialog.showOpenDialog(ctx.win()!, { title: `Folders to import: a card, a phone folder or a photographer's folders (choose several with ${process.platform === "darwin" ? "⌘ or ⇧" : "Ctrl or Shift"})`, properties: ["openDirectory", "multiSelections"] });
         if (r.canceled || !r.filePaths.length) return null;
         dirs = r.filePaths;
       }
       const vols = await volumes();
-      const card = dirs.length === 1 ? vols.find((v) => (dirs![0] + path.sep).startsWith(v.volume + path.sep) || dirs![0] === v.volume) : undefined;
+      const card = dirs.length === 1 ? vols.find((v) => isAtOrInside(v.volume, dirs![0])) : undefined;
       return startScan(dirs, card ? "card" : "folder", card?.name, card?.volume ?? null);
     },
     importCard: async (dcim: string) => {
