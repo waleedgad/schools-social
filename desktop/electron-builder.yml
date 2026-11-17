@@ -10,6 +10,14 @@ extraResources:
     to: models
   - from: helpers
     to: helpers
+# Hardening switches baked into the program (security review, 17 Nov):
+# the installed app can't be run as a plain Node.js program, ignores
+# NODE_OPTIONS, and only loads its own packed code. The debugging switch
+# stays on: the packaged-app robot test drives the app through it.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  onlyLoadAppFromAsar: true
 asarUnpack:
   - node_modules/sharp/**
   - node_modules/@img/**
