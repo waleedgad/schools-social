@@ -50,8 +50,9 @@ test("B-96: the face tile shows the face, the next ones are ready, the face is c
     await expect.poll(() => tile.evaluate((im) => (im as HTMLImageElement).complete && (im as HTMLImageElement).naturalWidth), { timeout: 20_000 }).toBeGreaterThan(50);
 
     // The next faces' pictures are already cut before this one is answered.
-    // A picture's name starts with the face number (then photo and box, so an old face's picture is never reused).
-    const cached = (id: number) => existsSync(path.join(userData, "cache", "faces")) && readdirSync(path.join(userData, "cache", "faces")).some((n) => n.startsWith(`${id}-`));
+    // Face pictures are named by face number, photo and box (B-96).
+    const faceDir = path.join(userData, "cache", "faces");
+    const cached = (id: number) => existsSync(faceDir) && readdirSync(faceDir).some((n) => n.startsWith(`${id}-`));
     const shown = await win.evaluate("1");
     expect(shown).toBe(1);
     await expect.poll(() => faceIds.filter(cached).length, { timeout: 20_000, message: "the next face pictures are made ahead" }).toBeGreaterThanOrEqual(5);

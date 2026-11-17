@@ -169,6 +169,7 @@ App.views.faces = {
       // The next few face pictures are cut while this one is answered, so
       // the tile is never blank when the next question comes (B-96).
       for (const nx of queue.slice(i + 1, i + 5)) new Image().src = `hub://face/${nx.id}`;
+      noBlankFaces(box);
       $("#a-no", box).onclick = () => FC.answer(false);
       $("#a-yes", box).onclick = () => FC.answer(true);
       $("#a-skip", box).onclick = () => FC.answer(null);
