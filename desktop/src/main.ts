@@ -36,7 +36,7 @@ import { AuraDownload } from "./core/models";
 import { visionFaces } from "./core/vision";
 import { downloadPhoto, finishCheck, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 import { exclusive } from "./core/lock";
-import { noPostFace, noPostPhoto, webCheck } from "./core/privacy";
+import { noPostFace, noPostPhoto, noPostWebPhoto, photosOfPeople, webCheck, withCopies } from "./core/privacy";
 
 type Watched = { path: string; label: string };
 type Settings = {
@@ -893,12 +893,32 @@ function restoreFaces(rows: ReturnType<typeof faceRowsFor>, inserted: number[] =
   syncOptedOut([...new Set(rows.map((r) => r.photo_id))]);
 }
 
+// Who can't appear right now, to see what a change (a class list, an undo)
+// changed: their photos are checked again and the website's list follows.
+function consentNow() {
+  return new Map(all<{ id: string; can_post: number }>("select id, can_post from students").map((r) => [r.id, r.can_post]));
+}
+function consentChanged(before: Map<string, number>, pushWeb = true) {
+  const now = consentNow();
+  const changed = [...new Set([...before.keys(), ...now.keys()])].filter((id) => (before.get(id) ?? 1) !== (now.get(id) ?? 1));
+  if (!changed.length) return;
+  syncOptedOut(photosOfPeople(db, changed));
+  const sb = client();
+  const s = settings.get();
+  if (pushWeb && sb && s.schoolId)
+    for (const id of changed.filter((id) => now.has(id)))
+      sb.from("students").update({ consent_social: now.get(id) ? "yes" : "no" }).eq("school_id", s.schoolId).eq("student_code", id).then(() => {});
+}
+
 // The website blocks a post with a photo of a student who can't appear.
 function syncOptedOut(photoIds: number[]) {
   const sb = client();
   if (!sb || !settings.get().userId || !photoIds.length) return;
-  const rows = all<{ id: number; path: string; remote_id: string; opted: number; web_blur: string | null; missing: number }>(
-    `select p.id, p.path, p.remote_id, p.web_blur, p.missing, ${noPostPhoto("p")} opted
+  // Exact copies of these photos (website uploads already in the library)
+  // follow their main photo's faces (B-111).
+  photoIds = withCopies(db, photoIds);
+  const rows = all<{ id: number; faces_of: number; path: string; remote_id: string; opted: number; web_blur: string | null; missing: number }>(
+    `select p.id, coalesce(p.dup_of, p.id) faces_of, p.path, p.remote_id, p.web_blur, p.missing, ${noPostWebPhoto("p")} opted
      from photos p where p.id in (${marks(photoIds.length)}) and p.remote_id is not null`,
     ...photoIds,
   );
@@ -912,7 +932,7 @@ function syncOptedOut(photoIds: number[]) {
     const boxes = r.opted
       ? all<{ x: number; y: number; w: number; h: number }>(
           `select f.x, f.y, f.w, f.h from faces f where f.photo_id = ? and f.w > 0 and ${noPostFace("f")}`,
-          r.id,
+          r.faces_of,
         ).map((b) => [b.x, b.y, b.w, b.h] as [number, number, number, number])
       : [];
     const key = JSON.stringify(boxes.map((b) => b.map((v) => +v.toFixed(3))));
@@ -1009,6 +1029,7 @@ async function undo() {
   const h = one<{ id: number; action: string; undo: string | null }>("select id, action, undo from history where undo is not null order by id desc limit 1");
   if (!h) return null;
   const u = JSON.parse(h.undo!);
+  const consent = consentNow();
   if (u.kind === "photos") {
     const up = db.prepare("update photos set rating = ?, flag = ?, label = ? where id = ?");
     tx(db, () => u.rows.forEach((r: { id: number; rating: number; flag: number; label: string | null }) => up.run(r.rating, r.flag, r.label, r.id)));
@@ -1020,6 +1041,9 @@ async function undo() {
   else if (u.kind === "import") await (features.undoImport as (id: number) => Promise<unknown>)(u.id);
   else if (u.kind === "sql") for (const [sql, args] of u.steps as [string, unknown[]][]) db.prepare(sql).run(...(args as never[]));
   db.prepare("update history set undo = null where id = ?").run(h.id);
+  // An undo that changes who can't appear (a "can appear" switch, a class
+  // list) reaches the website like the change itself did (B-110).
+  consentChanged(consent);
   push("all");
   return h.action;
 }
@@ -1073,6 +1097,7 @@ async function commitStudents(portraitFolder: string | null, opts: { markLeft?: 
        grade = excluded.grade, class_name = excluded.class_name, can_post = excluded.can_post, birthday = coalesce(excluded.birthday, birthday), joined = coalesce(joined, excluded.joined),
        left_on = null, left_why = null`,
   );
+  const consent = consentNow();
   tx(db, () => {
     list.forEach((s) => up.run(s.id, s.name_en, s.name_ar, s.gender, s.stage, s.grade, s.class_name, s.can_post ? 1 : 0, s.birthday ?? null, s.joined ?? (later && added.includes(s.id) ? today : null), Date.now()));
     if (opts.markLeft) for (const l of changes.left) db.prepare("update students set left_on = ?, left_why = 'left' where id = ? and left_on is null").run(today, l.id);
@@ -1085,6 +1110,9 @@ async function commitStudents(portraitFolder: string | null, opts: { markLeft?: 
     ],
   });
   pendingList = null;
+  // A new list that changes who can't appear blocks or blurs their photos
+  // on the website, the same as the switch on a student (B-110).
+  consentChanged(consent, false);
   push("students");
   let web: number | string = 0;
   const sb = client();
@@ -1947,8 +1975,9 @@ app.whenReady().then(async () => {
       const before = one<{ can_post: number }>("select can_post from students where id = ?", id);
       db.prepare("update students set can_post = ? where id = ?").run(value ? 1 : 0, id);
       remember("canPost", id, { kind: "canPost", id, value: before?.can_post ?? 1 });
-      const photoIds = all<{ photo_id: number }>("select distinct photo_id from faces where (student_id = ? and status in ('confirmed', 'manual')) or (suggest_id = ? and status = 'suggested')", id, id).map((r) => r.photo_id);
-      syncOptedOut(photoIds);
+      // Every photo the privacy rule could look at for them, likely matches
+      // and far faces too, and the copies of those photos (B-110).
+      syncOptedOut(photosOfPeople(db, [id]));
       const sb = client();
       const s = settings.get();
       if (sb && s.schoolId) sb.from("students").update({ consent_social: value ? "yes" : "no" }).eq("school_id", s.schoolId).eq("student_code", id).then(() => {});
