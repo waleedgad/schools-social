@@ -40,8 +40,9 @@ test("B-96: the face tile shows the face, the next ones are ready, the face is c
     const faceIds = photos.map((p) => Number(ins.run(p.id, 0.8, 0.22, 0.03, 0.04).lastInsertRowid));
     db.close();
 
-    // The app picks up the new rows on its next 3-second refresh.
-    await win.waitForTimeout(4500);
+    // The app picks up the new rows on its next 3-second refresh (slower on a
+    // busy test machine): wait until it knows the student.
+    await expect.poll(() => win.evaluate("S.counts.students"), { timeout: 30_000 }).toBe(1);
     await win.locator('button.nav[data-go="faces"]').click();
     await win.locator('[data-tab="review"]').click();
     const tile = win.locator(".zoomconfirm .q");
