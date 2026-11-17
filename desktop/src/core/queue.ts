@@ -66,9 +66,10 @@ export class UploadQueue {
   }
 
   // A broken file won't get better by retrying; park it for the person.
+  // Every one is kept: a dropped one would never be sent or shown again.
   fail(job: Job, error: string) {
     const { pending, failed } = this.store.get();
-    this.store.set({ pending: pending.filter((j) => j.file !== job.file), failed: [...failed, { ...job, error }].slice(-500) });
+    this.store.set({ pending: pending.filter((j) => j.file !== job.file), failed: [...failed.filter((j) => j.file !== job.file), { ...job, error }] });
   }
 
   // A photo that reached the website another way (an upload checked by
@@ -77,13 +78,17 @@ export class UploadQueue {
     this.store.set({ done: { ...this.store.get().done, [hash]: photoId } });
   }
 
-  // The web copy was removed; a restored original may be sent again.
-  unmark(hash: string) {
-    const { done } = this.store.get();
-    if (!(hash in done)) return;
-    const next = { ...done };
-    delete next[hash];
-    this.store.set({ done: next });
+  // The web copy was removed; a restored original may be sent again. Its
+  // file is forgotten too, or a photo put back from the Bin (same place,
+  // same size and date) could never be sent again, and a post with it
+  // failed with "upload-failed".
+  unmark(hash: string, files: string[] = []) {
+    const { done, seen } = this.store.get();
+    const nextDone = { ...done };
+    delete nextDone[hash];
+    const nextSeen = { ...seen };
+    for (const f of files) delete nextSeen[f];
+    if (hash in done || files.some((f) => f in seen)) this.store.set({ done: nextDone, seen: nextSeen });
   }
 
   retryFailed() {

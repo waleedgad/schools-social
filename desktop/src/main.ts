@@ -10,7 +10,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, ne
 import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
-import { checkpointInBackground, openDb, tx, type Db } from "./core/db";
+import { checkpointInBackground, closeDbFully, openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { likelihood, SHOW_FROM, SURE } from "./core/faces";
@@ -269,7 +269,8 @@ async function restoreBackup(name: string) {
   if (!existsSync(path.join(dir, "library.db"))) throw new Error("no-backup");
   await engine?.stop();
   await sync?.stop();
-  db.close();
+  // The background write-back thread must let go of the file first.
+  await closeDbFully(db);
   for (const f of ["library.db-wal", "library.db-shm"]) fs.rmSync(data(f), { force: true });
   fs.copyFileSync(path.join(dir, "library.db"), data("library.db"));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(path.join(dir, f))) fs.copyFileSync(path.join(dir, f), data(f));
@@ -700,7 +701,9 @@ function missingOriginals() {
 }
 
 function missingSummary() {
-  const rows = missingOriginals();
+  // The library drive isn't plugged in: nothing is missing, it's all away.
+  const lib = settings.get().library;
+  const rows = lib && !existsSync(lib) ? [] : missingOriginals();
   // Some came back (drive plugged in, or found): ask again if more go.
   if (rows.length < settings.get().missingAck) settings.set({ missingAck: rows.length });
   const byFolder = new Map<string, number>();
@@ -1211,6 +1214,10 @@ async function checkWebUploads() {
         const ok = await writeFile(file, bytes, { flag: "wx" }).then(() => true, (e) => (e.code === "EEXIST" ? false : Promise.reject(e)));
         if (ok) {
           pending[file] = w.id;
+          // Written down at once: if a later download fails (or the app
+          // closes), this photo was otherwise fetched again as "name (2)",
+          // and the first copy was treated as the school's own photo.
+          webChecks.set({ pending: { ...webChecks.get().pending, [file]: w.id } });
           break;
         }
       }
@@ -1250,7 +1257,8 @@ function removeWebCopiesOf(rows: { id: number; hash: string | null; remote_id: s
     .then((gone) => {
       for (const r of sent.filter((x) => gone.includes(x.remote_id!))) {
         db.prepare("update photos set remote_id = null where id = ?").run(r.id);
-        if (r.hash) queue.unmark(r.hash);
+        const file = one<{ path: string }>("select path from photos where id = ?", r.id)?.path;
+        queue.unmark(r.hash ?? "", file ? [file] : []);
       }
     })
     .catch((e) => (lastMessage = String(e)));

@@ -127,8 +127,11 @@ export class Engine {
     });
     this.watcher.on("add", (file, stats) => stats && this.seen(file, stats.size, stats.mtimeMs));
     this.watcher.on("change", (file, stats) => stats && this.seen(file, stats.size, stats.mtimeMs));
-    this.watcher.on("unlink", (file) => this.gone(file));
+    // The library drive unplugged looks like every folder deleted: that's
+    // not every photo missing (the whole library offered to "Forget").
+    this.watcher.on("unlink", (file) => existsSync(this.o.library) && this.gone(file));
     this.watcher.on("unlinkDir", (dir) => {
+      if (!existsSync(this.o.library)) return;
       this.db.prepare("update photos set missing = 1 where path like ? escape '\\'").run(like(dir + path.sep));
       this.o.onChange("photos");
     });
@@ -148,7 +151,7 @@ export class Engine {
     this.watcher = null;
   }
 
-  // Walks the whole library once. Files that haven't changed are skipped.
+  // Walks the whole library once. Files whose size and date haven't changed are skipped.
   async scan() {
     busy.set("reading the library folder");
     // The library drive isn't there: that's not every photo deleted.
@@ -183,14 +186,17 @@ export class Engine {
         } else if (e.isFile() && isLibraryFile(full)) {
           present.add(full);
           const k = known.get(full);
-          if (k) continue;
+          let s;
           try {
-            const s = await stat(full);
-            this.seen(full, s.size, s.mtimeMs);
-            this.status.found++;
+            s = await stat(full);
           } catch {
-            // vanished while scanning
+            continue; // vanished while scanning
           }
+          // A known photo edited while the app was closed (no watch saw it)
+          // is read again, like one changed while the app is open (B-81).
+          if (k && k.size === s.size && k.mtime === Math.round(s.mtimeMs)) continue;
+          this.seen(full, s.size, s.mtimeMs);
+          if (!k) this.status.found++;
         }
       }
     };
