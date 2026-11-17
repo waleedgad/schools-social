@@ -4,6 +4,14 @@ Written by a Claude chat session working with Waleed. Read this first if you
 are another Claude session or thread picking up this project. See `README.md`
 in this folder for the rules.
 
+> **UPDATE 17 Nov 2026, midday Cairo time: the merge order below is OUT OF DATE.**
+> The project threads read these notes and already built on them:
+> - The faces thread fixed B-96 itself on the 0.12 line (`claude/project-thread-syqjmv`: urgent lane, look-ahead, ring). So **PR #1 duplicates that fix and should NOT be merged as is.**
+> - `claude/project-thread-q91dwp` (`docs/handoff/0.12-integration.md`) took the five blank-picture fixes from PR #3 (now B-97..B-101) and only the parts of PR #1 that the faces thread's fix did not cover (B-102). `claude/project-thread-opamc2` (draft PR #4 into syqjmv, `docs/handoff/face-accuracy.md`) joined both B-96 fixes and the five fixes. Eyes-and-smiles models were left out of both.
+> - Use the 0.12 line (syqjmv plus PR #4 / q91dwp) as the base. PRs #1 and #3 are now reference only; close them once the integration is merged, so nobody merges a duplicate.
+> - The bug tracker is `/mnt/project-files/tracker/bugs.md` inside the threads' project files (not in this repo). B-106..B-109 were renumbered B-123..B-126; B-110 and B-111 are the can't-appear privacy bugs found by the code-review thread.
+> - Other live handoff notes: `docs/handoff/code-review-0.11-0.12.md` (branch yt6e2w), `face-accuracy.md` (opamc2), `0.12-integration.md` (q91dwp).
+
 ## State of the branches (as of 17 Nov 2026, early morning Cairo time)
 
 - `main` is behind: it stops at 81859f1 (11 Nov, desktop 0.11.0). Newer work is
