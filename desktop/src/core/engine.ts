@@ -8,7 +8,7 @@ import { watchTree, type TreeWatcher } from "./tree-watch";
 import exifr from "exifr";
 import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
-import { assignPhoto, clearEnough, cosine, facePx, findFaces, guessTraits, handAgrees, HI_RES, isSure, learnFrom, likelihood, ranked, SAME_PERSON, scaled, SHOW_FROM, SUGGEST_PX, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
+import { assignPhoto, clearEnough, cosine, eyesShut, facePx, findFaces, readEyes, guessTraits, handAgrees, HI_RES, isSure, learnFrom, likelihood, ranked, SAME_PERSON, scaled, SHOW_FROM, SUGGEST_PX, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
 import { hamming, makeThumb, measure, score, source } from "./media";
 import { exclusive } from "./lock";
@@ -51,6 +51,9 @@ export class Engine {
   private watcher: TreeWatcher | null = null;
   private work: number[] = [];
   private faceWork: number[] = [];
+  // Photos scanned before 0.12 whose eyes are read in the background, after
+  // everything else (see queueEyes).
+  private eyesWork: number[] = [];
   private running = 0;
   private scanning = false;
   private timer: NodeJS.Timeout | null = null;
@@ -118,6 +121,7 @@ export class Engine {
     this.upgradeRecogniser();
     this.upgradeReading();
     this.tidySuggestions();
+    this.queueEyes();
     const fixed = this.dedupePeople();
     if (fixed) this.o.log?.(`one person per photo: ${fixed} faces freed`);
     this.timer = setInterval(() => this.pump(), 400);
@@ -357,10 +361,10 @@ export class Engine {
     this.status.processing = this.work.length;
     this.status.faceQueue = this.faceWork.length;
     if (this.o.paused()) return;
-    while (this.running < 3 && (this.work.length || this.faceWork.length)) {
+    while (this.running < 3 && (this.work.length || this.faceWork.length || this.eyesWork.length)) {
       const id = this.work.shift();
       this.running++;
-      const job = id !== undefined ? this.process(id) : this.scanFaces(this.faceWork.shift()!);
+      const job = id !== undefined ? this.process(id) : this.faceWork.length ? this.scanFaces(this.faceWork.shift()!) : this.eyesJob(this.eyesWork.shift()!);
       job
         .catch((e) => this.o.log?.(String(e)))
         .finally(() => {
@@ -546,17 +550,18 @@ export class Engine {
       tx(this.db, () => {
         this.db.prepare(`delete from faces where photo_id = ? and portrait = 0 and w > 0 ${lost.length ? `and id not in (${lost.join(",")})` : ""}`).run(id);
         const insert = this.db.prepare(
-          "insert into faces (photo_id, x, y, w, h, score, embedding, status, student_id, suggest_id, suggest_score, auto, rejected, model, why, named_by) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "insert into faces (photo_id, x, y, w, h, score, embedding, status, student_id, suggest_id, suggest_score, auto, rejected, model, why, named_by, blink, ear, turn) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         );
         found.forEach((f, i) => {
           const k = kept.get(i);
           const blob = toBlob(f.embedding);
+          const e = f.eyes ? [f.eyes.blink, f.eyes.ear, f.eyes.turn] : [null, null, null];
           if (k && (["confirmed", "manual", "rejected"].includes(k.status as string) && !(k.status === "confirmed" && k.auto))) {
-            insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, k.status === "manual" ? "confirmed" : (k.status as string), (k.student_id as string) ?? null, null, null, 0, (k.rejected as string) ?? "", model, null, (k.named_by as string) ?? null);
+            insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, k.status === "manual" ? "confirmed" : (k.status as string), (k.student_id as string) ?? null, null, null, 0, (k.rejected as string) ?? "", model, null, (k.named_by as string) ?? null, ...e);
             return;
           }
           if (!f.usable) {
-            insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, "background", null, null, null, 0, (k?.rejected as string) ?? "", model, f.why, null);
+            insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, "background", null, null, null, 0, (k?.rejected as string) ?? "", model, f.why, null, ...e);
             return;
           }
           const m = matches[i];
@@ -565,18 +570,13 @@ export class Engine {
           // Far or blurred faces are never suggested and ask nothing ("far").
           const far = !clearEnough(facePx(f.box[2], p.width as number, p.height as number), f.sharpness);
           const status = sure ? "confirmed" : m && m.score >= SHOW_FROM && !far ? "suggested" : "unknown";
-          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, status, sure ? m!.studentId : null, m?.studentId ?? null, m?.score ?? null, sure ? 1 : 0, (k?.rejected as string) ?? "", model, far && !sure ? "far" : null, sure ? "auto" : null);
+          insert.run(id, f.box[0], f.box[1], f.box[2], f.box[3], f.score, blob, status, sure ? m!.studentId : null, m?.studentId ?? null, m?.score ?? null, sure ? 1 : 0, (k?.rejected as string) ?? "", model, far && !sure ? "far" : null, sure ? "auto" : null, ...e);
         });
         const usable = found.filter((f) => f.usable);
-        const biggest = usable.reduce((mx, f) => Math.max(mx, f.box[2]), 0);
-        // Smiles, from the face points: a wider mouth for the distance
-        // between the eyes. Used by the smile finder and "Best photos".
-        const smiles = usable.map((f) => smileOf(f.landmarks)).filter((v): v is number => v !== null);
-        const smile = smiles.length ? smiles.reduce((a, b) => a + b, 0) / smiles.length : null;
-        const problems = photoProblems(p.sharpness as number, p.brightness as number, usable.map((f) => f.box));
+        const look = photoLook(p.sharpness as number | null, p.brightness as number | null, usable.map((f) => ({ box: f.box, sharpness: f.sharpness, landmarks: f.landmarks, eyes: f.eyes ?? null })));
         this.db
-          .prepare("update photos set faces_scanned = 1, face_count = ?, quality = ?, smile = ?, problems = ? where id = ?")
-          .run(usable.length, score(p.sharpness as number, p.brightness as number, usable.length, biggest) + (smile ? Math.max(0, smile - 0.85) * 4 : 0), smile, problems, id);
+          .prepare("update photos set faces_scanned = 1, eyes_read = 1, face_count = ?, quality = ?, smile = ?, problems = ? where id = ?")
+          .run(usable.length, look.quality, look.smile, look.problems, id);
         this.db.prepare("update faces set read = 2 where photo_id = ? and portrait = 0").run(id);
       });
       this.o.onChange("faces");
@@ -585,6 +585,53 @@ export class Engine {
       this.o.log?.(`faces ${path.basename(p.path as string)}: ${e instanceof Error ? e.message : e}`);
       this.db.prepare("update photos set faces_scanned = -1 where id = ?").run(id);
     }
+  }
+
+  // Photos whose faces were found before 0.12 have no eyes read yet: they
+  // are read in the background, newest first, once nothing else is waiting.
+  // Names and suggestions are not touched; only the photo's score and its
+  // "eyes closed" badge change.
+  queueEyes() {
+    if (!this.o.faces()) return 0;
+    const rows = this.db
+      .prepare("select id from photos where missing = 0 and faces_scanned = 1 and eyes_read = 0 and face_count > 0 and dup_of is null and pair_of is null order by coalesce(taken_at, event_date) desc, id desc")
+      .all() as { id: number }[];
+    const queued = new Set(this.eyesWork);
+    this.eyesWork.push(...rows.map((r) => r.id).filter((id) => !queued.has(id)));
+    return rows.length;
+  }
+
+  private eyesJob(id: number) {
+    return exclusive(() => this.eyes(id));
+  }
+
+  async eyes(id: number) {
+    const p = this.db.prepare("select path, missing, faces_scanned, eyes_read, quality, problems from photos where id = ?").get(id) as Row | undefined;
+    if (!p || p.missing || p.faces_scanned !== 1 || p.eyes_read) return;
+    busy.set("reading eyes");
+    const faces = this.db
+      .prepare("select id, x, y, w, h from faces where photo_id = ? and portrait = 0 and w > 0 and status not in ('background', 'rejected') order by id")
+      .all(id) as { id: number; x: number; y: number; w: number; h: number }[];
+    let read: Awaited<ReturnType<typeof readEyes>> = [];
+    try {
+      read = await readEyes(this.o.models, await source(p.path as string), faces.map((f) => [f.x, f.y, f.w, f.h]));
+    } catch (e) {
+      this.o.log?.(`eyes ${path.basename(p.path as string)}: ${e instanceof Error ? e.message : e}`);
+    }
+    const look = faces.map((f, i) => ({ w: f.w, eyes: read[i] ?? null }));
+    const judged = look.filter((f) => f.eyes);
+    const weight = judged.reduce((t, f) => t + f.w, 0);
+    const shutShare = weight > 0 ? judged.filter((f) => eyesShut(f.eyes)).reduce((t, f) => t + f.w, 0) / weight : 0;
+    const closed = eyesProblem(look.map((f) => ({ w: f.w, shut: eyesShut(f.eyes), judged: !!f.eyes })));
+    const problems = [...((p.problems as string | null) ?? "").split(",").filter((x) => x && x !== "eyes-closed"), ...(closed ? ["eyes-closed"] : [])].join(",") || null;
+    tx(this.db, () => {
+      const up = this.db.prepare("update faces set blink = ?, ear = ?, turn = ? where id = ?");
+      faces.forEach((f, i) => read[i] && up.run(read[i]!.blink, read[i]!.ear, read[i]!.turn, f.id));
+      this.db
+        .prepare("update photos set eyes_read = 1, quality = ?, problems = ? where id = ?")
+        .run(Math.round((((p.quality as number | null) ?? 0) - shutShare * 3) * 10) / 10, problems, id);
+    });
+    this.o.onChange("photos");
   }
 
   queueFaceScan() {
@@ -921,7 +968,7 @@ export class Engine {
         [".jpg", ".jpeg", ".png", ".heic"].map((e) => byName.get(`${s.id.toLowerCase()}${e}`)).find(Boolean);
       if (!name) continue;
       try {
-        const faces = await exclusive(() => findFaces(this.o.models, path.join(folder, name), { aura: this.o.aura?.() ?? null }));
+        const faces = await exclusive(() => findFaces(this.o.models, path.join(folder, name), { aura: this.o.aura?.() ?? null, eyes: false }));
         const face = faces.sort((a, b) => b.box[2] * b.box[3] - a.box[2] * a.box[3])[0];
         if (!face) continue;
         const portraitFile = path.join(this.o.cache, "portraits", `${safeName(s.id)}.jpg`);
@@ -949,7 +996,7 @@ export class Engine {
     for (const r of rows) {
       if (!existsSync(r.portrait)) continue;
       try {
-        const faces = await exclusive(() => findFaces(this.o.models, r.portrait, { aura: this.o.aura?.() ?? null }));
+        const faces = await exclusive(() => findFaces(this.o.models, r.portrait, { aura: this.o.aura?.() ?? null, eyes: false }));
         const face = faces.sort((a, b) => b.box[2] * b.box[3] - a.box[2] * a.box[3])[0];
         if (!face) continue;
         this.db.prepare("insert into faces (photo_id, x, y, w, h, score, embedding, student_id, status, portrait, model) values (?, ?, ?, ?, ?, ?, ?, ?, 'portrait', 1, ?)").run(
@@ -1098,45 +1145,22 @@ export class Engine {
     return groups;
   }
 
-  // The best few photos of an event or class: quality first, one per burst,
-  // and spread across different students where faces are known.
+  // The best few photos of an event or class (see pickBest).
   bestPhotos(ids: number[], count: number) {
     if (!ids.length) return [];
     const rows = this.db
-      .prepare(`select id, quality, flag, rating from photos where id in (${ids.map(() => "?").join(",")}) and flag >= 0`)
-      .all(...ids) as { id: number; quality: number; flag: number; rating: number }[];
+      .prepare(`select id, quality, flag, rating, problems, dhash, coalesce(taken_at, event_date) at from photos where id in (${ids.map(() => "?").join(",")}) and flag >= 0`)
+      .all(...ids) as Candidate[];
+    if (!rows.length) return [];
     const burst = new Map<number, number>();
     this.similarGroups(rows.map((r) => r.id)).forEach((g, i) => g.forEach((id) => burst.set(id, i)));
-    const kids = new Map<number, string[]>();
+    const people = new Map<number, string[]>();
     for (const f of this.db
-      .prepare(`select photo_id, coalesce(student_id, suggest_id) s from faces where photo_id in (${rows.map(() => "?").join(",")}) and coalesce(student_id, suggest_id) is not null`)
+      .prepare(`select photo_id, coalesce(student_id, suggest_id) s from faces where photo_id in (${rows.map(() => "?").join(",")}) and coalesce(student_id, suggest_id) is not null and status in ('confirmed', 'suggested', 'manual')`)
       .all(...rows.map((r) => r.id)) as { photo_id: number; s: string }[]) {
-      kids.set(f.photo_id, [...(kids.get(f.photo_id) ?? []), f.s]);
+      people.set(f.photo_id, [...(people.get(f.photo_id) ?? []), f.s]);
     }
-    const value = (r: (typeof rows)[number]) => (r.quality ?? 0) + r.rating * 1.5 + (r.flag > 0 ? 4 : 0);
-    const ranked = rows.sort((a, b) => value(b) - value(a));
-    const chosen: number[] = [];
-    const usedBursts = new Set<number>();
-    const shown = new Map<string, number>();
-    while (chosen.length < count && ranked.length) {
-      let bestIndex = 0;
-      let bestValue = -Infinity;
-      ranked.forEach((r, i) => {
-        const b = burst.get(r.id);
-        const repeat = (kids.get(r.id) ?? []).reduce((s, k) => s + (shown.get(k) ?? 0), 0);
-        const v = value(r) - (b !== undefined && usedBursts.has(b) ? 6 : 0) - repeat * 0.8;
-        if (v > bestValue) {
-          bestValue = v;
-          bestIndex = i;
-        }
-      });
-      const [r] = ranked.splice(bestIndex, 1);
-      chosen.push(r.id);
-      const b = burst.get(r.id);
-      if (b !== undefined) usedBursts.add(b);
-      for (const k of kids.get(r.id) ?? []) shown.set(k, (shown.get(k) ?? 0) + 1);
-    }
-    return chosen;
+    return pickBest(rows, count, { burst, people });
   }
 
   // Moves photos into another event folder (and class), keeping all tags.
@@ -1234,14 +1258,98 @@ export function smileOf(l: number[]) {
   return eyes > 0 ? mouth / eyes : null;
 }
 
+export type Candidate = { id: number; quality: number | null; flag: number; rating: number; problems: string | null; dhash: string | null; at: string | null };
+
+// Choosing the best few photos for a post (Make posts, Make a week):
+// - the photo's own score first (sharp, well lit, faces big enough, smiles,
+//   nobody blinking), then the school's stars and green flags;
+// - photos with something wrong (blurry, eyes closed) only when there
+//   aren't enough good ones;
+// - one photo per burst, and never two that look the same, even when the
+//   camera gave no time (WhatsApp copies, screenshots);
+// - as many different students as possible: a student not shown yet
+//   counts for the photo, one shown already counts against it;
+// - moments spread over the event rather than five shots of one minute.
+export function pickBest(rows: Candidate[], count: number, o: { burst?: Map<number, number>; people?: Map<number, string[]> } = {}) {
+  const bad = (r: Candidate) => /\b(blurry|eyes-closed)\b/.test(r.problems ?? "");
+  const value = (r: Candidate) => {
+    const p = r.problems ?? "";
+    return (r.quality ?? 0) + r.rating * 1.5 + (r.flag > 0 ? 4 : 0) - (bad(r) ? 3 : 0) - (/head-cut/.test(p) ? 1 : 0) - (/\b(dark|bright)\b/.test(p) ? 1 : 0);
+  };
+  const good = rows.filter((r) => !bad(r) || r.flag > 0);
+  const pool = (good.length >= count ? good : rows).slice();
+  const time = (r: Candidate) => (r.at && r.at.length > 10 ? Date.parse(r.at) : NaN);
+  const chosen: Candidate[] = [];
+  const usedBursts = new Set<number>();
+  const shown = new Map<string, number>();
+  while (chosen.length < count && pool.length) {
+    let bestIndex = -1;
+    let bestValue = -Infinity;
+    pool.forEach((r, i) => {
+      const b = o.burst?.get(r.id);
+      const kids = [...new Set(o.people?.get(r.id) ?? [])];
+      const fresh = kids.filter((k) => !shown.has(k)).length;
+      const repeat = kids.reduce((t, k) => t + (shown.get(k) ?? 0), 0);
+      const t = time(r);
+      const same = r.dhash ? chosen.some((c) => c.dhash && hamming(c.dhash, r.dhash!) <= 6) : false;
+      const close = Number.isFinite(t) && chosen.some((c) => Math.abs(time(c) - t) < 60_000);
+      const v = value(r) - (b !== undefined && usedBursts.has(b) ? 6 : 0) - (same ? 8 : 0) - (close ? 1 : 0) + Math.min(3, fresh) * 0.6 - repeat * 0.8;
+      if (v > bestValue) {
+        bestValue = v;
+        bestIndex = i;
+      }
+    });
+    const [r] = pool.splice(bestIndex, 1);
+    chosen.push(r);
+    const b = o.burst?.get(r.id);
+    if (b !== undefined) usedBursts.add(b);
+    for (const k of new Set(o.people?.get(r.id) ?? [])) shown.set(k, (shown.get(k) ?? 0) + 1);
+  }
+  return chosen.map((r) => r.id);
+}
+
+// What the faces add to a photo's score and badges, once they are found:
+// - sharpness is judged on the main face too, so a portrait with a soft
+//   background (the photographer's choice) is not "blurry";
+// - shut eyes cost the photo points and add the "eyes-closed" badge;
+// - smiles (mouth width over eye distance) add a little.
+export type LookFace = { box: number[]; sharpness: number; landmarks: number[]; eyes: { blink: number; ear: number; turn: number; presence?: number } | null };
+export function photoLook(sharpness: number | null, brightness: number | null, faces: LookFace[]) {
+  const main = faces.reduce<LookFace | null>((m, f) => (!m || f.box[2] > m.box[2] ? f : m), null);
+  // The main face only counts when it is a real part of the picture.
+  const sharp = sharpness !== null && main && main.box[2] >= 0.04 ? Math.max(sharpness, main.sharpness) : sharpness;
+  const biggest = main?.box[2] ?? 0;
+  const smiles = faces.map((f) => smileOf(f.landmarks)).filter((v): v is number => v !== null);
+  const smile = smiles.length ? smiles.reduce((a, b) => a + b, 0) / smiles.length : null;
+  // Shut eyes, weighted by face size: the main person blinking spoils the
+  // photo; one small face at the back blinking costs a little.
+  const judged = faces.filter((f) => f.eyes);
+  const weight = judged.reduce((t, f) => t + f.box[2], 0);
+  const shutShare = weight > 0 ? judged.filter((f) => eyesShut(f.eyes)).reduce((t, f) => t + f.box[2], 0) / weight : 0;
+  const quality = Math.round((score(sharp ?? 0, brightness ?? 0.5, faces.length, biggest) + (smile ? Math.max(0, smile - 0.85) * 4 : 0) - shutShare * 3) * 10) / 10;
+  const problems = photoProblems(sharp, brightness, faces.map((f) => f.box), faces.map((f) => ({ w: f.box[2], shut: eyesShut(f.eyes), judged: !!f.eyes })));
+  return { quality, smile, problems, shutShare };
+}
+
+// Eyes closed is a problem when someone big in the photo blinks, or a
+// quarter of the faces that could be judged did.
+export function eyesProblem(eyes: { w: number; shut: boolean; judged: boolean }[]) {
+  const judged = eyes.filter((e) => e.judged);
+  const shut = judged.filter((e) => e.shut);
+  if (!shut.length) return false;
+  const big = Math.max(...judged.map((e) => e.w));
+  return shut.some((e) => e.w >= 0.06 || (e.w >= big && judged.length <= 3)) || shut.length >= Math.max(1, Math.ceil(judged.length * 0.25));
+}
+
 // What might be wrong with a photo, in words the Library shows as badges.
-export function photoProblems(sharpness: number | null, brightness: number | null, faces: number[][]) {
+export function photoProblems(sharpness: number | null, brightness: number | null, faces: number[][], eyes: { w: number; shut: boolean; judged: boolean }[] = []) {
   const out: string[] = [];
   if (sharpness !== null && sharpness < 25) out.push("blurry");
   if (brightness !== null && brightness < 0.11) out.push("dark");
   if (brightness !== null && brightness > 0.92) out.push("bright");
   if (faces.some((b) => b[1] < 0.004 && b[3] > 0.06)) out.push("head-cut");
   if (faces.length >= 1 && faces.every((b) => b[2] < 0.025)) out.push("faces-small");
+  if (eyesProblem(eyes)) out.push("eyes-closed");
   return out.join(",") || null;
 }
 

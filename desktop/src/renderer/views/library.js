@@ -86,7 +86,7 @@ function togglePin(id) {
 const eventLabel = (ev) => eventName(ev.event_title, ev.event_date);
 const labelName = (l) => ({ red: L("Red", "أحمر"), yellow: L("Yellow", "أصفر"), green: L("Green", "أخضر") })[l] ?? l;
 const PROBLEMS = () => ({
-  blurry: L("Blurry", "ضبابية"), dark: L("Too dark", "مظلمة"), bright: L("Too bright", "ساطعة جدًا"), "head-cut": L("Head cut off", "رأس مقطوع"), "faces-small": L("Faces too small", "وجوه صغيرة جدًا"),
+  blurry: L("Blurry", "ضبابية"), dark: L("Too dark", "مظلمة"), bright: L("Too bright", "ساطعة جدًا"), "head-cut": L("Head cut off", "رأس مقطوع"), "faces-small": L("Faces too small", "وجوه صغيرة جدًا"), "eyes-closed": L("Eyes closed", "عيون مغمضة"),
 });
 
 App.views.library = {

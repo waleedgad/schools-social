@@ -1,5 +1,6 @@
 import path from "node:path";
 import sharp from "sharp";
+import { loadExpression, readExpression, type Expression } from "./expression";
 
 // Local face finding and matching. Nothing here leaves the computer.
 //   YuNet    finds faces and five landmarks (eyes, nose, mouth corners).
@@ -33,6 +34,9 @@ export type Face = {
   // second look at just this face (null: it saw no face there).
   detScore?: number;
   zoomScore?: number | null;
+  // Eyes open or shut, turned away (MediaPipe, see expression.ts). Null when
+  // the face is too small to tell or the models aren't in the app folder.
+  eyes?: Expression | null;
   // Other ways of describing the same face, for the face test only.
   variants?: Record<string, Float32Array>;
 };
@@ -309,6 +313,8 @@ export type FindOptions = {
   // descriptions next to the app's own, to compare them face by face.
   legacy?: boolean;
   variants?: ("v1" | "aa")[];
+  // false: don't read eyes (the face test, which only names people).
+  eyes?: boolean;
 };
 
 type Img = { data: Buffer; width: number; height: number };
@@ -484,9 +490,58 @@ export async function findFaces(modelsDir: string, file: string | Buffer, o: Fin
       if (!v && visionCanSee(box, width, height)) why = "not-a-face";
       else if (v && v.quality < 0.12) why = "blurred";
     }
-    result.push({ box, score: f.score, landmarks: lm.map((v) => v / K), embedding, usable: !why, why, sharpness, px: boxS[2], detScore: f.score, zoomScore, variants });
+    // Eyes and turn, for picking the best photos: only faces big enough to
+    // see the eyes (a face at the back of a class photo is left unknown).
+    let eyes: Expression | null = null;
+    if (!o.legacy && !why && o.eyes !== false && boxS[2] >= EYES_PX) {
+      const m = await loadExpression(ort, modelsDir).catch(() => null);
+      if (m) eyes = await readExpression(ort, m, src, boxS, lm).catch(() => null);
+    }
+    result.push({ box, score: f.score, landmarks: lm.map((v) => v / K), embedding, usable: !why, why, sharpness, px: boxS[2], detScore: f.score, zoomScore, variants, eyes });
   }
   return Object.assign(result, { recogniser: kind });
+}
+
+// A face narrower than this (in the pixels it was read from) is too small
+// to tell open eyes from shut ones.
+export const EYES_PX = 48;
+
+// Eyes shut (a blink, not a wink): the expression model says so, or the
+// eye opening measured on the face points is small and the model half agrees.
+// A face turned well away is not judged. Checked on a portrait with its eyes
+// painted shut (blink 0.30, opening 0.15) and open (0.04, 0.31).
+export function eyesShut(e: { blink: number; ear: number; turn: number; presence?: number } | null | undefined) {
+  if (!e || (e.presence ?? 1) < 0.5 || e.turn > 0.6) return false;
+  return e.blink >= 0.5 || (e.ear < 0.2 && e.blink >= 0.25);
+}
+
+// Eyes for faces found before 0.12 (no face points were kept): the photo
+// is opened once, each face gets the closer second look for its points and
+// then the expression models. boxes are fractions of the photo; the answer
+// has one entry per box (null: too small, or no face seen there).
+export async function readEyes(modelsDir: string, file: string | Buffer, boxes: number[][]): Promise<(Expression | null)[]> {
+  const { ort, detector } = await loadModels(modelsDir);
+  const m = await loadExpression(ort, modelsDir);
+  if (!m || !boxes.length) return boxes.map(() => null);
+  const r = await sharp(file, { failOn: "none" })
+    .rotate()
+    .resize({ width: HI_RES, height: HI_RES, fit: "inside", withoutEnlargement: true })
+    .removeAlpha()
+    .toColourspace("srgb")
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const img: Img = { data: r.data, width: r.info.width, height: r.info.height };
+  const out: (Expression | null)[] = [];
+  for (const b of boxes) {
+    const box = [b[0] * img.width, b[1] * img.height, b[2] * img.width, b[3] * img.height];
+    if (box[2] < EYES_PX) {
+      out.push(null);
+      continue;
+    }
+    const z = await secondLook(ort, detector, img, box).catch(() => null);
+    out.push(z ? await readExpression(ort, m, img, box, z.landmarks).catch(() => null) : null);
+  }
+  return out;
 }
 
 // Below this width on the 2000 px copy a face gains from the original.

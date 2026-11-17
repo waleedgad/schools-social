@@ -74,7 +74,7 @@ const pct = (n, d) => (d ? `${((100 * n) / d).toFixed(1)}%` : "–");
 // uses it.
 const whyCount = {};
 async function analyse(file, o = {}) {
-  const found = await F.findFaces(MODELS, file, { aura: auraFile, ...o });
+  const found = await F.findFaces(MODELS, file, { aura: auraFile, eyes: false, ...o });
   const { info } = await sharp(file, { failOn: "none" }).rotate().resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true }).jpeg().toBuffer({ resolveWithObject: true });
   const out = [];
   for (const f of found) {
