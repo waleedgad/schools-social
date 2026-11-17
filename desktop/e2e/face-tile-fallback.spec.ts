@@ -1,5 +1,5 @@
 import { _electron, expect, test } from "@playwright/test";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -81,9 +81,17 @@ test("Is this …?: the face is never a blank square and is easy to find in the 
     // While the questions are on screen: the drive with photo 2 is unplugged
     // (its big copy was never made), photo 3 has no copy at all left, and
     // photo 4 was read again so its face is gone.
+    // The next faces' pictures are cut ahead of time; wait for that to finish
+    // so it can't race the unplugging below.
+    const faceDir = path.join(userData, "cache", "faces");
+    const cut = (id: number) => existsSync(faceDir) && readdirSync(faceDir).some((n) => n.startsWith(`${id}-`));
+    await expect.poll(() => cut(faces[1]) && cut(faces[2]), { timeout: 30_000 }).toBe(true);
+    // Photo 2's picture is thrown away too: it must be cut again from the small copy.
+    for (const n of readdirSync(faceDir)) if (n.startsWith(`${faces[1]}-`)) rmSync(path.join(faceDir, n));
     rmSync(cache("previews", photos[1].id), { force: true });
     rmSync(photos[1].path);
     for (const kind of ["previews", "thumbs"]) rmSync(cache(kind, photos[2].id), { force: true });
+    for (const n of readdirSync(faceDir)) if (n.startsWith(`${faces[2]}-`)) rmSync(path.join(faceDir, n));
     rmSync(photos[2].path);
     db.prepare("delete from faces where id = ?").run(faces[3]);
 
