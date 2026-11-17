@@ -85,7 +85,7 @@ test("web copies: blurred for students who can't appear, replaced when the photo
       .toEqual({ boxes: 1, blocked: false });
     const blurred = (await web())[0];
     expect(blurred.storage_path).not.toBe(first.storage_path);
-    expect(await files(), "the old pictures are gone").not.toContain(path.basename(first.storage_path as string));
+    await expect.poll(() => files(), { timeout: 15_000, message: "the old pictures are gone" }).not.toContain(path.basename(first.storage_path as string));
 
     // Nour may appear again: the plain copy comes back.
     await call("setCanPost", "NO1", true);
@@ -123,7 +123,7 @@ test("web copies: blurred for students who can't appear, replaced when the photo
     const img = (await admin.storage.from("photos").download(after.storage_path as string)).data!;
     const { dominant } = await sharp(Buffer.from(await img.arrayBuffer())).stats();
     expect(dominant.r, "the website shows the retouched picture").toBeGreaterThan(110);
-    expect((await files()).filter((f) => !f.endsWith("_t.jpg"))).toEqual([path.basename(after.storage_path as string)]);
+    await expect.poll(async () => (await files()).filter((f) => !f.endsWith("_t.jpg")), { timeout: 15_000 }).toEqual([path.basename(after.storage_path as string)]);
   } finally {
     await app.close();
   }

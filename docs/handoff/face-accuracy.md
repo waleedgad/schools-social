@@ -22,18 +22,26 @@ Goal: about 95% of faces named by the app itself, with no wrong names.
   Experiments added to `desktop/bench/faces/run.mjs` class-of-30 section:
   `app+two…`, `app+pool…`, and 10 confirmed faces.
 
+## Face test result (run 44050445006, 17 Nov, class of 30, app recogniser "both", 0 wrong unless said)
+
+| Confirmed faces | app now | two-step 0.40/0.12 | two-step 0.37/0.16 | pooling 0.55 |
+|---|---|---|---|---|
+| 3 | 88.0% | 88.7% but 10 WRONG | 88.9% but 6 WRONG | 88.0% |
+| 5 | 90.2% | 90.9% but 4 WRONG | 91.0% but 4 WRONG | 90.2% |
+| 10 | 90.4% | 91.3% but 5 WRONG | 91.4% but 5 WRONG | 90.4% |
+
+- Two-step rule: names wrong people. Rejected. Pooling: no gain. 10 confirmed
+  faces: +0.2%. The app's rules stay as they are.
+- Right first guess is 93-95% on these photos, and 43-47% of unnamed faces have
+  the wrong person as first guess. So ~95% named by itself is above what the
+  recogniser can do on these stand-in photos (adults, photos years apart).
+  Matching rules are at their limit; the next real step needs the school's own
+  photos (same students, same term), or a better free-for-commercial recogniser.
+
 ## Next
 
-1. Read the PR #4 face test run ("Class-sized" table, `both` rows, ways app /
-   app+two / app+pool, k = 3, 5, 10). Keep only what names more with 0 wrong and
-   0 strangers; build it into `desktop/src/core/faces.ts` + engine.
-2. Ideas to measure (from the 16 Nov notes): pool an unnamed face with its
-   near-identical unnamed neighbours before matching; two-step "sure" rule
-   (lower score allowed with a bigger lead); up to 10 confirmed faces per person.
-   Last full run 43199549955 (12 Nov): class of 30 named by itself 84.8% (3
-   confirmed) / 90.6% (5), 0 wrong.
-
-## How to pick this up
-
-`git fetch origin claude/project-thread-opamc2 && git checkout claude/project-thread-opamc2`,
-read this file, carry on from "Next". Update this file and push after each step.
+1. CI on PR #4: two test races fixed (face tile waits for the student; web
+   copies wait for old pictures to go). Check the next Checks run is green.
+2. When Waleed's real class photos arrive: run the class test on them.
+3. Possible: try another commercially free recogniser, or extra looks per face
+   (small shifts/zoom) when reading; both need a full re-read (~5 h).
