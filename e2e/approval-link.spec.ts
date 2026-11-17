@@ -74,6 +74,9 @@ for (const lang of ["en", "ar"] as const) {
     await page.goto(`/${lang}/review/${token}`);
     await expect(page.locator('textarea[name="comment"]')).toHaveCount(0);
     await expect(page.locator("main, body").first()).toContainText(lang === "en" ? "already been answered" : "تم الرد على هذا الرابط");
+    // B-109: an answered link no longer shows the post's words or photos.
+    await expect(page.locator("body")).not.toContainText("Graduation on Thursday");
+    await expect(page.locator("main img")).toHaveCount(0);
     // An expired link and a made-up one.
     const { data: l2 } = await admin().from("review_links").insert({ post_id: postId, school_id: schoolId, label: "Old link", created_by: lead.id, expires_at: new Date(Date.now() - 86400_000).toISOString() }).select("token").single();
     await page.goto(`/${lang}/review/${l2!.token}`);

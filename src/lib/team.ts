@@ -38,8 +38,12 @@ export async function classStudents(supabase: SupabaseClient, schoolId: string, 
   }));
 }
 
-export async function signPaths(supabase: SupabaseClient, paths: string[], seconds = 3600) {
-  const list = [...new Set(paths.filter(Boolean))];
+// The service key can open any school's files, so only this school's own
+// paths are signed: a path stored by a member (book pages, face checks) that
+// points into another school is dropped (B-106).
+export async function signPaths(supabase: SupabaseClient, schoolId: string, paths: string[], seconds = 3600) {
+  const own = `${schoolId}/`;
+  const list = [...new Set(paths.filter((p) => !!p && p.startsWith(own) && !p.includes("..")))];
   if (!list.length) return new Map<string, string>();
   const { data } = await staffClient(supabase).storage.from("photos").createSignedUrls(list, seconds);
   return new Map((data ?? []).filter((s) => s.signedUrl).map((s) => [s.path as string, s.signedUrl as string]));

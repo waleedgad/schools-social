@@ -26,13 +26,13 @@ export default async function CheckPage({ params }: { params: Promise<{ locale: 
   const { count: answered } = await supabase.from("face_checks").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("answered_by", user.id);
 
   const { data: photos } = checks.length
-    ? await staffClient(supabase).from("photos").select("id, storage_path, edited_path").in("id", [...new Set(checks.map((c) => c.photo_id).filter((x): x is string => !!x))])
+    ? await staffClient(supabase).from("photos").select("id, storage_path, edited_path").eq("school_id", schoolId).in("id", [...new Set(checks.map((c) => c.photo_id).filter((x): x is string => !!x))])
     : { data: [] as { id: string; storage_path: string; edited_path: string | null }[] };
   // The full web copy (not the edited one): the face box is a fraction of it.
   const pathOf = new Map((photos ?? []).map((p) => [p.id as string, (p.storage_path as string) ?? ""]));
   // Photos not on the website come as two small pictures from the Mac (B-03):
   // the whole photo made small (with the same box) and the face itself.
-  const urls = await signPaths(supabase, [...pathOf.values(), ...checks.flatMap((c) => [c.crop_path ?? "", c.context_path ?? ""])]);
+  const urls = await signPaths(supabase, schoolId, [...pathOf.values(), ...checks.flatMap((c) => [c.crop_path ?? "", c.context_path ?? ""])]);
   const students = new Map((await classStudents(supabase, schoolId, scope.all ? scope : { all: false, classes: [...new Set(checks.map((c) => c.class_name ?? ""))].filter((c) => scope.classes.includes(c)) }, locale)).map((s) => [s.code, s]));
 
   return (

@@ -20,7 +20,7 @@ export default async function BooksPage({ params }: { params: Promise<{ locale: 
   const { data } = await supabase.from("books").select("id, title, kind, grade, class_name, version, status, pages, updated_at").eq("school_id", membership.school.id).order("updated_at", { ascending: false }).limit(60);
   // Teachers see the books with their classes in them; comms see all.
   const books = (data ?? []).filter((b) => scope.all || !b.class_name || scope.classes.includes(b.class_name as string) || b.kind === "grade" || b.kind === "graduation");
-  const covers = await signPaths(supabase, books.map((b) => ((b.pages as Page[])[0]?.image ?? "")));
+  const covers = await signPaths(supabase, membership.school.id, books.map((b) => ((b.pages as Page[])[0]?.image ?? "")));
   const { data: checks } = books.length ? await supabase.from("book_checks").select("book_id").in("book_id", books.map((b) => b.id as string)) : { data: [] };
   const checked = new Map<string, number>();
   for (const c of checks ?? []) checked.set(c.book_id as string, (checked.get(c.book_id as string) ?? 0) + 1);
