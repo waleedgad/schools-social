@@ -11,7 +11,7 @@ export async function GET() {
   const supabase = await createClient();
   const { data } = await supabase.from("students").select("student_code, full_name, class_name").eq("school_id", membership.school.id).or("student_code.like.gc:%,student_code.like.ms:%").order("class_name").limit(5000);
   const cell = (v: unknown) => {
-    // A cell that starts with = + - @ would run as a formula in Excel (B-111).
+    // A cell that starts with = + - @ would run as a formula in Excel (B-113).
     const s = String(v ?? "").replace(/^([=+\-@\t\r])/, "'$1");
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
