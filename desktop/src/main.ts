@@ -10,7 +10,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, ne
 import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
-import { checkpointInBackground, openDb, tx, type Db } from "./core/db";
+import { checkpointInBackground, closeDbFully, openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { likelihood, SHOW_FROM, SURE } from "./core/faces";
@@ -269,7 +269,8 @@ async function restoreBackup(name: string) {
   if (!existsSync(path.join(dir, "library.db"))) throw new Error("no-backup");
   await engine?.stop();
   await sync?.stop();
-  db.close();
+  // The background write-back thread must let go of the file first.
+  await closeDbFully(db);
   for (const f of ["library.db-wal", "library.db-shm"]) fs.rmSync(data(f), { force: true });
   fs.copyFileSync(path.join(dir, "library.db"), data("library.db"));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(path.join(dir, f))) fs.copyFileSync(path.join(dir, f), data(f));

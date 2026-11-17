@@ -254,7 +254,9 @@ function timed(db: Db): Db {
 export function openDb(file: string): Db {
   mkdirSync(path.dirname(file), { recursive: true });
   const db = timed(new DatabaseSync(file));
-  db.exec("pragma journal_mode = wal; pragma foreign_keys = on; pragma synchronous = normal;");
+  // A short wait instead of "database is locked" while the background
+  // write-back thread (or one still closing) holds the file a moment.
+  db.exec("pragma busy_timeout = 3000; pragma journal_mode = wal; pragma foreign_keys = on; pragma synchronous = normal;");
   db.exec(SCHEMA);
   // Columns added after 0.2.0.
   addColumn(db, "faces", "auto", "integer not null default 0");
@@ -325,6 +327,14 @@ export const fromBlob = (b: Uint8Array) => new Float32Array(b.buffer.slice(b.byt
 // no longer does it; a background thread with its own connection does it
 // every two seconds without holding anyone up. Closing the database stops
 // that thread first (the final write-back then happens on close, as before).
+const backgroundStops = new WeakMap<Db, () => Promise<void>>();
+
+// Closes the library and waits until nothing else holds its file open.
+export async function closeDbFully(db: Db) {
+  await backgroundStops.get(db)?.();
+  if (db.isOpen) db.close();
+}
+
 export function checkpointInBackground(db: Db, file: string, everyMs = 2000) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Worker } = require("node:worker_threads") as typeof import("node:worker_threads");
@@ -341,11 +351,37 @@ export function checkpointInBackground(db: Db, file: string, everyMs = 2000) {
     { eval: true, workerData: { file, everyMs } },
   );
   worker.unref();
-  worker.on("error", () => db.exec("pragma wal_autocheckpoint = 1000"));
+  worker.on("error", () => {
+    try {
+      db.exec("pragma wal_autocheckpoint = 1000");
+    } catch {
+      // the library is already closed
+    }
+  });
+  // Waits until the thread has let go of the library file (its own
+  // connection closed), so the file can be replaced (restoring a backup)
+  // without the thread writing old pages into it, or Windows refusing to
+  // remove a journal it still holds open.
+  let stopped: Promise<void> | null = null;
+  const stop = () =>
+    (stopped ??= new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        void worker.terminate().catch(() => {}).then(() => resolve());
+      };
+      const timer = setTimeout(done, 3000);
+      worker.once("message", (m) => m === "stopped" && done());
+      worker.once("exit", done);
+      worker.once("error", done);
+      try {
+        worker.postMessage("stop");
+      } catch {
+        done();
+      }
+    }));
   const close = db.close.bind(db);
   db.close = () => {
-    worker.postMessage("stop");
-    void worker.terminate().catch(() => {});
+    void stop();
     try {
       db.exec("pragma wal_autocheckpoint = 1000");
     } catch {
@@ -353,5 +389,6 @@ export function checkpointInBackground(db: Db, file: string, everyMs = 2000) {
     }
     close();
   };
+  backgroundStops.set(db, stop);
   return worker;
 }
