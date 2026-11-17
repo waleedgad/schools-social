@@ -17,9 +17,11 @@ Bugs go in /mnt/project-files/tracker/bugs.md with the next B-number (other thre
 - Mac menu keys vs renderer keys: menu uses registerAccelerator false, no double run.
 
 ## Notes (not bugs yet)
+- engine.scan: the drive check is only at the start; a library drive unplugged half way through the walk marks the rest of the photos missing (readdir errors are ignored). Recovers when the drive is back; check again before marking missing.
+- viewer.js here(): P or X pressed while the next photo is still loading treats it as unpicked (P on an already picked photo picks it again instead of clearing). Cosmetic.
+- 0.11 renderer viewer.js and core.js keys reviewed: fine.
 - lock.ts: if a job function ever threw synchronously, `running` would stay true and every picture job would wait for ever. All callers today are async functions, so it can't happen now; wrap `job.run()` in try/Promise.resolve when next touched.
 
 ## Next
-- 0.11 renderer: viewer.js, ui.js, library.js, students.js (UI logic)
-- features/imports.ts seen() call; engine second scan after 15 s
-- Offer Waleed fixes + robot tests for B-110 and B-111 (privacy)
+- Fix B-110 and B-111 on this branch with robot tests (asked Waleed 17 Nov; recommended yes).
+- Not yet reviewed in depth: renderer ui.js, library.js, students.js (0.11 UI); website src/ (unchanged since 0.10).
