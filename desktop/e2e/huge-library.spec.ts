@@ -149,7 +149,7 @@ test("a library of 20,000 photos stays quick", async () => {
   expect(JSON.stringify(found)).toContain("Event 42");
 
   // Filters return exactly the right photos, each in under a second.
-  type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<{ ok: boolean; value: unknown }> } };
+  type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<{ ok: boolean; value?: unknown; text?: string }> } };
   const timed: Record<string, number> = {};
   const ids = async (label: string, f: object, how: "photos" | "rule" = "photos") => {
     const t = Date.now();
@@ -157,11 +157,13 @@ test("a library of 20,000 photos stays quick", async () => {
       const h = (window as unknown as Hub).hub;
       if (how === "rule") {
         const id = (await h.call("newAlbum", "Test", f)).value as number;
-        const rows = (await h.call("photos", { album: `my:${id}`, limit: 30000 })).value as { id: number }[];
+        const r = (await h.call("photos", { album: `my:${id}`, limit: 30000 })) as { value?: unknown; text?: string };
+        const rows = (r.text ? JSON.parse(r.text) : r.value) as { id: number }[];
         await h.call("deleteAlbum", id);
         return rows.map((p) => p.id);
       }
-      return ((await h.call("photos", { ...(f as object), limit: 30000 })).value as { id: number }[]).map((p) => p.id);
+      const r = (await h.call("photos", { ...(f as object), limit: 30000 })) as { value?: unknown; text?: string };
+      return ((r.text ? JSON.parse(r.text) : r.value) as { id: number }[]).map((p) => p.id);
     }, [how, f] as const)) as number[];
     timed[label] = Date.now() - t;
     return new Set(r);

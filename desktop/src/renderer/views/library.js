@@ -107,18 +107,19 @@ App.views.library = {
     // tall they get when the window is narrow.
     const top = $("#floattop", main);
     new ResizeObserver(() => $("#grid", main)?.style.setProperty("padding-top", `${top.offsetHeight + 16}px`)).observe(top);
-    this.loadTree();
+    // The photos first, the side list (albums, years) once they show: the
+    // app answers one question at a time, and on a big library the side
+    // list takes longer.
     drawFilters();
+    this.load().finally(() => this.loadTree());
     drawMissing();
-    this.load();
   },
   onState(changed) {
     if (changed.includes("photos") || changed.includes("faces") || changed.includes("all")) {
       clearTimeout(lib.reload);
       lib.reload = setTimeout(() => {
-        this.loadTree();
+        this.load(true).finally(() => this.loadTree());
         drawMissing();
-        this.load(true);
       }, 800);
     }
   },
