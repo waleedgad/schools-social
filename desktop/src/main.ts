@@ -1610,8 +1610,17 @@ function createTray() {
   tray.on("click", () => win?.show());
 }
 
-if (!app.requestSingleInstanceLock()) app.quit();
-app.on("second-instance", () => win?.show());
+// One copy of the app per library. On Windows a double click on the shortcut
+// while the app is starting opens a second copy: it stops at once (app.quit
+// would still let it start up and open the library next to the first copy),
+// and the first copy's window comes to the front, even when minimised.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+app.on("second-instance", () => {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+});
 app.on("activate", () => win?.show());
 
 // Electron's security guidelines, for every window or frame the app ever
