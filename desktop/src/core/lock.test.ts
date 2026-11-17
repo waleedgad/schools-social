@@ -36,3 +36,10 @@ test("B-96: a picture someone is waiting for goes ahead of waiting background jo
   // The running job isn't interrupted; the urgent ones go next, in order.
   assert.deepEqual(log, ["running", "face", "face2", "bg1", "bg2", "bg3"]);
 });
+
+test("a job that throws before it returns a promise does not leave the line stuck", async () => {
+  const bad = exclusive((() => { throw new Error("sync boom"); }) as () => Promise<number>);
+  const good = exclusive(async () => 9);
+  await assert.rejects(bad, /sync boom/);
+  assert.equal(await Promise.race([good, wait(2000).then(() => "stuck")]), 9);
+});
