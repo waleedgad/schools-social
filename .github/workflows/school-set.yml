@@ -40,13 +40,20 @@ jobs:
       - run: npm run build
       - name: HEIC tools
         run: sudo apt-get update -q && sudo apt-get install -y -q libheif-examples
-      - uses: actions/cache@v4
+      # Restored and saved separately: the download is kept even when a
+      # later step fails.
+      - uses: actions/cache/restore@v4
         with:
           path: ~/school-set-photos
           key: school-set-photos-v1-${{ hashFiles('desktop/bench/school-set/school.json', 'desktop/bench/school-set/fetch.mjs') }}
           restore-keys: school-set-photos-v1-
       - name: Download the photos
         run: node bench/school-set/fetch.mjs ~/school-set-photos 20
+      - uses: actions/cache/save@v4
+        with:
+          path: ~/school-set-photos
+          key: school-set-photos-v1-${{ hashFiles('desktop/bench/school-set/school.json', 'desktop/bench/school-set/fetch.mjs') }}
+        continue-on-error: true
       - name: Lay out the school drive
         run: |
           rm -rf ~/school-set

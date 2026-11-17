@@ -93,9 +93,14 @@ const exifDate = (d) => {
   return `${p.year}:${p.month}:${p.day} ${p.hour}:${p.minute}:${p.second}`;
 };
 async function save(from, to, { when, camera = ["Canon", "Canon EOS R6"], long = null, quality = 90, op = null, exif = true, orientation = null } = {}) {
-  let img = sharp(from, { failOn: "none" }).rotate();
-  if (long) img = img.resize(long, long, { fit: "inside", withoutEnlargement: long < 2500, kernel: "lanczos3" });
-  if (op) img = await op(img);
+  // Turned upright and sized first, so an edit (crop, blur, turn) works on
+  // the picture as seen; sharp allows only one turn per step.
+  let first = sharp(from, { failOn: "none" }).rotate();
+  if (long) first = first.resize(long, long, { fit: "inside", withoutEnlargement: long < 2500, kernel: "lanczos3" });
+  const buf = await first.toBuffer();
+  const meta = await sharp(buf).metadata();
+  let img = sharp(buf);
+  if (op) img = await op(img, meta);
   img = img.jpeg({ quality, mozjpeg: false });
   if (exif && when) img = img.withExif({ IFD0: { Make: camera[0], Model: camera[1], DateTime: exifDate(when), Software: "Test set" }, IFD2: { DateTimeOriginal: exifDate(when), CreateDate: exifDate(when) } });
   if (orientation) img = img.withMetadata({ orientation });
@@ -206,7 +211,7 @@ for (const c of school.classes) {
   const sci = libraryFiles.filter((l) => l.ev.edited).slice(0, 6);
   for (const l of sci) {
     const to = path.join(path.dirname(l.to), "Edited", path.basename(l.to).replace(".JPG", "-edit.jpg"));
-    await save(l.to, to, { when: new Date(statSync(l.to).mtimeMs), op: async (img) => { const m = await sharp(l.to).metadata(); return img.extract({ left: Math.round(m.width * 0.08), top: Math.round(m.height * 0.08), width: Math.round(m.width * 0.84), height: Math.round(m.height * 0.84) }).modulate({ brightness: 1.12, saturation: 1.1 }); } });
+    await save(l.to, to, { when: new Date(statSync(l.to).mtimeMs), op: async (img, m) => { return img.extract({ left: Math.round(m.width * 0.08), top: Math.round(m.height * 0.08), width: Math.round(m.width * 0.84), height: Math.round(m.height * 0.84) }).modulate({ brightness: 1.12, saturation: 1.1 }); } });
     note(to, { kind: "edited", of: path.relative(out, l.to), people: peopleIn(l.f) });
   }
   const twice = libraryFiles.slice(0, 3);
@@ -251,7 +256,7 @@ for (const [i, { f, p }] of cardQueue.entries()) {
       const shift = k * 0.012;
       const t = new Date(when.getTime() + k * 400);
       clock[e] = t.getTime();
-      const to = await save(f, path.join(canon, imgName()), { ...base, when: t, op: async (img) => { const m = await sharp(f).rotate().metadata(); return img.extract({ left: Math.round(m.width * shift), top: Math.round(m.height * (0.03 - shift / 2)), width: Math.round(m.width * 0.94), height: Math.round(m.height * 0.94) }); } });
+      const to = await save(f, path.join(canon, imgName()), { ...base, when: t, op: async (img, m) => { return img.extract({ left: Math.round(m.width * shift), top: Math.round(m.height * (0.03 - shift / 2)), width: Math.round(m.width * 0.94), height: Math.round(m.height * 0.94) }); } });
       burst.push(path.basename(to));
       note(to, { kind: "burst", burst: path.basename(burst[0]), people, event: which });
     }
