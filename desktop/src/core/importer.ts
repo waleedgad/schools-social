@@ -93,9 +93,13 @@ export function lookAt(file: string, thumb: string): Promise<Look | null> {
 async function look(file: string, thumb: string): Promise<Look | null> {
   try {
     const input = RAW.test(file) ? (await rawPreview(file)) ?? file : await readable(file);
-    const img = sharp(input, { failOn: "none" }).rotate();
-    await img.clone().resize({ width: 360, height: 360, fit: "inside" }).jpeg({ quality: 72 }).toFile(thumb);
-    const { data, info } = await img.clone().resize({ width: 200, height: 200, fit: "inside" }).greyscale().raw().toBuffer({ resolveWithObject: true });
+    // The photo is opened once, at preview size; the thumbnail and the
+    // look are both made from that (opening it twice took twice as long on
+    // a camera's big photos).
+    const small = await sharp(input, { failOn: "none" }).rotate().resize({ width: 360, height: 360, fit: "inside" }).raw().toBuffer({ resolveWithObject: true });
+    const raw = { raw: { width: small.info.width, height: small.info.height, channels: small.info.channels } };
+    await sharp(small.data, raw).jpeg({ quality: 72 }).toFile(thumb);
+    const { data, info } = await sharp(small.data, raw).resize({ width: 200, height: 200, fit: "inside" }).greyscale().raw().toBuffer({ resolveWithObject: true });
     const w = info.width, h = info.height;
     let light = 0, light2 = 0, lap = 0, lap2 = 0, n = 0;
     for (let i = 0; i < data.length; i++) {

@@ -10,7 +10,7 @@ import sharp from "sharp";
 import { fromBlob, toBlob, tx, type Db } from "./db";
 import { assignPhoto, clearEnough, cosine, eyesShut, facePx, findFaces, readEyes, guessTraits, handAgrees, HI_RES, isSure, learnFrom, likelihood, ranked, SAME_PERSON, scaled, SHOW_FROM, SUGGEST_PX, traitCentres, unscaled, type Recogniser, type VisionFace } from "./faces";
 import { eventFolder, isLibraryFile, isoDate, isRaw, placeFromPath, safeName, schoolYear, term } from "./library";
-import { hamming, makeThumb, measure, score, source } from "./media";
+import { hamming, makeThumb, measure, score, source, thumbAndMeasure } from "./media";
 import { exclusive } from "./lock";
 import { retryBusy } from "./retry-busy";
 import { fileHash } from "./photo";
@@ -429,8 +429,7 @@ export class Engine {
         this.db.prepare("update photos set import_id = ?, photographer = coalesce(?, photographer), category = coalesce(?, category) where id = ?").run(imp.import_id as number | null, (imp.photographer as string) || null, (imp.category as string) || null, id);
       }
       if (camera) this.db.prepare("update photos set camera = ? where id = ?").run(camera, id);
-      await makeThumb(input, this.thumbPath(id), THUMB);
-      const q = await measure(input);
+      const q = await thumbAndMeasure(input, this.thumbPath(id), THUMB);
 
       // Same bytes as another photo: a duplicate. Same name next to a RAW: one photo in two formats.
       const twin = this.db.prepare("select id from photos where hash = ? and id != ? and missing = 0 and dup_of is null order by id limit 1").get(hash, id) as Row | undefined;
