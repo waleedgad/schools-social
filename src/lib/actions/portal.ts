@@ -40,6 +40,7 @@ export async function revokeUploadLink(formData: FormData) {
 // check the link themselves on every call.
 
 const MAX_FILES = 30;
+const MAX_PER_LINK = 1500;
 
 async function usableLink(token: string) {
   const admin = createAdminClient();
@@ -49,6 +50,8 @@ async function usableLink(token: string) {
     .eq("token", token)
     .maybeSingle();
   if (!data || data.revoked_at || new Date(data.expires_at) < new Date()) return null;
+  // A link that leaked can't fill the school's storage (B-120).
+  if (data.upload_count >= MAX_PER_LINK) return null;
   return { admin, link: data };
 }
 

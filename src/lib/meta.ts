@@ -1,4 +1,5 @@
 import "server-only";
+import { createHmac } from "node:crypto";
 import { LIMITS } from "./posting";
 
 // Facebook Pages and Instagram publishing through the Meta Graph API.
@@ -31,8 +32,19 @@ export const isMetaConfigured = () => metaAppId().length > 0 && metaSecret().len
 
 export class MetaError extends Error {}
 
+// Ids that come from a screen (a comment to answer or hide) must be plain
+// Graph ids ("123_456": letters, digits and _ only). Anything else could aim the school's page key at
+// another Graph address, for example posting straight to the Page without
+// approval (B-119).
+export const isGraphId = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9_]{1,100}$/.test(v);
+const SAFE_PATH = /^[A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*$/;
+
 async function graph<T>(path: string, params: Record<string, string>, method: "GET" | "POST" = "GET"): Promise<T> {
-  const body = new URLSearchParams(params);
+  if (!SAFE_PATH.test(path)) throw new MetaError("bad Graph address");
+  // Proof that the call comes from this app's server, so a page key that
+  // leaked can't be used elsewhere once "Require app secret" is on in Meta.
+  const proof = params.access_token && metaSecret() ? { appsecret_proof: createHmac("sha256", metaSecret()).update(params.access_token).digest("hex") } : ({} as Record<string, string>);
+  const body = new URLSearchParams({ ...params, ...proof });
   const res = await fetch(method === "GET" ? `${GRAPH}/${path}?${body}` : `${GRAPH}/${path}`, {
     method,
     body: method === "POST" ? body : undefined,
@@ -215,11 +227,13 @@ export async function listComments(platform: "facebook" | "instagram", objectId:
 }
 
 export async function replyToComment(platform: "facebook" | "instagram", commentId: string, token: string, message: string) {
+  if (!isGraphId(commentId)) throw new MetaError("bad comment id");
   const path = platform === "facebook" ? `${commentId}/comments` : `${commentId}/replies`;
   return (await graph<{ id: string }>(path, { message, access_token: token }, "POST")).id;
 }
 
 export async function hideComment(platform: "facebook" | "instagram", commentId: string, token: string, hide: boolean) {
+  if (!isGraphId(commentId)) throw new MetaError("bad comment id");
   await graph(commentId, platform === "facebook" ? { is_hidden: String(hide), access_token: token } : { hide: String(hide), access_token: token }, "POST");
 }
 
