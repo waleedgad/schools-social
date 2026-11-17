@@ -165,7 +165,6 @@ App.views.faces = {
           <button class="link small" id="a-other">${L("No, it's someone else…", "لا، إنه شخص آخر…")}</button>
         </div>
         ${d ? photoWithBoxes(d.photo_id, [{ x: d.x, y: d.y, w: d.w, h: d.h, on: true }], "zoomable") : ""}</div>`;
-      noBlankFaces(box);
       // The next few face pictures are cut while this one is answered, so
       // the tile is never blank when the next question comes (B-96).
       for (const nx of queue.slice(i + 1, i + 5)) new Image().src = `hub://face/${nx.id}`;

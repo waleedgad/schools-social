@@ -15,7 +15,8 @@ Written by: helper session (Sonnet 5.5, "School Software 2"). Needs B-numbers fr
 
 ## Checked
 - `npm test`: 71/71 pass. `npx tsc --noEmit`: clean. Robot `missing-folders.spec.ts`: 3/3 pass.
-- Not run: the other robot specs (library, imports, nothing-hangs, big-import). Please run before merging.
+- Robot specs under xvfb, all pass: missing-folders 3/3, library 5/5, imports 6/6 (incl. drive unplugged mid-import), nothing-hangs 1/1, big-import 1/1.
+- Not run: the rest of the robot suite (faces, books, motion, accessibility, packaged...). Run the full suite before release.
 
 ## Next
-Reviewer/manager: give B-numbers, run the remaining robot specs, merge into the syqjmv line.
+Reviewer/manager: give B-numbers, merge PR #5 into the syqjmv line, run the full robot suite.
