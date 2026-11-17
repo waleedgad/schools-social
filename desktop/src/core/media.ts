@@ -110,7 +110,25 @@ export function score(sharpness: number, brightness: number, faces: number, bigg
   return Math.round((sharp * 5 + exposure * 2.5 + people * 2.5) * 10) / 10;
 }
 
+// How many bits two picture fingerprints differ by. Called hundreds of
+// thousands of times on a big library (Clean up, stacks), so it counts bits
+// 32 at a time instead of one BigInt bit at a time.
+const popcount = (x: number) => {
+  x -= (x >>> 1) & 0x55555555;
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+  return (Math.imul((x + (x >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24);
+};
+const HEX = /^[0-9a-f]*$/i;
 export function hamming(a: string, b: string) {
+  if (!HEX.test(a) || !HEX.test(b)) return hammingSlow(a, b);
+  const len = Math.max(a.length, b.length);
+  a = a.padStart(len, "0");
+  b = b.padStart(len, "0");
+  let n = 0;
+  for (let i = 0; i < len; i += 8) n += popcount((parseInt(a.slice(i, i + 8), 16) ^ parseInt(b.slice(i, i + 8), 16)) >>> 0);
+  return n;
+}
+function hammingSlow(a: string, b: string) {
   let x = BigInt(`0x${a}`) ^ BigInt(`0x${b}`);
   let n = 0;
   while (x) {

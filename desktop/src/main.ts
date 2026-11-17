@@ -1286,13 +1286,14 @@ function binPhotos(ids: number[]) {
 async function cleanupReport() {
   const s = settings.get();
   const pack = (groups: { extra: number[]; size: number }[]) => ({ count: groups.reduce((n, g) => n + g.extra.length, 0), size: groups.reduce((n, g) => n + g.size, 0) });
-  const bad = badPhotos(db, s.cleanStrict);
-  const rejected = oldRejected(db, s.rejectMonths);
+  const prot = protectedIds(db);
+  const bad = badPhotos(db, s.cleanStrict, prot);
+  const rejected = oldRejected(db, s.rejectMonths, prot);
   const empty = s.library && existsSync(s.library) ? await emptyFolders(s.library) : [];
   return {
-    exact: pack(exactCopies(db)),
-    sizes: pack(otherSizes(db)),
-    bursts: pack(nearIdentical(db)),
+    exact: pack(exactCopies(db, prot)),
+    sizes: pack(otherSizes(db, prot)),
+    bursts: pack(nearIdentical(db, prot)),
     bad: { count: bad.length, size: bad.reduce((n, p) => n + p.size, 0) },
     rejected: { count: rejected.length, size: rejected.reduce((n, p) => n + p.size, 0), months: s.rejectMonths },
     empty: empty.length,

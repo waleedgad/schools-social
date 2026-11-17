@@ -243,6 +243,25 @@ export function libraryApi(ctx: Ctx): Api {
     return one<{ n: number }>(`select count(*) n from photos p where ${where.join(" and ")}`, ...args)?.n ?? 0;
   }
 
+  // The album list and the year/event tree are asked for again on every
+  // refresh, and on a big library each costs a few hundred milliseconds of
+  // the app's only database line. Their answer only changes when the
+  // library does (or, for "this week"-style albums, as time passes), so it is
+  // kept until then. `total_changes()` counts every write on this connection
+  // and `data_version` any write from elsewhere.
+  const kept = new Map<string, { db: unknown; key: string; value: unknown }>();
+  function whileUnchanged<T>(name: string, make: () => T): T {
+    const db = ctx.db();
+    const c = one<{ c: number }>("select total_changes() c")?.c ?? 0;
+    const v = one<{ data_version: number }>("pragma data_version")?.data_version ?? 0;
+    const key = `${c}|${v}|${Math.floor(Date.now() / 60_000)}`;
+    const hit = kept.get(name);
+    if (hit && hit.db === db && hit.key === key) return hit.value as T;
+    const value = make();
+    kept.set(name, { db, key, value });
+    return value;
+  }
+
   function tree() {
     const base = "missing = 0 and pair_of is null and dup_of is null and edited_of is null and hidden = 0";
     const rows = all(
@@ -257,7 +276,11 @@ export function libraryApi(ctx: Ctx): Api {
     const ids = ["all", "week", "picks", "five", "lastyear", "nofaces", "raw", "sent", "posted", "groups", "smiles", "red", "yellow", "green", "ready", "tocull", "untagged", "fix", "nopost", "noevent", "notsent", "missing", "rejected", "hidden"];
     const counts: Record<string, number> = {};
     for (const id of ids) counts[id] = countPhotos({ album: id });
-    const cover = (album: string) => (photos({ album, limit: 1, sort: "quality" })[0] as { id?: number } | undefined)?.id ?? null;
+    // The best photo's id only: no badges worked out for every photo first.
+    const cover = (album: string) => {
+      const { where, args } = photoWhere({ album });
+      return one<{ id: number }>(`select p.id from photos p where ${where.join(" and ")} order by p.quality desc limit 1`, ...args)?.id ?? null;
+    };
     const mine = all<{ id: number; name: string; rule: string | null; shared: number }>("select id, name, rule, shared from albums order by name").map((x) => ({ ...x, n: countPhotos({ album: `my:${x.id}` }), cover: cover(`my:${x.id}`) }));
     const cats = [...eventCategories().keys()].map((c) => ({ id: `cat:${c}`, key: c, n: countPhotos({ album: `cat:${c}` }) })).filter((c) => c.n);
     for (const c of cats) (c as Record<string, unknown>).cover = cover(c.id);
@@ -266,7 +289,11 @@ export function libraryApi(ctx: Ctx): Api {
     const grades = year
       ? all<{ grade: string; stage: string | null }>("select distinct grade, stage from students where grade is not null and kind = 'student'").map((g) => ({ id: `book:${g.grade}|${year}`, grade: g.grade, stage: g.stage, year, n: countPhotos({ album: `book:${g.grade}|${year}` }) })).filter((g) => g.n)
       : [];
-    const kinds = ["teacher", "staff", "parent", "visitor"].map((k) => ({ id: `kind:${k}`, key: k, n: countPhotos({ album: `kind:${k}` }) })).filter((k) => k.n);
+    // Only kinds of people the school has added are counted (each count reads every photo).
+    const kinds = ["teacher", "staff", "parent", "visitor"]
+      .filter((k) => one("select 1 from students where kind = ? limit 1", k))
+      .map((k) => ({ id: `kind:${k}`, key: k, n: countPhotos({ album: `kind:${k}` }) }))
+      .filter((k) => k.n);
     const photographers = all<{ photographer: string; n: number }>("select photographer, count(*) n from photos where missing = 0 and photographer is not null and photographer != '' group by photographer order by n desc limit 40");
     return { counts, mine, cats, occ, grades, kinds, photographers };
   }
@@ -336,10 +363,10 @@ export function libraryApi(ctx: Ctx): Api {
   }
 
   return {
-    tree: () => tree(),
+    tree: () => whileUnchanged("tree", tree),
     photos: (f: Filter) => photos(f),
     countPhotos: (f: Filter) => countPhotos(f),
-    albums: () => albums(),
+    albums: () => whileUnchanged("albums", albums),
     suggestEvents: (ids: number[]) => suggestEvents(ids),
     applySuggestedEvents: async (moves: { id: number; title: string; date: string }[]) => {
       const groups = new Map<string, { title: string; date: string; ids: number[] }>();

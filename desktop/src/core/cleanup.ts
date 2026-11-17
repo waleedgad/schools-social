@@ -10,6 +10,8 @@ export type CleanPhoto = { id: number; path: string; size: number; width: number
 export type CleanGroup = { keep: number; extra: number[]; size: number; kept?: number[] };
 
 const COLS = "id, path, size, width, height, quality, sharpness, brightness, name, taken_at, edited_of";
+// Grouping only needs these; the lists ask for the rest by id.
+const GROUP_COLS = "id, size, width, height, sharpness, name, taken_at";
 const BASE = "missing = 0 and pair_of is null and is_raw = 0";
 
 // Which copy to keep: an original over an export or WhatsApp copy, then the
@@ -57,13 +59,16 @@ export function guardGroups(groups: CleanGroup[], prot: Set<number>, sizeOf: (id
   return out;
 }
 
-function group<T extends CleanPhoto>(rows: T[], same: (a: T, b: T) => boolean): CleanGroup[] {
+// `past(a, b)`: b and every row after it are too far from a to match, so the
+// search stops there (rows sorted by time).
+function group<T extends CleanPhoto>(rows: T[], same: (a: T, b: T) => boolean, past?: (a: T, b: T) => boolean): CleanGroup[] {
   const used = new Set<number>();
   const out: CleanGroup[] = [];
   for (let i = 0; i < rows.length; i++) {
     if (used.has(rows[i].id)) continue;
     const members = [rows[i]];
     for (let j = i + 1; j < rows.length && j < i + 40; j++) {
+      if (past?.(rows[i], rows[j])) break;
       if (!used.has(rows[j].id) && same(rows[i], rows[j])) members.push(rows[j]);
     }
     if (members.length < 2) continue;
@@ -75,7 +80,7 @@ function group<T extends CleanPhoto>(rows: T[], same: (a: T, b: T) => boolean): 
   return out;
 }
 
-export function exactCopies(db: Db) {
+export function exactCopies(db: Db, prot?: Set<number>) {
   const rows = db.prepare(`select d.id, d.size, d.dup_of from photos d join photos o on o.id = d.dup_of where d.missing = 0 and o.missing = 0 and d.is_raw = 0`).all() as { id: number; size: number; dup_of: number }[];
   const byKeep = new Map<number, CleanGroup>();
   for (const r of rows) {
@@ -84,11 +89,12 @@ export function exactCopies(db: Db) {
     g.size += r.size;
     byKeep.set(r.dup_of, g);
   }
-  return guarded(db, [...byKeep.values()]);
+  return guarded(db, [...byKeep.values()], prot);
 }
 
-function guarded(db: Db, groups: CleanGroup[]) {
-  const prot = protectedIds(db);
+// `prot`: the protected photos, when the caller already worked them out
+// (the Clean up report asks five questions; it reads them once).
+function guarded(db: Db, groups: CleanGroup[], prot = protectedIds(db)) {
   const size = db.prepare("select size from photos where id = ?");
   return guardGroups(groups, prot, (id) => (size.get(id) as { size: number } | undefined)?.size ?? 0);
 }
@@ -96,9 +102,10 @@ function guarded(db: Db, groups: CleanGroup[]) {
 // The same picture saved again: resized, exported or sent over WhatsApp.
 // Same look (tiny image difference), different file. Edited versions are
 // kept with their original, never offered here.
-export function otherSizes(db: Db) {
-  const rows = db.prepare(`select ${COLS}, dhash from photos where ${BASE} and dup_of is null and edited_of is null and dhash is not null order by dhash`).all() as (CleanPhoto & { dhash: string })[];
-  return guarded(db, group(rows, (a, b) => hamming(a.dhash, b.dhash) <= 2 && (a.width !== b.width || looksLikeCopy(a.name) || looksLikeCopy(b.name)) && !hasEdit(db, a.id, b.id)));
+export function otherSizes(db: Db, prot?: Set<number>) {
+  const rows = (db.prepare(`select ${GROUP_COLS}, dhash from photos where ${BASE} and dup_of is null and edited_of is null and dhash is not null order by dhash`).all() as (CleanPhoto & { dhash: string })[]).map((r) => Object.assign(r, { copy: looksLikeCopy(r.name) }));
+  // Cheap checks first: most neighbours are the same size and not copies.
+  return guarded(db, group(rows, (a, b) => (a.width !== b.width || a.copy || b.copy) && hamming(a.dhash, b.dhash) <= 2 && !hasEdit(db, a.id, b.id)), prot);
 }
 
 function hasEdit(db: Db, a: number, b: number) {
@@ -106,26 +113,26 @@ function hasEdit(db: Db, a: number, b: number) {
 }
 
 // Bursts: shots seconds apart that look nearly the same. The best is kept.
-export function nearIdentical(db: Db) {
-  const rows = db.prepare(`select ${COLS}, dhash from photos where ${BASE} and dup_of is null and edited_of is null and dhash is not null and taken_at is not null and flag >= 0 order by taken_at`).all() as (CleanPhoto & { dhash: string })[];
-  return guarded(db, group(rows, (a, b) => Math.abs(Date.parse(a.taken_at!) - Date.parse(b.taken_at!)) < 15_000 && hamming(a.dhash, b.dhash) <= 6));
+export function nearIdentical(db: Db, prot?: Set<number>) {
+  const rows = (db.prepare(`select ${GROUP_COLS}, dhash from photos where ${BASE} and dup_of is null and edited_of is null and dhash is not null and taken_at is not null and flag >= 0 order by taken_at`).all() as (CleanPhoto & { dhash: string })[]).map((r) => Object.assign(r, { t: Date.parse(r.taken_at!) }));
+  // Sorted by time: once a shot is 15 seconds or more later, so are the rest
+  // (a time that can't be read is compared one by one, as before).
+  return guarded(db, group(rows, (a, b) => Math.abs(a.t - b.t) < 15_000 && hamming(a.dhash, b.dhash) <= 6, (a, b) => b.t - a.t >= 15_000), prot);
 }
 
 // Blurry, too dark or too bright. Strict = "strict" catches more.
-export function badPhotos(db: Db, strict: "gentle" | "normal" | "strict" = "normal") {
+export function badPhotos(db: Db, strict: "gentle" | "normal" | "strict" = "normal", prot = protectedIds(db)) {
   const sharpMin = { gentle: 12, normal: 25, strict: 45 }[strict];
   const darkMax = { gentle: 0.07, normal: 0.11, strict: 0.15 }[strict];
   const brightMin = { gentle: 0.95, normal: 0.92, strict: 0.88 }[strict];
   const rows = db
     .prepare(`select ${COLS} from photos where ${BASE} and dup_of is null and flag = 0 and sharpness is not null and (sharpness < ? or brightness < ? or brightness > ?) order by sharpness limit 2000`)
     .all(sharpMin, darkMax, brightMin) as CleanPhoto[];
-  const prot = protectedIds(db);
   return rows.filter((r) => !prot.has(r.id)).map((r) => ({ ...r, reason: (r.sharpness ?? 99) < sharpMin ? "blurry" : (r.brightness ?? 0.5) < darkMax ? "dark" : "bright" }));
 }
 
-export function oldRejected(db: Db, months: number) {
+export function oldRejected(db: Db, months: number, prot = protectedIds(db)) {
   const before = Date.now() - months * 30 * 86400_000;
-  const prot = protectedIds(db);
   return (db.prepare(`select ${COLS} from photos where missing = 0 and flag = -1 and pair_of is null and added_at < ? order by added_at`).all(before) as CleanPhoto[]).filter((r) => !prot.has(r.id));
 }
 
