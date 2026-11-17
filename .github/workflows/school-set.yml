@@ -1,0 +1,139 @@
+# Realistic test school drive (desktop/bench/school-set): downloads freely
+# licensed photos (Wikimedia Commons, public domain NASA astronaut photos;
+# NASA RAW files from the rawpy project), lays out a school drive with class
+# lists, portraits, a library, memory cards and uploads, and keeps the zip in
+# the DRAFT release "test-set-v1" (never in the repository). The summary page
+# lists anyone with too few photos.
+name: Test school set
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - desktop/bench/school-set/**
+      - .github/workflows/school-set.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: school-set-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run build
+      - name: HEIC tools
+        run: sudo apt-get update -q && sudo apt-get install -y -q libheif-examples
+      # Restored and saved separately: the download is kept even when a
+      # later step fails.
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/school-set-photos
+          key: school-set-photos-v1-${{ hashFiles('desktop/bench/school-set/school.json', 'desktop/bench/school-set/fetch.mjs') }}
+          restore-keys: school-set-photos-v1-
+      - name: Download the photos
+        run: node bench/school-set/fetch.mjs ~/school-set-photos 20
+      - uses: actions/cache/save@v4
+        with:
+          path: ~/school-set-photos
+          key: school-set-photos-v1-${{ hashFiles('desktop/bench/school-set/school.json', 'desktop/bench/school-set/fetch.mjs') }}
+        continue-on-error: true
+      - name: Lay out the school drive
+        run: |
+          rm -rf ~/school-set
+          node bench/school-set/build.mjs ~/school-set-photos ~/school-set
+          cd ~ && zip -q -r school-set.zip school-set && ls -l school-set.zip
+      - name: Summary
+        run: |
+          {
+            echo "## Test school set"
+            echo
+            cat ~/school-set/README.md
+            echo
+            echo "### Photos per person (fewer than 8 needs a fix in school.json)"
+            echo
+            echo "| Who | Search | Commons category | Photos |"
+            echo "|---|---|---|---|"
+            node -e 'for (const r of require(process.argv[1])) console.log(`| ${r.id} | ${r.search ?? ""} | ${r.category ?? "none"} | ${r.photos < 8 ? "**" + r.photos + "**" : r.photos} |`)' ~/school-set-photos/fetch-report.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the zip in the draft release test-set-v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view test-set-v1 >/dev/null 2>&1 || gh release create test-set-v1 --draft --title "Test school set" --notes "Realistic test school drive built by the Test school set workflow. Not for schools: test data only. Photos: public domain NASA astronaut photos from Wikimedia Commons (see CREDITS.md inside)." --target "$GITHUB_SHA"
+          gh release upload test-set-v1 ~/school-set.zip ~/school-set/manifest.json --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: school-set-report
+          path: |
+            ~/school-set-photos/fetch-report.json
+            ~/school-set/manifest.json
+            ~/school-set/README.md
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: school-set-zip
+          path: ~/school-set.zip
+          retention-days: 7
+          compression-level: 0
+
+  # The Mac/Windows app on the school drive, on all three systems (HEIC
+  # photos open only on a Mac, so Linux and Windows show what a school gets
+  # when an iPhone photo can't be read).
+  app:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done
+      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          name: school-set-zip
+          path: ${{ runner.temp }}
+      - name: Unzip the school drive
+        run: cd "$RUNNER_TEMP" && unzip -q school-set.zip && ls school-set
+      - name: Run the app on the school drive (Linux)
+        if: runner.os == 'Linux'
+        run: SCHOOL_SET="$RUNNER_TEMP/school-set" xvfb-run -a npx playwright test e2e/school-set.spec.ts --trace off
+      - name: Run the app on the school drive (Mac, Windows)
+        if: runner.os != 'Linux'
+        run: SCHOOL_SET="$RUNNER_TEMP/school-set" npx playwright test e2e/school-set.spec.ts --trace off
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: school-set-app-${{ matrix.os }}
+          path: |
+            desktop/e2e-report
+            desktop/test-results
+          retention-days: 14
