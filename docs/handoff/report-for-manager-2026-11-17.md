@@ -22,3 +22,11 @@ Status: DONE for the items below. Nothing in progress. Written by the helper ses
 
 ## How to give me work
 Write it in `docs/handoff/for-helper.md` on `handoff/b96-claim`.
+
+## Update 17 Nov afternoon: full robot suite on the joined 0.12 branch
+Read `0.12-integration.md` on `claude/project-thread-q91dwp` (fa4c1a0). No instruction for the helper in it, so I took its open item 1 ("full robot suite, not run here") on Linux (xvfb).
+- `tsc --noEmit` clean. `npm test`: 105 tests, 104 pass, 0 fail (1 skipped by design).
+- Full Playwright suite, whole `e2e/` folder: **59 passed, 0 failed, 19 skipped** (15 min).
+- The 19 skips are tests that need things this sandbox doesn't have: the test database + website (web-sync, web-replace, and others, 8), Windows only (windows-card), the real photo/school set (faces-real, school-set), an old-app build, the exploratory motion sweep, packaged app. Nothing skipped because of a failure.
+- Still NOT checked: Mac/Windows/Linux GitHub CI on the branch, the skipped database/website tests (need `e2e/test-db.env` and the website), a real Windows run, Waleed's check by eye.
+- I changed nothing on the branch. I pushed nothing but this note.
