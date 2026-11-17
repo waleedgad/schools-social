@@ -288,6 +288,13 @@ export function openDb(file: string): Db {
   addColumn(db, "photos", "problems", "text");
   addColumn(db, "photos", "clip", "blob");
   addColumn(db, "faces", "smile", "real");
+  // 0.12: eyes shut or open and how far the face is turned (expression.ts),
+  // for picking the best photos. Null: not read (too small, or before 0.12).
+  addColumn(db, "faces", "blink", "real");
+  addColumn(db, "faces", "ear", "real");
+  addColumn(db, "faces", "turn", "real");
+  // 0.12: 1 once the eyes of a photo scanned before 0.12 have been read.
+  addColumn(db, "photos", "eyes_read", "integer not null default 0");
   addColumn(db, "photos", "web_blur", "text");
   addColumn(db, "photos", "web_people", "text");
   addColumn(db, "albums", "shared", "integer not null default 0");
