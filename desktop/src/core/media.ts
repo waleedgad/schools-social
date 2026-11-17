@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { isRaw } from "./library";
@@ -60,6 +60,9 @@ export async function readable(file: string): Promise<string | Buffer> {
 }
 
 export async function makeThumb(input: string | Buffer, out: string, size: number) {
+  // "Clean up" removes the folder of big copies: it is made again here, or
+  // every big photo stayed a blurred small copy until the app was restarted.
+  await mkdir(path.dirname(out), { recursive: true });
   return sharp(input, { failOn: "none" })
     .rotate()
     .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { copyFile, readdir, rm, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
@@ -272,6 +272,15 @@ export class Engine {
         fields.class_name,
         Date.now(),
       );
+    // A photo's number can be one an emptied Bin or an earlier library
+    // used: that old photo's copies must never be shown as this photo.
+    for (const f of [this.thumbPath(Number(r.lastInsertRowid)), this.previewPath(Number(r.lastInsertRowid))]) {
+      try {
+        rmSync(f, { force: true });
+      } catch {
+        // Windows: may be open; it's only a cache
+      }
+    }
     this.work.push(Number(r.lastInsertRowid));
   }
 
@@ -987,23 +996,44 @@ export class Engine {
 
   // A crop around one face for the review screens.
   faceCrop(faceId: number) {
-    const out = path.join(this.o.cache, "faces", `${faceId}.jpg`);
+    const f = this.db.prepare("select f.*, p.path, p.id as pid from faces f join photos p on p.id = f.photo_id where f.id = ?").get(faceId) as Row | undefined;
+    if (!f) return Promise.reject(new Error("no face"));
+    const out = this.cropPath(f);
     if (existsSync(out)) return Promise.resolve(out);
     // A person is waiting for this picture: it goes ahead of the background work (B-96).
-    return exclusive(() => this.cropFace(faceId), { urgent: true });
+    return exclusive(() => this.cropFace(f), { urgent: true });
   }
 
-  private async cropFace(faceId: number) {
-    const out = path.join(this.o.cache, "faces", `${faceId}.jpg`);
+  // The picture's name says where the face is. A photo read again stores its
+  // faces anew, and a new face can get the number an old one had: it must
+  // never show the old face's picture (B-96).
+  private cropPath(f: Row, small = false) {
+    const n = (v: unknown) => Math.round((v as number) * 10000);
+    return path.join(this.o.cache, "faces", `${f.id}-${f.pid}-${n(f.x)}-${n(f.y)}-${n(f.w)}${small ? "-small" : ""}.jpg`);
+  }
+
+  private async cropFace(f: Row) {
+    let out = this.cropPath(f);
     if (existsSync(out)) return out;
     mkdirSync(path.dirname(out), { recursive: true });
-    const f = this.db.prepare("select f.*, p.path, p.id as pid from faces f join photos p on p.id = f.photo_id where f.id = ?").get(faceId) as Row | undefined;
-    if (!f) throw new Error("no face");
     let input: string;
     if (f.portrait) input = (this.db.prepare("select portrait from students where id = ?").get(f.student_id as string) as Row)?.portrait as string;
     else {
       input = this.previewPath(f.pid as number);
-      if (!existsSync(input)) await makeThumb(await source(f.path as string), input, PREVIEW);
+      if (!existsSync(input)) {
+        try {
+          await makeThumb(await source(f.path as string), input, PREVIEW);
+        } catch (e) {
+          // The original can't be reached (an unplugged drive) and the big
+          // copy was never made: the face is cut from the small copy, like
+          // the photo beside it, instead of a blank square (B-96). It is
+          // made again, sharp, once the original is back.
+          await rm(input, { force: true }).catch(() => {});
+          input = this.thumbPath(f.pid as number);
+          if (!existsSync(input)) throw e;
+          out = this.cropPath(f, true);
+        }
+      }
     }
     const img = sharp(input);
     const m = await img.metadata();

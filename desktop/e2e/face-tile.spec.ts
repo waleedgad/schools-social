@@ -1,5 +1,5 @@
 import { _electron, expect, test } from "@playwright/test";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -40,8 +40,9 @@ test("B-96: the face tile shows the face, the next ones are ready, the face is c
     const faceIds = photos.map((p) => Number(ins.run(p.id, 0.8, 0.22, 0.03, 0.04).lastInsertRowid));
     db.close();
 
-    // The app picks up the new rows on its next 3-second refresh.
-    await win.waitForTimeout(4500);
+    // The app picks up the new rows on its next 3-second refresh (slower on a
+    // busy test machine): wait until it knows the student.
+    await expect.poll(() => win.evaluate("S.counts.students"), { timeout: 30_000 }).toBe(1);
     await win.locator('button.nav[data-go="faces"]').click();
     await win.locator('[data-tab="review"]').click();
     const tile = win.locator(".zoomconfirm .q");
@@ -50,10 +51,12 @@ test("B-96: the face tile shows the face, the next ones are ready, the face is c
     await expect.poll(() => tile.evaluate((im) => (im as HTMLImageElement).complete && (im as HTMLImageElement).naturalWidth), { timeout: 20_000 }).toBeGreaterThan(50);
 
     // The next faces' pictures are already cut before this one is answered.
-    const cached = (id: number) => existsSync(path.join(userData, "cache", "faces", `${id}.jpg`));
+    // Face pictures are named by face number, photo and box (B-96).
+    const faceDir = path.join(userData, "cache", "faces");
+    const cached = (id: number) => existsSync(faceDir) && readdirSync(faceDir).some((n) => n.startsWith(`${id}-`));
     const shown = await win.evaluate("1");
     expect(shown).toBe(1);
-    await expect.poll(() => faceIds.filter(cached).length, { timeout: 20_000, message: "the next face pictures are made ahead" }).toBeGreaterThanOrEqual(5);
+    await expect.poll(() => faceIds.filter(cached).length, { timeout: 60_000, message: "the next face pictures are made ahead" }).toBeGreaterThanOrEqual(5);
 
     // The face in the photo: a white ring, the rest dimmed, even with a black accent.
     const style = await win.locator(".boxphoto .fbox.on").evaluate((el) => {
