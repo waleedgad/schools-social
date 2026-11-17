@@ -253,7 +253,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
                     <Link key={p.id} href={`/posts/${p.id}`} className="flex items-center gap-2 rounded-lg border border-border p-1.5 hover:border-accent" style={p.color ? { borderInlineStartColor: p.color, borderInlineStartWidth: 3 } : undefined}>
                       {p.cover && (
                         // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
-                        <img src={p.cover} alt="" className="size-9 shrink-0 rounded object-cover" />
+                        <img loading="lazy" decoding="async" src={p.cover} alt="" className="size-9 shrink-0 rounded object-cover" />
                       )}
                       <span className="min-w-0 grow truncate">{p.time && <b className="me-1">{p.time}</b>}{p.text || t(`posts.status.${p.status}`)}</span>
                       <span className="shrink-0 text-xs text-muted">{t(`posts.status.${p.status}`)}</span>

@@ -21,6 +21,8 @@ export async function updateSession(request: NextRequest, response: NextResponse
     },
   });
 
-  await supabase.auth.getUser();
+  // Refreshes an expired session; the token is checked here, without a trip
+  // to the sign-in server on every page (Supabase's own advice).
+  await supabase.auth.getClaims();
   return response;
 }

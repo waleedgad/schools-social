@@ -425,7 +425,7 @@ export function Composer({ data }: { data: ComposerData }) {
                 className={`group relative w-24 shrink-0 overflow-hidden rounded-lg border bg-background ${fixing === x.id ? "skeleton" : ""} ${x.waiting ? "border-warn" : "border-border"}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
-                <img src={x.thumb} alt="" className="aspect-[4/5] w-full object-cover" />
+                <img loading="lazy" decoding="async" src={x.thumb} alt="" className="aspect-[4/5] w-full object-cover" />
                 {n === 0 && <span className="absolute start-1 top-1 rounded bg-black/60 px-1 text-[10px] text-white">{tp("cover")}</span>}
                 {x.waiting && <span className="absolute inset-x-0 bottom-0 bg-warn px-1 text-center text-[10px] text-white">{t("waitingMac")}</span>}
                 {Math.abs(ratioOf(x) - 0.8) > 0.01 && !x.waiting && <span className="absolute end-1 top-1 rounded bg-black/60 px-1 text-[10px] text-white">{ratioOf(x) > 1 ? "▭" : ratioOf(x) === 1 ? "□" : "▯"}</span>}
@@ -470,7 +470,7 @@ export function Composer({ data }: { data: ComposerData }) {
                     className={`relative overflow-hidden rounded-md border-2 ${picks.has(m.id) ? "border-accent" : "border-transparent"}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
-                    <img src={m.thumb} alt="" className="aspect-square w-full object-cover" />
+                    <img loading="lazy" decoding="async" src={m.thumb} alt="" className="aspect-square w-full object-cover" />
                     {m.score != null && <span className="absolute bottom-0.5 end-0.5 rounded bg-black/60 px-1 text-[9px] text-white">{m.score}</span>}
                   </button>
                 ))}

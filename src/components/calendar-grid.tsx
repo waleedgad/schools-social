@@ -107,7 +107,7 @@ export function CalendarGrid({ locale, days, weekdays, view, canWrite }: { local
               >
                 {p.cover && (
                   // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
-                  <img src={p.cover} alt="" className="size-6 shrink-0 rounded object-cover" />
+                  <img loading="lazy" decoding="async" src={p.cover} alt="" className="size-6 shrink-0 rounded object-cover" />
                 )}
                 <span className={`size-1.5 shrink-0 rounded-full ${DOT[STATUS_TONE[p.status as PostStatus] ?? "grey"]}`} />
                 <span className="min-w-0 truncate">

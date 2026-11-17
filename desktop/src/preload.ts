@@ -9,6 +9,8 @@ try {
 
 contextBridge.exposeInMainWorld("hub", {
   look,
+  // A long list may come back as text ({ ok, text }): the window reads it
+  // (core.js), because passing thousands of objects out of here is slow.
   call: (name: string, ...args: unknown[]) => ipcRenderer.invoke("call", name, ...args),
   onState: (fn: (state: unknown, changed: string[]) => void) => ipcRenderer.on("state", (_e, s, c) => fn(s, c)),
   onCommand: (fn: (command: string) => void) => ipcRenderer.on("command", (_e, c) => fn(c)),

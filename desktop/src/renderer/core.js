@@ -61,8 +61,11 @@ const ERRORS = {
   "inside-library": ["That folder is already inside the library.", "هذا المجلد موجود بالفعل داخل المكتبة."],
 };
 
+// A long list of photos arrives as one piece of text (much quicker to pass
+// to the window than thousands of objects): read it back here.
+const answer = (r) => (r && typeof r.text === "string" ? { ok: true, value: JSON.parse(r.text) } : r);
 async function call(fn, ...args) {
-  const r = await window.hub.call(fn, ...args);
+  const r = answer(await window.hub.call(fn, ...args));
   if (!r.ok) {
     const e = ERRORS[r.error];
     toast(e ? L(e[0], e[1]) : `${L("Something went wrong", "حدث خطأ")}: ${r.error}`);
@@ -70,7 +73,7 @@ async function call(fn, ...args) {
   }
   return r.value;
 }
-const quiet = (fn, ...args) => window.hub.call(fn, ...args).then((r) => (r.ok ? r.value : null));
+const quiet = (fn, ...args) => window.hub.call(fn, ...args).then((r) => (r = answer(r)).ok ? r.value : null);
 
 function toast(msg, opts = {}) {
   const t = h(`<div class="t"><span class="grow">${esc(msg)}</span>${opts.undo ? `<button>${L("Undo", "تراجع")}</button>` : ""}</div>`);

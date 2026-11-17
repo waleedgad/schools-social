@@ -41,7 +41,7 @@ export default async function BooksPage({ params }: { params: Promise<{ locale: 
                     <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-lg bg-background">
                       {cover ? (
                         // eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly
-                        <img src={cover} alt="" className="h-full w-full object-contain" />
+                        <img loading="lazy" decoding="async" src={cover} alt="" className="h-full w-full object-contain" />
                       ) : (
                         <Icon name="book" size={32} className="text-faint" />
                       )}

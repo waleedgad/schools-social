@@ -66,7 +66,21 @@ export default async function LibraryPage({
     .eq("school_id", schoolId);
   query = selected === "none" ? query.is("event_id", null) : query.eq("event_id", selected);
   if (byAi) query = query.order("ai_score", { ascending: false, nullsFirst: false });
-  const { data: photos } = await query.order("created_at", { ascending: false }).limit(200).returns<PhotoRow[]>();
+  const current = events?.find((e) => e.id === selected);
+  // The photos and the event's upload links are asked for together.
+  const [{ data: photos }, { data: links }] = await Promise.all([
+    query.order("created_at", { ascending: false }).limit(200).returns<PhotoRow[]>(),
+    current
+      ? supabase
+          .from("upload_links")
+          .select("id, label, token, expires_at, upload_count")
+          .eq("event_id", current.id)
+          .is("revoked_at", null)
+          .gt("expires_at", new Date().toISOString())
+          .order("created_at")
+          .returns<LinkRow[]>()
+      : { data: [] as LinkRow[] },
+  ]);
 
   const shown = (p: PhotoRow) => p.edited_path ?? p.storage_path;
   const paths = (photos ?? []).flatMap((p) => [thumbPath(shown(p)), shown(p)]);
@@ -74,19 +88,8 @@ export default async function LibraryPage({
     ? await supabase.storage.from("photos").createSignedUrls(paths, 60 * 60)
     : { data: [] };
   const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl ?? undefined]));
-  const current = events?.find((e) => e.id === selected);
   const unchecked = (photos ?? []).filter((p) => p.ai_score === null).length;
 
-  const { data: links } = current
-    ? await supabase
-        .from("upload_links")
-        .select("id, label, token, expires_at, upload_count")
-        .eq("event_id", current.id)
-        .is("revoked_at", null)
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at")
-        .returns<LinkRow[]>()
-    : { data: [] };
   const origin = await appOrigin();
 
   return (

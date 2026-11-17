@@ -39,26 +39,24 @@ const ITEMS: Item[] = [
   { key: "reports", href: "/reports", icon: "warning", permission: "upload", section: "school" },
 ];
 
+// The menu's badges: asked for together (on a phone each separate trip to
+// the database adds a noticeable wait to every page).
 async function counts(schoolId: string, membership: Membership) {
   const supabase = await createClient();
   const out: Partial<Record<NavKey, number>> = {};
   const p = membership.school.permissions;
-  if (can(membership.role, "approvePosts", p) || can(membership.role, "extraApprove", p)) {
-    const statuses = [
-      ...(can(membership.role, "approvePosts", p) ? ["in_review"] : []),
-      ...(can(membership.role, "extraApprove", p) ? ["waiting_extra"] : []),
-    ];
-    const { count } = await supabase.from("posts").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("status", statuses);
-    if (count) out.posts = count;
-  }
-  if (can(membership.role, "viewLibrary", p)) {
-    const { count } = await supabase.from("photos").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("check_status", "waiting");
-    if (count) out.library = count;
-  }
-  if (can(membership.role, "confirmFaces", p)) {
-    const { count } = await supabase.from("face_checks").select("id", { count: "exact", head: true }).eq("school_id", schoolId).is("answer", null);
-    if (count) out.check = count;
-  }
+  const statuses = [
+    ...(can(membership.role, "approvePosts", p) ? ["in_review"] : []),
+    ...(can(membership.role, "extraApprove", p) ? ["waiting_extra"] : []),
+  ];
+  const [posts, library, check] = await Promise.all([
+    statuses.length ? supabase.from("posts").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("status", statuses) : null,
+    can(membership.role, "viewLibrary", p) ? supabase.from("photos").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("check_status", "waiting") : null,
+    can(membership.role, "confirmFaces", p) ? supabase.from("face_checks").select("id", { count: "exact", head: true }).eq("school_id", schoolId).is("answer", null) : null,
+  ]);
+  if (posts?.count) out.posts = posts.count;
+  if (library?.count) out.library = library.count;
+  if (check?.count) out.check = check.count;
   return out;
 }
 
