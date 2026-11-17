@@ -23,7 +23,7 @@ Bugs go in /mnt/project-files/tracker/bugs.md with the next B-number (other thre
 - lock.ts: if a job function ever threw synchronously, `running` would stay true and every picture job would wait for ever. All callers today are async functions, so it can't happen now; wrap `job.run()` in try/Promise.resolve when next touched.
 
 ## Next
-- B-110/B-111 fix is committed (privacy.ts photosOfPeople/withCopies/noPostWebPhoto; main.ts consentNow/consentChanged in undo + commitStudents; syncOptedOut includes copies). Unit tests pass (68/68). Robot test added to e2e/web-replace.spec.ts: check its GitHub CI run (website job) on commit dca3b88 or later.
-- Waleed was asked (decision card) whether to fix here; work went ahead on the recommended "yes". If he says "only log", leave the branch unmerged.
+- B-110/B-111 fix is committed (privacy.ts photosOfPeople/withCopies/noPostWebPhoto; main.ts consentNow/consentChanged in undo + commitStudents; syncOptedOut includes copies). Unit tests pass (68/68). Robot test added to e2e/web-replace.spec.ts: PASSED in GitHub CI (website job, run 44050554884, 17 Nov). Desktop jobs on that run failed only on e2e/face-tile.spec.ts (B-96 test, already failing on syqjmv itself at abfcca3, run 43958290310; its follow-up fix is on fix/silent-blank-pictures) and the known slow huge-library check on Windows. Mac desktop job green.
+- Waleed chose "Yes, fix them here" (17 Nov 09:04 UTC).
 - Merge into the 0.12 branch syqjmv only after the CI run is green (and not into main).
 - Not yet reviewed in depth: renderer ui.js, library.js, students.js (0.11 UI); website src/ (unchanged since 0.10).
