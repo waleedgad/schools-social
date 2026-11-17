@@ -218,7 +218,7 @@ test("pulling the card out mid-import waits for it, then carries on where it sto
   await app.close();
 });
 
-// B-107: a card pulled out and put straight back (before the app's next
+// B-124: a card pulled out and put straight back (before the app's next
 // look for cards) never counted as new, so the import waited up to a minute.
 test("a card pulled out and put straight back carries on at once", async () => {
   test.setTimeout(300_000);
