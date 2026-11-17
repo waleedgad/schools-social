@@ -166,3 +166,63 @@ test("import, watch, upload once, retry when offline, back up", async () => {
   await again.stop();
   assert.equal(fake.rows.photos.length, 2);
 });
+
+test("a long internet cut never parks photos as failed, and a photo already on the website keeps its id", async () => {
+  const root = temp();
+  const library = path.join(root, "Photos");
+  const folder = path.join(library, "2026-2027", "Term 1", "2026-10-20 Sports day");
+  await mkdir(folder, { recursive: true });
+  const a = path.join(folder, "a.jpg");
+  const b = path.join(folder, "b.jpg");
+  await photoWithGps(a);
+  await sharp({ create: { width: 900, height: 600, channels: 3, background: "#36c" } }).jpeg().toFile(b);
+  const { fileHash } = await import("./photo");
+
+  // Offline for 12 tries in a row (far past the old limit of 8, about 25 minutes).
+  const fake = fakeSupabase({ offlineCalls: 24 });
+  const queue = new UploadQueue(path.join(root, "state", "queue.json"));
+  const seen: (string | null)[] = [];
+  const sync = new LibrarySync({
+    supabase: fake.client,
+    queue,
+    eventsFile: path.join(root, "state", "events.json"),
+    schoolId: "school-1",
+    userId: "user-1",
+    library,
+    backup: null,
+    watch: false,
+    onChange: () => {},
+    onUploaded: (_f, _h, id) => seen.push(id),
+  });
+  for (let i = 0; i < 12; i++) await sync.sendNow(a);
+  assert.equal(queue.stats().failed, 0, "still waiting, not failed");
+  assert.equal(queue.find(a)?.attempts, 12);
+  await sync.sendNow(a);
+  assert.equal(queue.stats().pending, 0);
+  assert.equal(fake.rows.photos.length, 1);
+
+  // b is already on the website (sent from another computer).
+  const hash = await fileHash(b);
+  fake.rows.photos.push({ id: "web-b", school_id: "school-1", source_key: hash });
+  await sync.sendNow(b);
+  assert.equal(seen.at(-1), "web-b", "the Mac learns the website id");
+  assert.equal(queue.photoId(hash), "web-b");
+
+  // An older version saved it without its id: it is looked up when sent again.
+  const again = new UploadQueue(path.join(root, "state", "queue2.json"));
+  again.markSent(hash, "");
+  const sync2 = new LibrarySync({ supabase: fake.client, queue: again, eventsFile: path.join(root, "state", "events.json"), schoolId: "school-1", userId: "user-1", library, backup: null, watch: false, onChange: () => {}, onUploaded: (_f, _h, id) => seen.push(id) });
+  await sync2.sendNow(b);
+  assert.equal(again.photoId(hash), "web-b");
+  assert.equal(seen.at(-1), "web-b");
+});
+
+test("refused for another reason, a photo is still parked after 8 tries", async () => {
+  const { isOffline } = await import("./sync");
+  assert.ok(isOffline("fetch failed"));
+  assert.ok(isOffline("TypeError: Failed to fetch"));
+  assert.ok(isOffline("connect ETIMEDOUT 1.2.3.4:443"));
+  assert.ok(isOffline("502 Bad Gateway"));
+  assert.ok(!isOffline("new row violates row-level security policy"));
+  assert.ok(!isOffline("The object exceeded the maximum allowed size"));
+});

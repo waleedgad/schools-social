@@ -66,9 +66,10 @@ export class UploadQueue {
   }
 
   // A broken file won't get better by retrying; park it for the person.
+  // Every one is kept: a dropped one would never be sent or shown again.
   fail(job: Job, error: string) {
     const { pending, failed } = this.store.get();
-    this.store.set({ pending: pending.filter((j) => j.file !== job.file), failed: [...failed, { ...job, error }].slice(-500) });
+    this.store.set({ pending: pending.filter((j) => j.file !== job.file), failed: [...failed.filter((j) => j.file !== job.file), { ...job, error }] });
   }
 
   // A photo that reached the website another way (an upload checked by

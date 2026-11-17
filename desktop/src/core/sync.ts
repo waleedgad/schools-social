@@ -36,6 +36,13 @@ const PARALLEL = 2;
 
 class BrokenPhoto extends Error {}
 
+// The internet (or the website) is down: waiting fixes it, so a photo is
+// never parked as failed for it, however long the school is offline.
+// Any other refusal still parks the photo after MAX_ATTEMPTS tries.
+export function isOffline(message: string) {
+  return /fetch failed|failed to fetch|network|ECONN|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EPIPE|socket|timed? ?out|abort|\b50[234]\b|bad gateway|service unavailable/i.test(message);
+}
+
 // Watches the library folder and uploads web copies of new photos, one
 // event per folder. Safe to stop and start at any time.
 export class LibrarySync {
@@ -128,6 +135,11 @@ export class LibrarySync {
     }
     try {
       const hash = await fileHash(job.file);
+      // Sent before, but its website id was never learnt (older versions).
+      if (queue.isDone(hash) && !queue.photoId(hash)) {
+        const found = await this.existing(hash).catch(() => null);
+        if (found) queue.markSent(hash, found);
+      }
       const earlier = queue.isDone(hash) ? null : this.o.replaces?.(job.file, hash) ?? null;
       const id = queue.isDone(hash) ? null : earlier ? await this.replace(job.file, hash, earlier) : await this.upload(job.file, hash);
       // Every original is backed up, even one already sent from another folder.
@@ -137,7 +149,7 @@ export class LibrarySync {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       this.o.log?.(`${path.basename(job.file)}: ${message}`);
-      if (e instanceof BrokenPhoto || job.attempts + 1 >= MAX_ATTEMPTS) queue.fail(job, message);
+      if (e instanceof BrokenPhoto || (!isOffline(message) && job.attempts + 1 >= MAX_ATTEMPTS)) queue.fail(job, message);
       else queue.retryLater(job, message);
     }
   }
@@ -187,10 +199,18 @@ export class LibrarySync {
     });
     if (error) {
       await bucket.remove([storagePath, thumbPath]);
-      if (error.code === "23505") return null; // already in the library from another computer
+      // Already on the website (sent from another computer, or this one
+      // before a restart): keep that photo's id, so the privacy check and
+      // deleting still reach it.
+      if (error.code === "23505") return this.existing(hash);
       throw new Error(error.message);
     }
     return id;
+  }
+
+  private async existing(hash: string) {
+    const { data } = await this.o.supabase.from("photos").select("id").eq("school_id", this.o.schoolId).eq("source_key", hash).limit(1).maybeSingle();
+    return (data as { id?: string } | null)?.id ?? null;
   }
 
   async eventFor(file: string, takenAt: Date | null) {
