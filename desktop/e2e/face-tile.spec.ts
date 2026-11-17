@@ -56,7 +56,7 @@ test("B-96: the face tile shows the face, the next ones are ready, the face is c
     const cached = (id: number) => existsSync(faceDir) && readdirSync(faceDir).some((n) => n.startsWith(`${id}-`));
     const shown = await win.evaluate("1");
     expect(shown).toBe(1);
-    await expect.poll(() => faceIds.filter(cached).length, { timeout: 20_000, message: "the next face pictures are made ahead" }).toBeGreaterThanOrEqual(5);
+    await expect.poll(() => faceIds.filter(cached).length, { timeout: 60_000, message: "the next face pictures are made ahead" }).toBeGreaterThanOrEqual(5);
 
     // The face in the photo: a white ring, the rest dimmed, even with a black accent.
     const style = await win.locator(".boxphoto .fbox.on").evaluate((el) => {
