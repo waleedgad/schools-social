@@ -23,5 +23,7 @@ Bugs go in /mnt/project-files/tracker/bugs.md with the next B-number (other thre
 - lock.ts: if a job function ever threw synchronously, `running` would stay true and every picture job would wait for ever. All callers today are async functions, so it can't happen now; wrap `job.run()` in try/Promise.resolve when next touched.
 
 ## Next
-- Fix B-110 and B-111 on this branch with robot tests (asked Waleed 17 Nov; recommended yes).
+- B-110/B-111 fix is committed (privacy.ts photosOfPeople/withCopies/noPostWebPhoto; main.ts consentNow/consentChanged in undo + commitStudents; syncOptedOut includes copies). Unit tests pass (68/68). Robot test added to e2e/web-replace.spec.ts: check its GitHub CI run (website job) on commit dca3b88 or later.
+- Waleed was asked (decision card) whether to fix here; work went ahead on the recommended "yes". If he says "only log", leave the branch unmerged.
+- Merge into the 0.12 branch syqjmv only after the CI run is green (and not into main).
 - Not yet reviewed in depth: renderer ui.js, library.js, students.js (0.11 UI); website src/ (unchanged since 0.10).
