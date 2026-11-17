@@ -15,8 +15,14 @@ function next() {
   const job = waiting.splice(i >= 0 ? i : 0, 1)[0];
   if (!job) return;
   running = true;
-  job
-    .run()
+  // A job that throws before it returns a promise must not leave the line stuck.
+  let started: Promise<unknown>;
+  try {
+    started = job.run();
+  } catch (e) {
+    started = Promise.reject(e);
+  }
+  started
     .then((v) => job.done(true, v), (e) => job.done(false, e))
     .finally(() => {
       running = false;
