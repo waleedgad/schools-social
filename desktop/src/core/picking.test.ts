@@ -133,3 +133,30 @@ test("photos scanned before 0.12 get their eyes read in the background", async (
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("smart crop: room above heads, no face cut through", async () => {
+  const { smartCrop } = await import("../features/posts.js");
+  const inside = (c: { left: number; top: number; width: number; height: number }, f: { x: number; y: number; w: number; h: number }, W: number, H: number) =>
+    f.x * W >= c.left && (f.x + f.w) * W <= c.left + c.width && f.y * H >= c.top && (f.y + f.h) * H <= c.top + c.height;
+  const cut = (c: { left: number; width: number }, f: { x: number; w: number }, W: number) => {
+    const a = f.x * W, b = (f.x + f.w) * W;
+    return b > c.left && a < c.left + c.width && !(a >= c.left && b <= c.left + c.width);
+  };
+  // A face near the top of a tall photo cut to 4:5... to 16:9 strip: its hair stays in.
+  const tall = smartCrop(1000, 2000, 1, [{ x: 0.4, y: 0.2, w: 0.2, h: 0.1 }]);
+  assert.ok(tall.top <= (0.2 - 0.1 * 0.5) * 2000, `top ${tall.top}`);
+  // A wide class photo, nine faces in a row, cut to 9:16: whole faces only,
+  // and the cut keeps the biggest ones.
+  const row = Array.from({ length: 9 }, (_, i) => ({ x: 0.03 + i * 0.105, y: 0.4, w: i === 6 ? 0.09 : 0.07, h: 0.1 }));
+  const c = smartCrop(3000, 2000, 9 / 16, row);
+  assert.equal(c.width, 1125);
+  for (const f of row) assert.ok(!cut(c, f, 3000), `face at ${f.x} cut through (left ${c.left})`);
+  assert.ok(inside(c, row[6], 3000, 2000));
+  // Two faces far apart: one whole face, not half of each.
+  const two = smartCrop(3000, 1000, 1, [{ x: 0.05, y: 0.3, w: 0.15, h: 0.4 }, { x: 0.75, y: 0.3, w: 0.2, h: 0.5 }]);
+  assert.ok(!cut(two, { x: 0.05, w: 0.15 }, 3000) && !cut(two, { x: 0.75, w: 0.2 }, 3000));
+  assert.ok(inside(two, { x: 0.75, y: 0.3, w: 0.2, h: 0.5 }, 3000, 1000), "the bigger face is kept");
+  // Faces that fit get some room at the sides.
+  const side = smartCrop(2000, 1000, 1, [{ x: 0.8, y: 0.3, w: 0.15, h: 0.3 }]);
+  assert.ok(side.left + side.width >= (0.95 + 0.15 * 0.2) * 2000 || side.left + side.width === 2000);
+});
