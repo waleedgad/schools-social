@@ -91,6 +91,23 @@ test("web copies: blurred for students who can't appear, replaced when the photo
     await call("setCanPost", "NO1", true);
     await expect.poll(async () => ((await web())[0].blur_boxes as unknown[]).length, { timeout: 60_000 }).toBe(0);
 
+    // ---------- B-110: an undo reaches the website too ----------
+    const boxes = async () => ((await web())[0].blur_boxes as unknown[]).length;
+    await call("undo"); // Nour can't appear again
+    await expect.poll(boxes, { timeout: 60_000, message: "B-110: undo of 'can appear' blurs the web copy again" }).toBe(1);
+
+    // ---------- B-110: a far face that is only a likely match counts ----------
+    const db2 = new DatabaseSync(path.join(userData, "library.db"));
+    db2.exec("pragma busy_timeout = 5000");
+    db2.prepare("update faces set status = 'unknown', student_id = null, suggest_id = 'NO1', suggest_score = 0.62, why = 'far' where photo_id = ?").run(photoId);
+    db2.close();
+    await call("setCanPost", "NO1", true);
+    await expect.poll(boxes, { timeout: 60_000, message: "B-110: the far likely match's photo is checked when Nour may appear" }).toBe(0);
+    await call("setCanPost", "NO1", false);
+    await expect.poll(boxes, { timeout: 60_000, message: "B-110: the far likely match is blurred when Nour can't appear" }).toBe(1);
+    await call("setCanPost", "NO1", true);
+    await expect.poll(boxes, { timeout: 60_000 }).toBe(0);
+
     // ---------- B-89: the photo is retouched in another app ----------
     const before = (await web())[0];
     writeFileSync(file, await picture(160, 700));

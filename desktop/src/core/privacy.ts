@@ -37,3 +37,28 @@ export function webCheck(db: Q, photoId: number, facesOn: boolean): { ready: boo
   const n = (db.prepare(`select count(*) n from faces f where f.photo_id = ? and ${noPostFace("f")}`).get(checked.id) as { n: number }).n;
   return { ready: true, optedOut: n > 0 || (facesOn && checked.faces_scanned === -1) };
 }
+
+// A photo row `p` as the website sees it: an exact copy of a library photo
+// (a website upload that was already in the library) has no faces of its
+// own, so the main photo's faces decide for it (B-111).
+export const noPostWebPhoto = (p = "p") => `exists (select 1 from faces npf where npf.photo_id = coalesce(${p}.dup_of, ${p}.id) and ${noPostFace("npf")})`;
+
+type All = { prepare: (sql: string) => { all: (...a: (string | number)[]) => unknown[] } };
+
+// Every photo whose website copy depends on these photos: the photos
+// themselves and their exact copies (B-111).
+export function withCopies(db: All, photoIds: number[]): number[] {
+  if (!photoIds.length) return [];
+  const copies = (db.prepare(`select id from photos where dup_of in (${photoIds.map(() => "?").join(",")})`).all(...photoIds) as { id: number }[]).map((r) => r.id);
+  return [...new Set([...photoIds, ...copies])];
+}
+
+// Every photo where these people are named, suggested, or a likely match
+// (anything noPostFace looks at), with the copies of those photos: what has
+// to be checked again when someone's "can't appear" changes (B-110).
+export function photosOfPeople(db: All, studentIds: string[]): number[] {
+  if (!studentIds.length) return [];
+  const m = studentIds.map(() => "?").join(",");
+  const ids = (db.prepare(`select distinct photo_id from faces where portrait = 0 and (student_id in (${m}) or suggest_id in (${m}))`).all(...studentIds, ...studentIds) as { photo_id: number }[]).map((r) => r.photo_id);
+  return withCopies(db, ids);
+}
