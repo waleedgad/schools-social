@@ -65,7 +65,12 @@ function settingGroups(page, extra) {
           srow(L("Plan", "الخطة"), acc.plan ? esc(acc.plan) : L("Free while testing", "مجاني أثناء التجربة"), actBtn("openWebPlan", L("See plan", "عرض الخطة")), "plan billing price"),
           srow(L("Computers", "الأجهزة"), L(`${num(acc.computers ?? 1)} of ${num(acc.computerLimit ?? 1)} library computers in use`, `${num(acc.computers ?? 1)} من ${num(acc.computerLimit ?? 1)} أجهزة مكتبة مستخدمة`), "", "computers mac windows devices"),
         );
-      return [{ rows }, { rows: [srow(L("Use without signing in", "الاستخدام دون تسجيل الدخول"), L("The library, faces and yearbooks work without the website. Posts need it.", "المكتبة والوجوه والكتب السنوية تعمل دون الموقع. المنشورات تحتاجه."), "", "offline")] }];
+      const lic = S.licence;
+      if (lic?.on && S.signedIn)
+        rows.push(srow(L("Licence", "الترخيص"), lic.checkedAt ? L(`Last checked ${new Date(lic.checkedAt).toLocaleString("en")}. Works offline until ${new Date(lic.validUntil).toLocaleDateString("en")}.`, `آخر تحقق ${new Date(lic.checkedAt).toLocaleString("ar-EG")}. يعمل دون إنترنت حتى ${new Date(lic.validUntil).toLocaleDateString("ar-EG")}.`) : "", actBtn("checkLicence", L("Check now", "تحقّق الآن")), "licence plan offline"));
+      return [{ rows }, { rows: [lic?.on
+        ? srow(L("Working offline", "العمل دون إنترنت"), L("The library, faces and yearbooks work offline for up to 10 days after the last check. Then the library is read-only until the computer is online again.", "تعمل المكتبة والوجوه والكتب السنوية دون إنترنت حتى 10 أيام بعد آخر تحقق. بعدها تصبح المكتبة للقراءة فقط حتى يتصل الجهاز بالإنترنت."), "", "offline")
+        : srow(L("Use without signing in", "الاستخدام دون تسجيل الدخول"), L("The library, faces and yearbooks work without the website. Posts need it.", "المكتبة والوجوه والكتب السنوية تعمل دون الموقع. المنشورات تحتاجه."), "", "offline")] }];
     }
     case "library": {
       const folders = [
@@ -413,6 +418,7 @@ App.views.settings = {
       case "connect": return call("connect", $("#srv", page).value).then(() => toast(L("Connected", "تم الاتصال")));
       case "signIn": return call("signIn", $("#em", page).value.trim(), $("#pw", page).value).then(() => { toast(L("Signed in", "تم تسجيل الدخول")); this.load(); });
       case "signOut": return call("signOut");
+      case "checkLicence": return call("checkLicence").then(() => { toast(L("Checked", "تم التحقق")); this.load(); });
       case "openWeb": return call("openWeb", "");
       case "openWebPlan": return call("openWeb", "/settings?tab=plan");
       case "openWebSettings": return call("openWeb", "/settings");

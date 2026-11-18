@@ -26,7 +26,12 @@ test("the packaged app starts, reads photos and finds faces", async () => {
   const app = await _electron.launch({
     executablePath: exe!,
     args: [`--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
-    env: { ...process.env, HUB_TEST: "1" },
+    // The installed app needs a school's licence (0.13): a test one here.
+    env: {
+      ...process.env,
+      HUB_TEST: "1",
+      HUB_TEST_LICENCE: JSON.stringify({ schoolId: "00000000-0000-0000-0000-000000000001", state: "active", key: Buffer.alloc(32, 7).toString("base64"), checkedAt: new Date().toISOString(), validUntil: new Date(Date.now() + 86400_000).toISOString(), paidUntil: null, readOnlyLeft: 0, daysLeft: 30, forced: false, plan: null, contact: "" }),
+    },
   });
   const win = await app.firstWindow();
   const errors: string[] = [];

@@ -58,6 +58,8 @@ const ERRORS = {
   "link-not-public": ["That link isn't shared with “Anyone with the link”. Ask for a public link.", "هذا الرابط غير مُشارك مع «أي شخص لديه الرابط». اطلب رابطًا عامًا."],
   "link-empty": ["No photos found behind that link.", "لا توجد صور في هذا الرابط."],
   "not-supported": ["This computer can't do that yet.", "هذا الجهاز لا يدعم ذلك بعد."],
+  "read-only": ["The school is in read-only mode: this can't be done until the plan is renewed.", "المدرسة في وضع القراءة فقط: لا يمكن فعل ذلك حتى تجديد الخطة."],
+  locked: ["Sign in to your school first.", "سجّل الدخول إلى مدرستك أولًا."],
   "inside-library": ["That folder is already inside the library.", "هذا المجلد موجود بالفعل داخل المكتبة."],
 };
 
@@ -428,13 +430,15 @@ function go(view, params = {}, history = false) {
 // a new page: nothing fades in again and the lists stay scrolled where they
 // were (B-74). Only a different tab gets the gentle fade-in.
 function rerender(same = false) {
+  const main = $("#main");
+  if (licenceFrame(main)) return;
   sidebar();
   const v = App.views[App.view] ?? App.views.today;
-  const main = $("#main");
   const scrolls = same ? [...main.querySelectorAll("*")].filter((e) => e.scrollTop > 0).map((e) => [scrollPath(main, e), e.scrollTop]) : [];
   main.classList.toggle("still", same);
   main.replaceChildren();
   v.render(main, App.params);
+  licenceBar(main);
   if (!scrolls.length) return;
   const put = () => scrolls.forEach(([p, top]) => { const e = fromScrollPath(main, p); if (e && e.scrollTop < top) e.scrollTop = top; });
   put();
