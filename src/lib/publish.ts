@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notify } from "./alerts";
 import { addComment, MetaError, publishStory, publishToFacebook, publishToInstagram } from "./meta";
+import { stateWithServiceKey } from "./plan";
 
 type Post = {
   id: string;
@@ -108,6 +109,9 @@ async function claim(admin: SupabaseClient, id: string, from: "scheduled" | "fai
 }
 
 export async function publishNow(admin: SupabaseClient, id: string) {
+  // A school that is read-only or blocked keeps its posts; nothing goes out.
+  const { data: row } = await admin.from("posts").select("school_id").eq("id", id).maybeSingle();
+  if (!row || (await stateWithServiceKey(admin, row.school_id as string)) !== "active") return;
   const post = (await claim(admin, id, "scheduled")) ?? (await claim(admin, id, "failed"));
   if (post) await publishClaimed(admin, post);
 }
@@ -127,7 +131,12 @@ export async function publishDue(admin: SupabaseClient, limit = 5, budgetMs = 40
 
   // Paused schools keep their queue; nothing goes out until they resume.
   const { data: paused } = await admin.from("schools").select("id").gt("posting_paused_until", now);
-  const pausedIds = (paused ?? []).map((s) => s.id as string);
+  // Schools that are read-only or blocked keep their scheduled posts too;
+  // they go out once the school is active again.
+  const { data: states } = await admin.rpc("all_school_states");
+  const pausedIds = [
+    ...new Set([...(paused ?? []).map((s) => s.id as string), ...((states ?? []) as { id: string; state: string }[]).filter((s) => s.state !== "active").map((s) => s.id)]),
+  ];
 
   // Work through what is due in small batches until the time is nearly up
   // (B-45: one batch of 5 per run let a backlog delay other schools' posts).

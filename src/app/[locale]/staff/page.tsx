@@ -9,6 +9,7 @@ import { changeRole, createInvite, emailInvite, removeMember, revokeInvite, setA
 import { viewAs } from "@/lib/actions/workspace";
 import { isEmailConfigured } from "@/lib/alerts";
 import { PAID_ROLES, ROLES, type Role } from "@/lib/roles";
+import { getPlanStatus, isPlanError } from "@/lib/plan";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +34,7 @@ export default async function StaffPage({
   const supabase = await createClient();
   const schoolId = membership.school.id;
 
+  const plan = await getPlanStatus(schoolId);
   const [{ data: members }, { data: invites }] = await Promise.all([
     supabase
       .from("memberships")
@@ -143,7 +145,8 @@ export default async function StaffPage({
           <form action={createInvite} className="space-y-4">
             <h2 className="font-semibold">{t("staff.invite")}</h2>
             <p className="text-sm text-muted">{t("staff.inviteHint")}</p>
-            {error && <Notice>{t("staff.inviteError")}</Notice>}
+            {error && <Notice>{isPlanError(error) ? t(`plan.errors.${error}`, { limit: plan?.manager_limit ?? 0 }) : t("staff.inviteError")}</Notice>}
+            {plan && <p className="text-xs text-muted">{t("plan.staffCount", { used: plan.managers, limit: plan.manager_limit })}</p>}
             <input type="hidden" name="locale" value={locale} />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t("common.email")} name="email" type="email" dir="ltr" required />

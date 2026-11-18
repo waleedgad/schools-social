@@ -77,6 +77,9 @@ set test.uid = '10000000-0000-0000-0000-00000000000f';
 select pg_temp.check((public.owner_set_plan(:'school', 'small', 1, 1, 'bought extras') ->> 'ok') = 'true', 'the owner adds one managing user and one computer');
 select pg_temp.check((select manager_limit = 3 and computer_limit = 2 from schools where id = :'school'), 'limits are plan plus extras');
 set test.uid = '10000000-0000-0000-0000-00000000000a';
+select pg_temp.check(pg_temp.works(format($$insert into invites (school_id, email, role, invited_by) values (%L, 'c3@x', 'comms', %L)$$, :'school', '10000000-0000-0000-0000-00000000000a')), 'an invite for the extra managing user works');
+select pg_temp.check(pg_temp.refused(format($$insert into invites (school_id, email, role, invited_by) values (%L, 'c2@x', 'comms', %L)$$, :'school', '10000000-0000-0000-0000-00000000000a'), 'manager-limit'), 'a waiting managing invite holds its place');
+delete from invites where email = 'c3@x';
 select pg_temp.check(pg_temp.works(format($$insert into memberships (school_id, user_id, role, full_name) values (%L, '10000000-0000-0000-0000-00000000000c', 'comms', 'C1')$$, :'school')), 'the extra managing user joins');
 select pg_temp.check((public.register_computer(:'school', 'device-0002', 'Mac 2', 'mac') ->> 'computers') = '2', 'the extra computer signs in');
 set test.uid = '10000000-0000-0000-0000-00000000000f';
@@ -185,6 +188,11 @@ set test.uid = '10000000-0000-0000-0000-000000000010';
 select public.create_school('Own school', 'Me') as own \gset
 select pg_temp.check((select trial from schools where id = :'own'), 'self sign-up (when allowed) starts a trial');
 select pg_temp.check((public.school_status(:'own') ->> 'contact') = 'hello@example.com', 'schools see the renew contact');
+select pg_temp.check(public.signup_open(), 'sign-up shows as open');
+set test.uid = '10000000-0000-0000-0000-00000000000f';
+select public.owner_save_settings('EGP', 1000, 2000, 'hello@example.com', false);
+set test.uid = '10000000-0000-0000-0000-000000000010';
+select pg_temp.check(not public.signup_open(), 'sign-up shows as closed');
 
 reset test.uid;
 \set QUIET 0

@@ -8,6 +8,7 @@ import { generateFor, INTENTS, runIntent, type PostCtx } from "@/lib/post-core";
 import { categoryName, zonedTime, type Slot } from "@/lib/posting";
 import { loadPost, signedThumbs } from "@/lib/posts";
 import { checkPost } from "@/lib/privacy";
+import { isActive } from "@/lib/plan";
 import type { PermissionOverrides, Role } from "@/lib/roles";
 import type { Membership } from "@/lib/session";
 import { reusePost } from "@/lib/reuse";
@@ -61,6 +62,13 @@ async function handle(ctx: PostCtx, body: Body) {
   const schoolId = membership.school.id;
   const locale = body.locale === "en" ? "en" : "ar";
   const tz = membership.school.timezone;
+
+  // Asking the AI or replying on Facebook from a school that is read-only
+  // or blocked (the database stops every other change by itself).
+  if (["generate", "rewrite", "suggestReplies", "reply", "reuse"].includes(body.action) && !(await isActive(supabase, schoolId))) {
+    const t = await getTranslations({ locale });
+    return { error: "readOnly", message: t("plan.errors.read_only") };
+  }
 
   switch (body.action) {
     case "me":

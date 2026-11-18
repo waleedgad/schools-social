@@ -23,6 +23,7 @@ type Tab = (typeof TABS)[number];
 const TAB_ICONS: Record<Tab, IconName> = { school: "settings", calendar: "calendar", approvals: "check", roles: "people", library: "library", computers: "keyboard", connections: "link", setup: "bolt" };
 // Pages of their own that sit in the same list, like System Settings.
 const PAGES: { key: string; href: string; icon: IconName }[] = [
+  { key: "plan", href: "/plan", icon: "chart" },
   { key: "categories", href: "/categories", icon: "categories" },
   { key: "accounts", href: "/accounts", icon: "accounts" },
   { key: "people", href: "/staff", icon: "people" },

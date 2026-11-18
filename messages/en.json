@@ -562,7 +562,9 @@
     "coverage": "Coverage",
     "books": "Yearbooks",
     "albums": "Albums",
-    "reports": "Problem reports"
+    "reports": "Problem reports",
+    "plan": "Plan",
+    "owner": "Owner page"
   },
   "shell": {
     "newPost": "New post",
@@ -1213,6 +1215,10 @@
       "pause": {
         "title": "Pausing posting",
         "body": "On Accounts, pause all posting for a few days (for example a day of mourning) or just one account. Scheduled posts wait and nothing is lost."
+      },
+      "plan": {
+        "title": "Your plan, read-only and renewing",
+        "body": "Your plan sets how many managing users (Admin, Comms lead, Comms) and library computers your school can have. Teachers, staff, photographers and the principal are free.\nYou see it under Settings > Plan.\nFrom 14 days before the plan ends, the Admin and Comms lead see a yellow reminder.\nIf it isn't renewed, the school is read-only for 14 days: everyone can look, nobody can change anything, and scheduled posts wait (nothing is deleted).\nAfter that, access is paused until you renew. Your photo files always stay in your school's own folders, and renewing brings everything back."
       }
     },
     "whatsNew": {
@@ -1431,7 +1437,8 @@
         "people": "People and roles",
         "activity": "Activity log",
         "reports": "Problem reports",
-        "help": "Help"
+        "help": "Help",
+        "plan": "Plan"
       },
       "words": {
         "school": "name language time zone captions brand voice hashtags اسم لغة توقيت",
@@ -1447,7 +1454,8 @@
         "activity": "log history audit سجل",
         "reports": "problems bugs بلاغات مشاكل",
         "help": "guide videos مساعدة",
-        "connections": "slack teams email alerts whatsapp classroom google microsoft class lists integrations"
+        "connections": "slack teams email alerts whatsapp classroom google microsoft class lists integrations",
+        "plan": "plan renew paid until managing users computers limit"
       },
       "holidays": "Holidays",
       "holidaysHint": "The calendar shows these, and no posts are planned on them if you choose so below.",
@@ -1670,7 +1678,9 @@
       "email": "Send email",
       "emailed": "Invite email sent.",
       "emailFailed": "Couldn't send the email. Copy the link instead.",
-      "waText": "{school} invited you to School Social Hub:"
+      "waText": "{school} invited you to School Social Hub:",
+      "limit": "Your plan doesn't have room for that many managing users. Invite them as teachers or staff, or ask us to add more.",
+      "readOnly": "Your school is in read-only mode, so nobody can be invited now."
     },
     "invite": {
       "bodyPhone": "{school} invited you to join as {role}.",
@@ -1731,5 +1741,225 @@
     "noStudents": "No class lists yet.",
     "email": "This page is also sent by email every Sunday morning when the school turns on the weekly digest in Settings.",
     "open": "Weekly digest"
+  },
+  "plan": {
+    "states": {
+      "active": "Active",
+      "read_only": "Read-only",
+      "blocked": "Paused"
+    },
+    "bar": {
+      "endingSoon": "Your school's plan ends in {days, plural, =0 {less than a day} one {# day} other {# days}} ({date}). Contact us to renew.",
+      "trialEnding": "Your trial ends in {days, plural, =0 {less than a day} one {# day} other {# days}}. Contact us to keep using the system.",
+      "readOnly": "Your school is in read-only mode for {days, plural, =0 {less than a day} one {# more day} other {# more days}}. Posting is paused.",
+      "readOnlyForced": "Your school is in read-only mode. Posting is paused.",
+      "seePlan": "See your plan"
+    },
+    "readOnlyReason": "Read-only: your school's plan needs renewing.",
+    "blocked": {
+      "title": "Your school's access is paused",
+      "body": "Access for {school} is paused until the plan is renewed. To renew, contact us:",
+      "noContact": "Ask your school's Admin how to renew.",
+      "safe": "Your school's photos stay in your school's own folders. Renewing brings everything back as it was."
+    },
+    "closed": {
+      "title": "Ask us for an account",
+      "body": "New schools are set up by us. Ask us for an account and we'll send your Admin an invite.",
+      "invite": "If your school sent you an invite link, open that link to join."
+    },
+    "staffCount": "Managing users: {used} of {limit} on your plan. Teachers, staff, photographers and the principal are free.",
+    "errors": {
+      "read_only": "Your school is in read-only mode, so nothing can be changed. Contact us to renew.",
+      "blocked": "Your school's access is paused. Contact us to renew.",
+      "manager_limit": "Your plan allows {limit} managing users. Remove one or ask us to add more.",
+      "computer_limit": "Your plan allows {limit} library computers. Remove one or ask us to add more.",
+      "signup_closed": "New schools are set up by us. Ask us for an account."
+    },
+    "page": {
+      "title": "Plan",
+      "subtitle": "What your school's plan allows and how to renew",
+      "unknown": "Couldn't load your plan. Try again in a minute.",
+      "yourPlan": "Your plan",
+      "trial": "trial",
+      "paidUntil": "Paid until {date}",
+      "renew": "Renew or add more",
+      "renewHint": "To renew, or to add managing users or library computers, contact us:",
+      "managers": "Managing users",
+      "computers": "Library computers",
+      "used": "{used} of {limit}",
+      "managersHint": "Admin, Comms lead and Comms count. Teachers, staff, photographers and the principal are free and never counted.",
+      "computersHint": "Each Mac or Windows computer signed in to your school's library.",
+      "statesTitle": "What the states mean",
+      "stateActive": "everything works.",
+      "stateReadOnly": "for 14 days after your plan ends you can sign in and look, but not change anything; posting is paused and nothing is deleted.",
+      "stateBlocked": "after that only the renew notice shows. Your photo files stay in your school's own folders, and renewing brings everything back."
+    }
+  },
+  "owner": {
+    "brand": "Owner page",
+    "tabs": {
+      "schools": "Schools",
+      "new": "New school",
+      "plans": "Plans and prices",
+      "log": "Owner log"
+    },
+    "trial": "trial",
+    "daysLeft": "{days, plural, =0 {ends today} one {# day left} other {# days left}}",
+    "daysAgo": "{days, plural, one {ended # day ago} other {ended # days ago}}",
+    "planOption": "{name} ({managers} managing users, {computers} computers)",
+    "reason": "Reason (for the owner log)",
+    "reasonNeeded": "Reason (needed)",
+    "methods": {
+      "transfer": "Bank transfer",
+      "cash": "Cash",
+      "cheque": "Cheque",
+      "card": "Card",
+      "other": "Other"
+    },
+    "schools": {
+      "title": "Schools",
+      "active": "Active schools",
+      "endingSoon": "Ending in 14 days",
+      "notActive": "Read-only or paused",
+      "dueThisMonth": "Due this month",
+      "filters": {
+        "all": "All",
+        "ending": "Ending in 14 days",
+        "read_only": "Read-only",
+        "blocked": "Paused",
+        "trial": "On trial"
+      },
+      "empty": "No schools here.",
+      "cols": {
+        "name": "School",
+        "plan": "Plan",
+        "state": "State",
+        "paidUntil": "Paid until",
+        "managers": "Managing users",
+        "computers": "Computers",
+        "lastActivity": "Last activity"
+      }
+    },
+    "new": {
+      "title": "New school",
+      "name": "School name",
+      "plan": "Plan",
+      "trial": "Start with a 14-day trial",
+      "trialHint": "Then the same read-only and paused rules as every school.",
+      "paidUntil": "Paid until",
+      "paidUntilHint": "Used only when the trial is off.",
+      "email": "Admin's email",
+      "emailHint": "They get an invite link (works for 30 days) to become the school's Admin.",
+      "language": "School's main language",
+      "create": "Create school",
+      "error": "Couldn't create the school. Check the name and the email."
+    },
+    "school": {
+      "back": "← All schools",
+      "saved": "Saved.",
+      "created": "School created. Send the Admin the invite link below.",
+      "forced": "set by hand",
+      "paidUntil": "Paid until {date}",
+      "managersUsed": "Managing users {used}/{limit}",
+      "computersUsed": "Computers {used}/{limit}",
+      "planTitle": "Plan and extras",
+      "plan": "Plan",
+      "extraManagers": "Extra managing users",
+      "extraComputers": "Extra computers",
+      "planHint": "Going down a plan never removes anyone: it is refused while the school uses more than the new plan allows.",
+      "savePlan": "Save plan",
+      "paymentTitle": "Record a payment",
+      "amount": "Amount",
+      "currency": "Currency",
+      "paidOn": "Paid on",
+      "coversUntil": "New paid until",
+      "method": "Method",
+      "note": "Note",
+      "record": "Record payment",
+      "stateTitle": "State",
+      "state": "State",
+      "fromDates": "From the dates (normal)",
+      "setState": "Set state",
+      "paidUntilByHand": "Change paid until without a payment",
+      "saveDate": "Save date",
+      "adminTitle": "Admin invite",
+      "inviteHint": "Send this link to the school's Admin. It works once, for their email.",
+      "noInvite": "No invite waiting.",
+      "newInvite": "Invite an Admin by email",
+      "invite": "Invite",
+      "peopleTitle": "Managing users ({count})",
+      "freePeople": "{count, plural, one {# more person} other {# more people}} on free roles or turned off.",
+      "computersTitle": "Library computers ({count})",
+      "noComputers": "No computer signed in yet.",
+      "lastSeen": "seen {when}",
+      "removeComputer": "Remove",
+      "notesTitle": "Private notes",
+      "notes": "Notes",
+      "notesHint": "Only owners see these.",
+      "saveNotes": "Save notes",
+      "paymentsTitle": "Payments",
+      "noPayments": "No payments yet.",
+      "covers": "until {date}",
+      "logTitle": "Owner log for this school",
+      "errors": {
+        "save": "Couldn't save. Try again.",
+        "reason": "Write a reason first.",
+        "payment": "Check the amount and the new paid until date.",
+        "invite": "Couldn't make the invite. Check the email.",
+        "too-many-managers": "The school has more managing users than that plan allows. They need to turn someone off first.",
+        "too-many-computers": "The school has more computers than that plan allows. Remove one first."
+      }
+    },
+    "plans": {
+      "title": "Plans and prices",
+      "id": "Short code",
+      "idHint": "Letters, numbers and dashes, for example \"xl\".",
+      "nameEn": "Name in English",
+      "nameAr": "Name in Arabic",
+      "managers": "Managing users",
+      "computers": "Computers",
+      "price": "Price per year ({currency})",
+      "active": "Offered for new schools",
+      "applyNow": "Apply to schools on this plan now",
+      "applyNowHint": "Otherwise a school gets the new limits at its next payment.",
+      "save": "Save",
+      "add": "Add plan",
+      "newPlan": "New plan",
+      "saved": "Plan saved. {moved, plural, =0 {} one {# school moved now.} other {# schools moved now.}} {kept, plural, =0 {} one {# school kept its limits because it uses more.} other {# schools kept their limits because they use more.}}",
+      "error": "Couldn't save. Check the numbers.",
+      "settingsTitle": "Extras, contact and sign-up",
+      "currency": "Currency",
+      "extraManager": "Extra managing user, per year",
+      "extraComputer": "Extra computer, per year",
+      "contact": "Renew contact shown to schools",
+      "contactHint": "Phone, WhatsApp or email. Schools see it on their Plan page and when paused.",
+      "selfSignup": "Let people create a school by themselves",
+      "selfSignupHint": "Off: only you create schools here. On: anyone who signs up gets a 14-day trial school.",
+      "saveSettings": "Save",
+      "settingsSaved": "Saved."
+    },
+    "log": {
+      "title": "Owner log",
+      "empty": "Nothing yet.",
+      "actions": {
+        "school.created": "School created",
+        "admin.invited": "Admin invited",
+        "plan.changed": "Plan changed",
+        "payment.recorded": "Payment recorded",
+        "paid_until.changed": "Paid until changed",
+        "state.forced": "State set by hand",
+        "computer.removed": "Computer removed",
+        "plan.saved": "Plan saved",
+        "settings.saved": "Settings saved"
+      },
+      "fields": {
+        "state": "State",
+        "plan_id": "Plan",
+        "paid_until": "Paid until",
+        "extra_managers": "Extra managing users",
+        "extra_computers": "Extra computers",
+        "amount": "Amount"
+      }
+    }
   }
 }

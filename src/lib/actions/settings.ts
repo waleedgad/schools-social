@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
+import { stateWithServiceKey } from "@/lib/plan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,6 +46,7 @@ export async function choosePage(formData: FormData) {
   const { locale, schoolId, audit } = await admin(formData);
   const pageId = String(formData.get("page") ?? "");
   const db = createAdminClient();
+  if ((await stateWithServiceKey(db, schoolId)) !== "active") redirect({ href: { pathname: "/settings", query: { error: "readOnly", tab: "connections" } }, locale });
   const { data } = await db.from("meta_connections").select("pages").eq("school_id", schoolId).maybeSingle();
   const page = ((data?.pages ?? []) as StoredPage[]).find((p) => p.id === pageId);
   if (page) {
@@ -59,6 +61,7 @@ export async function choosePage(formData: FormData) {
 
 export async function disconnectMeta(formData: FormData) {
   const { locale, schoolId, audit } = await admin(formData);
+  if ((await stateWithServiceKey(createAdminClient(), schoolId)) !== "active") redirect({ href: { pathname: "/settings", query: { error: "readOnly", tab: "connections" } }, locale });
   await createAdminClient().from("meta_connections").delete().eq("school_id", schoolId);
   await audit("meta.disconnected", schoolId);
   redirect({ href: "/accounts", locale });

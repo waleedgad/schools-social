@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { stateWithServiceKey } from "@/lib/plan";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
 
@@ -62,6 +63,8 @@ export async function POST(request: NextRequest) {
     if (!phoneId || !images.length) continue;
     const { data: link } = await admin.from("school_integrations").select("school_id, whatsapp_event").eq("whatsapp_phone_id", phoneId).maybeSingle();
     if (!link) continue;
+    // A school that is read-only or blocked takes no new photos.
+    if ((await stateWithServiceKey(admin, link.school_id as string)) !== "active") continue;
     const { data: team } = await admin.from("memberships").select("user_id, phone, full_name").eq("school_id", link.school_id).eq("active", true).not("phone", "is", null);
     for (const m of images) {
       const who = (team ?? []).find((p) => digits(p.phone as string) && digits(p.phone as string) === digits(m.from));

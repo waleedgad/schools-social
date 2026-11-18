@@ -141,6 +141,7 @@ create policy "owners read the owner log" on public.owner_log for select using (
 create policy "owners read schools" on public.schools for select using (public.is_owner());
 create policy "owners read memberships" on public.memberships for select using (public.is_owner());
 create policy "owners read computers" on public.computers for select using (public.is_owner());
+create policy "owners read invites" on public.invites for select using (public.is_owner());
 
 -- ---------------------------------------------------------------------
 -- The state of a school, worked out on every ask.
@@ -274,7 +275,7 @@ declare
   v_school uuid := coalesce(new.school_id, old.school_id);
   v_limit int;
 begin
-  if tg_op = 'UPDATE' and new.role = old.role and new.active = old.active and new.school_id = old.school_id then
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'last_seen_at') = (to_jsonb(old) - 'last_seen_at') then
     return new;
   end if;
   if public.write_blocked(v_school) then
@@ -295,7 +296,8 @@ create trigger guard_membership before insert or update or delete on public.memb
   for each row execute function public.guard_membership();
 
 -- An invite for a managing role when the plan is full is refused at once,
--- not only when it is accepted.
+-- not only when it is accepted. Invites still waiting for a managing role
+-- hold a place too.
 create function public.guard_invite_limit()
 returns trigger
 language plpgsql security definer set search_path = ''
@@ -303,9 +305,12 @@ as $$
 declare
   v_limit int;
 begin
-  if public.is_managing(new.role) and (tg_op = 'INSERT' or not public.is_managing(old.role)) then
+  if public.is_managing(new.role) and new.accepted_at is null and (tg_op = 'INSERT' or not public.is_managing(old.role)) then
     select manager_limit into v_limit from public.schools where id = new.school_id;
-    if public.managers_used(new.school_id) >= v_limit then
+    if public.managers_used(new.school_id) + (
+         select count(*) from public.invites i
+         where i.school_id = new.school_id and i.id <> new.id and i.accepted_at is null and i.expires_at > now() and public.is_managing(i.role)
+       ) >= v_limit then
       raise exception 'manager-limit' using errcode = 'P0001', hint = 'plan', detail = v_limit::text;
     end if;
   end if;
@@ -344,6 +349,15 @@ as $$
   ) end
   from public.schools s join public.plans p on p.id = s.plan_id
   where s.id = p_school;
+$$;
+
+-- Whether a person without an invite may create a school (the sign-up
+-- page shows "ask us for an account" when not).
+create function public.signup_open()
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select public.is_owner() or coalesce((select o.self_signup from public.owner_settings o where o.id), false);
 $$;
 
 -- Creating a school by oneself works only while the owner allows it
@@ -810,7 +824,7 @@ declare
 begin
   foreach f in array array[
     'is_owner()', 'school_today(uuid)', 'school_state(uuid)', 'can_change(uuid)', 'write_blocked(uuid)', 'managers_used(uuid)',
-    'school_status(uuid)', 'licence(uuid, text)', 'owner_schools()', 'owner_school_people(uuid)',
+    'school_status(uuid)', 'licence(uuid, text)', 'signup_open()', 'owner_schools()', 'owner_school_people(uuid)',
     'owner_create_school(text, text, date, text, text)', 'owner_invite_admin(uuid, text)',
     'owner_set_plan(uuid, text, int, int, text)', 'owner_record_payment(uuid, numeric, text, date, text, date, text)',
     'owner_set_paid_until(uuid, date, text)', 'owner_force_state(uuid, text, text)', 'owner_remove_computer(uuid, text)',
@@ -818,7 +832,7 @@ begin
     'owner_save_settings(text, numeric, numeric, text, boolean)'
   ] loop
     execute format('revoke execute on function public.%s from public, anon', f);
-    execute format('grant execute on function public.%s to authenticated', f);
+    execute format('grant execute on function public.%s to authenticated, service_role', f);
   end loop;
 end $$;
 -- write_blocked runs inside the policies and triggers of link pages too.
