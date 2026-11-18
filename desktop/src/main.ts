@@ -10,7 +10,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, ne
 import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
-import { backupLibrary, checkpointInBackground, closeDbFully, encryptLibrary, isPlainLibrary, LibraryLockedError, openDb, tx, type Db } from "./core/db";
+import { backupLibrary, checkpointInBackground, closeDbFully, encryptLibrary, isPlainLibrary, keyOfDb, LibraryLockedError, openDb, sealCopy, tx, type Db } from "./core/db";
 import { allowed, appState, CHECK_EVERY_MS, fromServer, keyOf, LicenceStore, merge, type AppState, type Licence } from "./core/licence";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
@@ -922,6 +922,7 @@ function safetyCopy(version = update?.version) {
   const dir = data(path.join("backups", `before-${version ?? "update"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`));
   fs.mkdirSync(dir, { recursive: true });
   db.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
+  sealCopy(path.join(dir, "library.db"), keyOfDb(db));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
   log(`safety copy before update: ${dir}`);
   return dir;
@@ -932,6 +933,7 @@ async function startNewLibrary() {
   const dir = data(path.join("archived-libraries", new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")));
   fs.mkdirSync(dir, { recursive: true });
   db.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
+  sealCopy(path.join(dir, "library.db"), keyOfDb(db));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
   settings.set({ library: null, watched: [], missingAck: 0, setupDone: false });
   writeFileSync(data("start-new-library"), dir);

@@ -328,6 +328,12 @@ export function backupLibrary(file: string, key: Buffer | null, target: string) 
   } finally {
     db.close();
   }
+  sealCopy(target, key);
+}
+
+// A copy made with VACUUM INTO from an open library: encrypted with the
+// library's key too, never left plain.
+export function sealCopy(target: string, key: Buffer | null) {
   if (key && isPlainLibrary(target)) {
     const b = new Database(target);
     b.pragma("journal_mode = delete");
@@ -335,6 +341,8 @@ export function backupLibrary(file: string, key: Buffer | null, target: string) 
     b.close();
   }
 }
+
+export const keyOfDb = (db: Db) => keys.get(db) ?? null;
 
 // For tests and the upgrade check: does this file open with this key?
 export function opensWith(file: string, key: Buffer | null) {
