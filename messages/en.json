@@ -1808,7 +1808,7 @@
     "trial": "trial",
     "daysLeft": "{days, plural, =0 {ends today} one {# day left} other {# days left}}",
     "daysAgo": "{days, plural, one {ended # day ago} other {ended # days ago}}",
-    "planOption": "{name} ({managers} managing users, {computers} computers)",
+    "planOption": "{name} ({managers, plural, one {# managing user} other {# managing users}}, {computers, plural, one {# computer} other {# computers}})",
     "reason": "Reason (for the owner log)",
     "reasonNeeded": "Reason (needed)",
     "methods": {
