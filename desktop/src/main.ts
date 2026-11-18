@@ -10,7 +10,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, ne
 import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
-import { checkpointInBackground, closeDbFully, openDb, tx, type Db } from "./core/db";
+import { backupLibrary, checkpointInBackground, closeDbFully, openDb, tx, type Db } from "./core/db";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { likelihood, SHOW_FROM, SURE } from "./core/faces";
@@ -239,12 +239,8 @@ function backupBeforeUpdate() {
   const dir = data(path.join("backups", `${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}-from-${last ?? "old"}`));
   const fs = require("node:fs") as typeof import("node:fs");
   fs.mkdirSync(dir, { recursive: true });
-  const probe = new (require("node:sqlite").DatabaseSync)(data("library.db"));
-  try {
-    probe.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
-  } finally {
-    probe.close();
-  }
+  // Encrypted like the library itself (0.13).
+  backupLibrary(data("library.db"), null, path.join(dir, "library.db"));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
   writeFileSync(path.join(dir, "version.txt"), last ?? "");
   const all = fs.readdirSync(data("backups")).sort();
