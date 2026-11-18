@@ -9,7 +9,7 @@ import { publicUrl } from "@/lib/site-text";
 // the admin pastes in Settings). Nothing here ever blocks the work that
 // triggered it: failures are logged and dropped.
 
-export type AlertKind = "approval" | "failed" | "import" | "comment" | "remind" | "book" | "digest";
+export type AlertKind = "approval" | "failed" | "import" | "comment" | "remind" | "book" | "digest" | "plan";
 
 const resendKey = () => (process.env.RESEND_API_KEY ?? "").trim();
 const fromAddress = () => (process.env.ALERT_FROM ?? "").trim() || "School Social Hub <onboarding@resend.dev>";
@@ -63,6 +63,7 @@ const ROLES_FOR: Record<AlertKind, Role[]> = {
   remind: ["admin", "comms_lead", "principal"],
   book: ["admin", "comms_lead", "comms", "teacher"],
   digest: ["admin", "principal"],
+  plan: ["admin", "comms_lead"],
 };
 
 export type AlertOptions = {

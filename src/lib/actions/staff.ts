@@ -38,6 +38,8 @@ export async function createInvite(formData: FormData) {
 
   await audit("invite.created", email, { role });
   revalidatePath(`/${locale}/staff`);
+  // Clears an earlier "couldn't invite" message from the address.
+  redirect({ href: "/staff", locale });
 }
 
 export async function revokeInvite(formData: FormData) {

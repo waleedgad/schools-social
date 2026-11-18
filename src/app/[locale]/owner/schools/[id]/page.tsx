@@ -256,7 +256,7 @@ export default async function OwnerSchoolPage({
             {((log ?? []) as LogRow[]).map((l) => (
               <li key={l.id} className="flex flex-wrap gap-x-2">
                 <span className="text-muted">{format.dateTime(new Date(l.at), { dateStyle: "medium", timeStyle: "short" })}</span>
-                <b>{t.has(`owner.log.actions.${l.action}`) ? t(`owner.log.actions.${l.action}`) : l.action}</b>
+                <b>{t.has(`owner.log.actions.${l.action.replace(/\./g, "_")}`) ? t(`owner.log.actions.${l.action.replace(/\./g, "_")}`) : l.action}</b>
                 {l.reason && <span className="text-muted">“{l.reason}”</span>}
               </li>
             ))}

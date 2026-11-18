@@ -34,7 +34,7 @@ export default async function OwnerLogPage({ params }: { params: Promise<{ local
             <li key={r.id} className="space-y-0.5 px-4 py-2.5">
               <div className="flex flex-wrap gap-x-2">
                 <span className="text-muted">{format.dateTime(new Date(r.at), { dateStyle: "medium", timeStyle: "short" })}</span>
-                <b>{t.has(`owner.log.actions.${r.action}`) ? t(`owner.log.actions.${r.action}`) : r.action}</b>
+                <b>{t.has(`owner.log.actions.${r.action.replace(/\./g, "_")}`) ? t(`owner.log.actions.${r.action.replace(/\./g, "_")}`) : r.action}</b>
                 {r.school_id && r.school && (
                   <Link href={`/owner/schools/${r.school_id}`} className="text-accent-ink hover:underline">
                     {r.school.name}

@@ -1029,7 +1029,9 @@
       "import": "استورد {by} {count} صورة: {title}",
       "book": "كتاب سنوي أُرسل للمراجعة: {title}",
       "assigned": "أعطاك {by} منشوراً",
-      "remind": "تذكير من {from}: {text}"
+      "remind": "تذكير من {from}: {text}",
+      "planEnding": "تنتهي باقة مدرستكم خلال {days, plural, one {يوم واحد} two {يومين} few {# أيام} many {# يومًا} other {# يوم}}. تواصلوا معنا للتجديد.",
+      "planReadOnly": "للقراءة فقط: {days, plural, =0 {يتوقف الدخول اليوم} one {بقي يوم واحد} two {بقي يومان} few {بقيت # أيام} many {بقي # يومًا} other {بقي # يوم}} قبل إيقاف الدخول. تواصلوا معنا للتجديد."
     },
     "plan": {
       "approve": "{count, plural, one {منشور واحد} two {منشوران} few {# منشورات} other {# منشوراً}} للاعتماد",
@@ -1942,15 +1944,15 @@
       "title": "سجل المالك",
       "empty": "لا شيء بعد.",
       "actions": {
-        "school.created": "إنشاء مدرسة",
-        "admin.invited": "دعوة مسؤول نظام",
-        "plan.changed": "تغيير الباقة",
-        "payment.recorded": "تسجيل دفعة",
-        "paid_until.changed": "تغيير تاريخ الدفع",
-        "state.forced": "ضبط الحالة يدويًا",
-        "computer.removed": "حذف جهاز",
-        "plan.saved": "حفظ باقة",
-        "settings.saved": "حفظ الإعدادات"
+        "school_created": "إنشاء مدرسة",
+        "admin_invited": "دعوة مسؤول نظام",
+        "plan_changed": "تغيير الباقة",
+        "payment_recorded": "تسجيل دفعة",
+        "paid_until_changed": "تغيير تاريخ الدفع",
+        "state_forced": "ضبط الحالة يدويًا",
+        "computer_removed": "حذف جهاز",
+        "plan_saved": "حفظ باقة",
+        "settings_saved": "حفظ الإعدادات"
       },
       "fields": {
         "state": "الحالة",

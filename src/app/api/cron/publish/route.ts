@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { flushAlerts } from "@/lib/alerts";
 import { sendDigests } from "@/lib/digest";
 import { refreshMetrics } from "@/lib/metrics";
+import { sendPlanWarnings } from "@/lib/plan-warnings";
 import { publishDue } from "@/lib/publish";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
 
@@ -23,9 +24,11 @@ async function run(request: NextRequest) {
   // Sunday morning: the principal's weekly digest (once a week).
   const digests = await sendDigests(admin).catch(() => 0);
   const alerts = await flushAlerts(admin).catch(() => 0);
+  // Plan ending soon or read-only: once a day at most, per school and person.
+  const planWarnings = await sendPlanWarnings(admin).catch(() => 0);
   // Results for the analytics page; never let it stop publishing.
   await refreshMetrics(admin).catch(() => null);
-  return NextResponse.json({ published, alerts, digests });
+  return NextResponse.json({ published, alerts, digests, planWarnings });
 }
 
 export const GET = run;

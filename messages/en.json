@@ -1029,7 +1029,9 @@
       "import": "{by} imported {count} photos: {title}",
       "book": "Yearbook sent for review: {title}",
       "assigned": "{by} gave you a post",
-      "remind": "Reminder from {from}: {text}"
+      "remind": "Reminder from {from}: {text}",
+      "planEnding": "Your school's plan ends in {days, plural, one {# day} other {# days}}. Contact us to renew.",
+      "planReadOnly": "Read-only: {days, plural, =0 {access pauses today} one {# day} other {# days}} left before access is paused. Contact us to renew."
     },
     "plan": {
       "approve": "{count, plural, one {# post} other {# posts}} to approve",
@@ -1942,15 +1944,15 @@
       "title": "Owner log",
       "empty": "Nothing yet.",
       "actions": {
-        "school.created": "School created",
-        "admin.invited": "Admin invited",
-        "plan.changed": "Plan changed",
-        "payment.recorded": "Payment recorded",
-        "paid_until.changed": "Paid until changed",
-        "state.forced": "State set by hand",
-        "computer.removed": "Computer removed",
-        "plan.saved": "Plan saved",
-        "settings.saved": "Settings saved"
+        "school_created": "School created",
+        "admin_invited": "Admin invited",
+        "plan_changed": "Plan changed",
+        "payment_recorded": "Payment recorded",
+        "paid_until_changed": "Paid until changed",
+        "state_forced": "State set by hand",
+        "computer_removed": "Computer removed",
+        "plan_saved": "Plan saved",
+        "settings_saved": "Settings saved"
       },
       "fields": {
         "state": "State",
