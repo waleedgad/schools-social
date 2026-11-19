@@ -18,7 +18,8 @@ const apps = {
 
 for (const [app, { file, dark }] of Object.entries(apps)) {
   const full = path.join(root, file);
-  const css = readFileSync(full, "utf8");
+  // High-contrast colours (the comfort setting) are their own set on purpose.
+  const css = readFileSync(full, "utf8").replace(/:root\[data-contrast="high"\][^{]*\{[^}]*\}/g, "");
   const at = css.indexOf(dark);
   if (at < 0) throw new Error(`${file}: dark section not found`);
   const parts = { light: css.slice(0, at), dark: css.slice(at) };
