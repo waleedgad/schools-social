@@ -1,4 +1,5 @@
 import "server-only";
+import { isActive } from "./plan";
 import { publishStory } from "@/lib/meta";
 import type { PostCtx } from "@/lib/post-core";
 import { can } from "@/lib/roles";
@@ -26,6 +27,7 @@ export async function reusePost(ctx: PostCtx, id: string, kind: "story" | "recap
       return { ok: true, story: "planned" };
     }
     if (!can(membership.role, "publish", perms) || !isAdminConfigured) return { ok: false, error: "role" };
+    if (!(await isActive(supabase, schoolId))) return { ok: false, error: "readOnly" };
     const admin = createAdminClient();
     const { data: meta } = await admin.from("meta_connections").select("ig_user_id, page_token").eq("school_id", schoolId).maybeSingle();
     if (!meta?.ig_user_id || !meta.page_token) return { ok: false, error: "instagram" };

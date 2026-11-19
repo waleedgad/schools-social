@@ -96,8 +96,16 @@ writeFileSync(path.join(userData, "settings.json"), JSON.stringify({ language: "
 const logFile = path.join(userData, "app.log");
 const logText = () => (existsSync(logFile) ? readFileSync(logFile, "utf8") : "");
 
+// The installed app needs a school's licence (0.13): a test one, whose key
+// also opens the encrypted library below.
+const testKey = Buffer.alloc(32, 9);
+const licenceEnv = {
+  HUB_TEST: "1",
+  HUB_TEST_LICENCE: JSON.stringify({ schoolId: "00000000-0000-0000-0000-000000000001", state: "active", key: testKey.toString("base64"), checkedAt: new Date().toISOString(), validUntil: new Date(Date.now() + 86400_000).toISOString(), paidUntil: null, readOnlyLeft: 0, daysLeft: 30, forced: false, plan: null, contact: "" }),
+};
+
 // 5. Start it: it finds the update, makes a safety copy, installs and closes.
-const run = spawn(exe, [`--user-data-dir=${userData}`], { env: { ...process.env, HUB_UPDATE_FEED: feed, HUB_UPDATE_TEST: "1" }, stdio: "ignore", detached: true });
+const run = spawn(exe, [`--user-data-dir=${userData}`], { env: { ...process.env, ...licenceEnv, HUB_UPDATE_FEED: feed, HUB_UPDATE_TEST: "1" }, stdio: "ignore", detached: true });
 run.unref();
 await until("the update to download", () => logText().includes(`update ${next} downloaded`), 180_000);
 const backups = path.join(userData, "backups");
@@ -124,13 +132,14 @@ const killAll = () => {
 };
 killAll();
 await wait(3000);
-const again = spawn(exe, [`--user-data-dir=${userData}`], { env: { ...process.env, HUB_UPDATE_FEED: "http://127.0.0.1:1/" }, stdio: "ignore", detached: true });
+const again = spawn(exe, [`--user-data-dir=${userData}`], { env: { ...process.env, ...licenceEnv, HUB_UPDATE_FEED: "http://127.0.0.1:1/" }, stdio: "ignore", detached: true });
 again.unref();
 await until(`version ${next} to start`, () => logText().includes(`started ${next}`), 120_000);
 await wait(8000);
-const { DatabaseSync } = await import("node:sqlite");
+const Database = (await import("better-sqlite3-multiple-ciphers")).default;
 const photos = (file) => {
-  const d = new DatabaseSync(file, { readOnly: true });
+  const d = new Database(file, { readonly: true, fileMustExist: true });
+  d.pragma(`hexkey='${testKey.toString("hex")}'`);
   try {
     return d.prepare("select count(*) n from photos").get().n;
   } finally {

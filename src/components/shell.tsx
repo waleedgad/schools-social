@@ -8,12 +8,16 @@ import type { Membership, Workspace } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { Icon, type IconName } from "./icons";
 import { LanguageSwitcher } from "./language-switcher";
+import { BlockedScreen, PlanBar } from "./plan-bars";
+import { ReadOnlyGuard } from "./read-only-guard";
+import { isOwner } from "@/lib/owner";
+import { getPlanStatus, seesPlan } from "@/lib/plan";
 import { CommandPalette, MobileNavToggle, Shortcuts, ThemeToggle, WorkspaceSwitcher } from "./shell-client";
 
 export type NavKey =
   | "today" | "posts" | "calendar" | "analytics" | "library" | "upload" | "students"
   | "categories" | "accounts" | "people" | "settings" | "activity" | "help" | "inbox"
-  | "check" | "shots" | "coverage" | "books" | "albums" | "reports";
+  | "check" | "shots" | "coverage" | "books" | "albums" | "reports" | "plan";
 
 type Item = { key: NavKey; href: string; icon: IconName; permission: Permission; section: "main" | "posting" | "photos" | "school" };
 
@@ -83,8 +87,15 @@ export async function AppShell({
 }) {
   const t = await getTranslations();
   const p = membership.school.permissions;
+  const [badge, plan, owner] = await Promise.all([
+    counts(membership.school.id, membership).catch(() => ({}) as Partial<Record<NavKey, number>>),
+    getPlanStatus(membership.school.id).catch(() => null),
+    isOwner().catch(() => false),
+  ]);
+  // Blocked: nothing but the renew notice (the database refuses everything else too).
+  if (plan?.state === "blocked") return <BlockedScreen status={plan} schoolName={membership.school.name} locale={locale} />;
+  const readOnly = plan?.state === "read_only";
   const visible = ITEMS.filter((i) => can(membership.role, i.permission, p));
-  const badge = await counts(membership.school.id, membership).catch(() => ({}) as Partial<Record<NavKey, number>>);
   const initials = membership.school.name
     .split(/\s+/)
     .map((w) => w[0])
@@ -92,7 +103,7 @@ export async function AppShell({
     .slice(0, 2)
     .toUpperCase();
   const sections = ["main", "posting", "photos", "school"] as const;
-  const canPost = can(membership.role, "writePosts", p);
+  const canPost = can(membership.role, "writePosts", p) && !readOnly;
 
   const commands = [
     ...visible.map((i) => ({ label: t(`nav.${i.key}`), href: i.href, group: t("nav.goTo") })),
@@ -146,6 +157,18 @@ export async function AppShell({
           );
         })}
         <div className="mt-auto flex flex-col gap-0.5 pt-4">
+          {owner && (
+            <Link href="/owner" className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-background">
+              <Icon name="analytics" className="text-faint" />
+              {t("nav.owner")}
+            </Link>
+          )}
+          {seesPlan(membership.role) && (
+            <Link href="/plan" className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-background ${active === "plan" ? "bg-accent-bg text-accent-ink" : ""}`}>
+              <Icon name="chart" className="text-faint" />
+              {t("nav.plan")}
+            </Link>
+          )}
           <Link href="/help" className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-background ${active === "help" ? "bg-accent-bg text-accent-ink" : ""}`}>
             <Icon name="help" className="text-faint" />
             {t("nav.help")}
@@ -161,6 +184,7 @@ export async function AppShell({
         </div>
       </aside>
       <div className="flex min-w-0 grow flex-col">
+        <PlanBar status={plan} role={membership.viewingAs ? "admin" : membership.role} />
         {membership.viewingAs && (
           <form action={viewAs} className="flex items-center justify-center gap-3 bg-violet-bg px-4 py-1.5 text-sm text-violet print:hidden">
             <input type="hidden" name="locale" value={locale} />
@@ -190,7 +214,9 @@ export async function AppShell({
             )}
           </div>
         </header>
-        <main className={`fade-in grow ${flush ? "" : "mx-auto w-full max-w-6xl space-y-5 px-4 py-6 md:px-6"}`}>{children}</main>
+        <main className={`fade-in grow ${flush ? "" : "mx-auto w-full max-w-6xl space-y-5 px-4 py-6 md:px-6"}`}>
+          {readOnly ? <ReadOnlyGuard reason={t("plan.readOnlyReason")}>{children}</ReadOnlyGuard> : children}
+        </main>
       </div>
       <Shortcuts
         canPost={canPost}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
+import { stateWithServiceKey } from "@/lib/plan";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -52,6 +53,8 @@ async function usableLink(token: string) {
   if (!data || data.revoked_at || new Date(data.expires_at) < new Date()) return null;
   // A link that leaked can't fill the school's storage (B-120).
   if (data.upload_count >= MAX_PER_LINK) return null;
+  // A school that is read-only or blocked takes no new photos (0.13).
+  if ((await stateWithServiceKey(admin, data.school_id as string)) !== "active") return null;
   return { admin, link: data };
 }
 

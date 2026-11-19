@@ -182,6 +182,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
   const alertText = (a: { kind: string; body: Record<string, unknown> }) =>
     a.kind === "import" ? t("today.alert.import", { count: Number(a.body.count) || 0, title: String(a.body.title ?? ""), by: String(a.body.by ?? "") })
     : a.kind === "book" ? t("today.alert.book", { title: String(a.body.title ?? "") })
+    : a.kind === "plan" ? (a.body.state === "read_only" ? t("today.alert.planReadOnly", { days: Number(a.body.days) || 0 }) : t("today.alert.planEnding", { days: Number(a.body.days) || 0 }))
     : a.body.assigned ? t("today.alert.assigned", { by: String(a.body.by ?? "") })
     : t("today.alert.remind", { from: String(a.body.from ?? ""), text: String(a.body.text ?? "") });
 
@@ -264,7 +265,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
             {alerts.data.map((a) => {
               const read = ((a.read_by as string[]) ?? []).includes(user.id);
               const body = (a.body ?? {}) as Record<string, unknown>;
-              const href = a.kind === "book" && body.book ? `/books/${body.book}` : body.post ? `/posts/${body.post}` : a.kind === "import" ? "/library" : null;
+              const href = a.kind === "plan" ? "/plan" : a.kind === "book" && body.book ? `/books/${body.book}` : body.post ? `/posts/${body.post}` : a.kind === "import" ? "/library" : null;
               return (
                 <li key={a.id as string} className={`flex items-center gap-2 py-1.5 text-sm ${read ? "text-muted" : ""}`}>
                   <Icon name={a.kind === "import" ? "upload" : a.kind === "book" ? "book" : "bell"} className={read ? "text-faint" : "text-accent-ink"} />

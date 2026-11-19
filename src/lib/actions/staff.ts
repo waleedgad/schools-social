@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
 import { sendEmail } from "@/lib/alerts";
+import { planError } from "@/lib/plan";
 import { isRole, type Role } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -33,10 +34,12 @@ export async function createInvite(formData: FormData) {
   const { error } = isRole(role)
     ? await supabase.from("invites").insert({ school_id: schoolId, email, role, invited_by: user.id })
     : { error: true };
-  if (error) redirect({ href: { pathname: "/staff", query: { error: "1" } }, locale });
+  if (error) redirect({ href: { pathname: "/staff", query: { error: planError(error === true ? null : error) ?? "1" } }, locale });
 
   await audit("invite.created", email, { role });
   revalidatePath(`/${locale}/staff`);
+  // Clears an earlier "couldn't invite" message from the address.
+  redirect({ href: "/staff", locale });
 }
 
 export async function revokeInvite(formData: FormData) {
@@ -55,7 +58,8 @@ export async function changeRole(formData: FormData) {
 
   // An admin can't change their own role, so a school always keeps one admin.
   if (isRole(role) && userId !== user.id) {
-    await supabase.from("memberships").update({ role }).eq("school_id", schoolId).eq("user_id", userId);
+    const { error } = await supabase.from("memberships").update({ role }).eq("school_id", schoolId).eq("user_id", userId);
+    if (error) redirect({ href: { pathname: "/staff", query: { error: planError(error) ?? "1" } }, locale });
     await audit("member.role_changed", userId, { role });
   }
   revalidatePath(`/${locale}/staff`);
@@ -67,7 +71,8 @@ export async function setActive(formData: FormData) {
   const userId = String(formData.get("userId") ?? "");
   const active = formData.get("active") === "1";
   if (userId !== user.id) {
-    await supabase.from("memberships").update({ active }).eq("school_id", schoolId).eq("user_id", userId);
+    const { error } = await supabase.from("memberships").update({ active }).eq("school_id", schoolId).eq("user_id", userId);
+    if (error) redirect({ href: { pathname: "/staff", query: { error: planError(error) ?? "1" } }, locale });
     await audit(active ? "member.activated" : "member.deactivated", userId);
   }
   revalidatePath(`/${locale}/staff`);
@@ -102,7 +107,7 @@ export async function acceptInvite(formData: FormData) {
     p_token: token,
     p_full_name: String(formData.get("fullName") ?? ""),
   });
-  if (error) redirect({ href: { pathname: `/invite/${token}`, query: { error: "1" } }, locale });
+  if (error) redirect({ href: { pathname: `/invite/${token}`, query: { error: planError(error) ?? "1" } }, locale });
 
   redirect({ href: "/today", locale });
 }
@@ -145,7 +150,7 @@ export async function inviteMany(locale: string, rows: StaffRow[]) {
     .filter((r) => (r.email || r.phone) && !have.has(String(r.email ?? r.phone).toLowerCase()));
   if (clean.length) {
     const { error } = await supabase.from("invites").insert(clean);
-    if (error) return { ok: false, count: 0 };
+    if (error) return { ok: false, count: 0, reason: planError(error) };
   }
   await audit("invite.bulk", String(clean.length));
   revalidatePath(`/${locale}/staff`);

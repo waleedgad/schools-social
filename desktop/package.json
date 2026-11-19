@@ -1,7 +1,7 @@
 {
   "name": "school-social-desktop",
   "productName": "School Social Hub Library",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "The school's photo library on the Mac: import, faces, picks and posts for School Social Hub.",
   "main": "dist/main.js",
   "private": true,
@@ -19,6 +19,7 @@
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
+    "better-sqlite3-multiple-ciphers": "13.2.0",
     "chokidar": "^4.0.3",
     "electron-updater": "^6.6.2",
     "exceljs": "^4.4.0",

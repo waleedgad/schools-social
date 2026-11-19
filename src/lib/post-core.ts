@@ -1,4 +1,5 @@
 import "server-only";
+import { isActive } from "./plan";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AiLimitError, getAi, type CaptionOptions, type Captions, type SchoolProfile } from "./ai";
 import { notify } from "./alerts";
@@ -185,6 +186,7 @@ export async function generateFor(ctx: PostCtx, id: string, options: CaptionOpti
   const { supabase, membership, userId } = ctx;
   const schoolId = membership.school.id;
   if (!can(membership.role, "writePosts", membership.school.permissions)) return { ok: false, error: "role" };
+  if (!(await isActive(supabase, schoolId))) return { ok: false, error: "readOnly" };
   const loaded = await loadPost(supabase, id);
   if (!loaded) return { ok: false, error: "missing" };
   const { post, photos } = loaded;

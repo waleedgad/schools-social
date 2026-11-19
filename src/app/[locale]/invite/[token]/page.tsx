@@ -1,4 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { isPlanError } from "@/lib/plan";
 import { AppHeader, PageBody } from "@/components/app-header";
 import { Button, Card, Field, Notice } from "@/components/ui";
 import { Link } from "@/i18n/navigation";
@@ -49,7 +50,7 @@ export default async function InvitePage({
             </p>
           )}
           {problem && <Notice>{problem}</Notice>}
-          {error && <Notice>{t("invite.error")}</Notice>}
+          {error && <Notice>{isPlanError(error) ? t(`plan.errors.${error}`, { limit: "" }) : t("invite.error")}</Notice>}
 
           {invite && !problem && !user && (
             <>

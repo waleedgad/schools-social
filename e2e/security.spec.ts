@@ -72,6 +72,11 @@ async function seed(sb: SupabaseClient, school: string, userId: string) {
     time_slots: { weekday: 1, at_time: "09:00" },
     upload_links: { event_id: ev.id, label: "Photographer" },
     user_prefs: { user_id: userId },
+    // 0.13: the owner's own tables (payments, notes, log) and the library keys.
+    owner_log: { action: "test", reason: "secret" },
+    owner_notes: { notes: "secret" },
+    payments: { amount: 1, paid_on: "2026-01-01", covers_until: "2027-01-01" },
+    school_keys: { secret: "\\x00ff" },
   };
   const made: Record<string, Record<string, unknown>> = { events: ev, photos: photo, posts: post, books: book, shared_albums: album };
   for (const [t, r] of Object.entries(rows)) made[t] = await one(t, r);
@@ -80,7 +85,9 @@ async function seed(sb: SupabaseClient, school: string, userId: string) {
 
 // Only the server reads these (sign-in tokens for Facebook/Instagram; error
 // reports for the builder; alerts waiting to be emailed).
-const SERVER_ONLY = ["meta_connections", "error_reports", "alert_outbox"];
+// Since 0.13 also the owner's own tables and the library keys, which not even
+// the school's admin reads.
+const SERVER_ONLY = ["meta_connections", "error_reports", "alert_outbox", "owner_log", "owner_notes", "payments", "school_keys"];
 let A: Awaited<ReturnType<typeof makeSchool>>;
 let B: Awaited<ReturnType<typeof makeSchool>>;
 let bRows: Record<string, Record<string, unknown>>;

@@ -19,7 +19,7 @@ export function StaffImport({ locale }: { locale: string }) {
   const t = useTranslations("more.staffImport");
   const [rows, setRows] = useState<StaffRow[] | null>(null);
   const [done, setDone] = useState<number | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<false | string>(false);
   const [pending, start] = useTransition();
 
   async function read(file: File) {
@@ -36,10 +36,10 @@ export function StaffImport({ locale }: { locale: string }) {
         .map((r) => ({ name: cell(r, idx.name), email: cell(r, idx.email), phone: cell(r, idx.phone), role: cell(r, idx.role), classes: cell(r, idx.classes) }))
         .filter((r) => r.email || r.phone);
       setRows(out);
-      if (!out.length) setError(true);
+      if (!out.length) setError("error");
     } catch {
       setRows(null);
-      setError(true);
+      setError("error");
     }
   }
 
@@ -47,7 +47,7 @@ export function StaffImport({ locale }: { locale: string }) {
     <div className="space-y-3">
       <p id="staff-import-hint" className="text-sm text-muted">{t("hint")}</p>
       <input type="file" aria-labelledby="staff-import-hint" accept=".xlsx,.csv" onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} className="block w-full text-sm" />
-      {error && <p className="text-sm text-danger">{t("error")}</p>}
+      {error && <p className="text-sm text-danger">{t(error === "manager_limit" ? "limit" : error === "read_only" || error === "blocked" ? "readOnly" : "error")}</p>}
       {done !== null && <p className="text-sm text-good">{t("done", { count: done })}</p>}
       {rows && rows.length > 0 && done === null && (
         <div className="space-y-2">
@@ -67,7 +67,7 @@ export function StaffImport({ locale }: { locale: string }) {
               start(async () => {
                 const r = await inviteMany(locale, rows);
                 if (r.ok) setDone(r.count);
-                else setError(true);
+                else setError(("reason" in r && r.reason) || "error");
               })
             }
           >

@@ -13,7 +13,7 @@ export async function createSchool(formData: FormData) {
     p_full_name: String(formData.get("fullName") ?? ""),
     p_locale: defaultLocale,
   });
-  if (error) redirect({ href: { pathname: "/onboarding", query: { error: "1" } }, locale });
+  if (error) redirect({ href: { pathname: "/onboarding", query: { error: error.message.includes("signup-closed") ? "signup_closed" : "1" } }, locale });
 
   redirect({ href: "/today", locale });
 }

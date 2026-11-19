@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { stateWithServiceKey } from "@/lib/plan";
 import { MetaError, pagesFromCode } from "@/lib/meta";
 import { can } from "@/lib/roles";
 import { getSession } from "@/lib/session";
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
     if (!pages.length) return done("nopages");
     const first = pages.find((p) => p.ig_user_id) ?? pages[0];
     const db = createAdminClient();
+    if ((await stateWithServiceKey(db, membership.school.id)) !== "active") return done("error");
     await db.from("meta_connections").upsert({
       school_id: membership.school.id,
       page_id: first.id,

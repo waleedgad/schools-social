@@ -1,9 +1,14 @@
 import { busy } from "./busy";
-import { mkdirSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
-// Built into Electron's Node; no native module to compile for each Mac.
+// SQLite with encryption (SQLite3 Multiple Ciphers, MIT). It ships one
+// ready-made file per system (Mac, Windows, Linux) that works the same in
+// the tests and in the app, so nothing is compiled on a school's computer.
+// 0.13: the library is encrypted with the school's own key, which only the
+// server hands out (licence.ts). Before 0.13 it used Node's built-in SQLite,
+// which can't encrypt.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+const Database = require("better-sqlite3-multiple-ciphers") as typeof import("better-sqlite3-multiple-ciphers");
 
 // Everything the app knows about the library, kept on this computer:
 // photos, students, faces and tags, picks and ratings. The photo files
@@ -231,7 +236,124 @@ create table if not exists history (
 );
 `;
 
-export type Db = InstanceType<typeof DatabaseSync>;
+// The app was written against Node's own SQLite; the encrypted library
+// answers the same calls (prepare, run, get, all, iterate, exec, close), so
+// the same shape is kept for every caller.
+export type Db = import("node:sqlite").DatabaseSync;
+
+// The first bytes of every plain (not encrypted) SQLite file.
+const PLAIN = Buffer.from("SQLite format 3\0");
+
+// Is this library file still plain (made before 0.13, or by a test)?
+export function isPlainLibrary(file: string) {
+  if (!existsSync(file)) return false;
+  const head = Buffer.alloc(16);
+  const fd = openSync(file, "r");
+  try {
+    readSync(fd, head, 0, 16, 0);
+  } finally {
+    closeSync(fd);
+  }
+  return head.equals(PLAIN);
+}
+
+// Opens a library file, with the school's key when it has one. A wrong or
+// missing key for an encrypted file fails here, before anything else runs.
+export class LibraryLockedError extends Error {
+  constructor() {
+    super("library-locked");
+  }
+}
+
+function connect(file: string, key: Buffer | null, opts: { readonly?: boolean } = {}) {
+  const db = new Database(file, { readonly: !!opts.readonly, fileMustExist: !!opts.readonly });
+  if (key) db.pragma(`hexkey='${key.toString("hex")}'`);
+  try {
+    db.prepare("select count(*) from sqlite_master").get();
+  } catch (e) {
+    db.close();
+    if (/not a database|encrypt/i.test(String((e as Error).message))) throw new LibraryLockedError();
+    throw e;
+  }
+  Object.defineProperty(db, "isOpen", { get: () => db.open });
+  return db as unknown as Db;
+}
+
+// A plain library (before 0.13) becomes an encrypted one with the school's
+// key, once, after a backup. The backup is checked, then encrypted with the
+// same key too, so no plain copy of tags and faces stays on the computer.
+export function encryptLibrary(file: string, key: Buffer, backupDir: string) {
+  if (!isPlainLibrary(file)) return false;
+  mkdirSync(backupDir, { recursive: true });
+  const backup = path.join(backupDir, "library.db");
+  // A tidy single file first (the journal written back into it).
+  const plain = new Database(file);
+  plain.pragma("wal_checkpoint(TRUNCATE)");
+  plain.exec(`vacuum into '${backup.replace(/'/g, "''")}'`);
+  plain.close();
+  const count = (db: { prepare: (sql: string) => { get: () => unknown } }) =>
+    (db.prepare("select (select count(*) from photos) + (select count(*) from faces) + (select count(*) from students) as n").get() as { n: number }).n;
+  const check = new Database(backup, { readonly: true });
+  const before = count(check);
+  check.close();
+  // Encrypt a copy, check it, then put it in place of the plain file.
+  const next = `${file}.encrypting`;
+  for (const f of [next, `${next}-wal`, `${next}-shm`, `${next}-journal`]) rmSync(f, { force: true });
+  copyFileSync(backup, next);
+  const enc = new Database(next);
+  enc.pragma("journal_mode = delete");
+  enc.pragma(`hexrekey='${key.toString("hex")}'`);
+  enc.close();
+  if (isPlainLibrary(next)) throw new Error("encryption did not happen");
+  const reopened = connect(next, key);
+  const after = count(reopened);
+  reopened.close();
+  if (after !== before) throw new Error(`encrypted library differs (${after} vs ${before})`);
+  for (const f of [`${file}-wal`, `${file}-shm`]) rmSync(f, { force: true });
+  renameSync(next, file);
+  // The backup too.
+  const b = new Database(backup);
+  b.pragma("journal_mode = delete");
+  b.pragma(`hexrekey='${key.toString("hex")}'`);
+  b.close();
+  return true;
+}
+
+// A copy of the library (backup before an update), encrypted like the
+// library itself.
+export function backupLibrary(file: string, key: Buffer | null, target: string) {
+  const db = connect(file, key);
+  try {
+    db.exec(`vacuum into '${target.replace(/'/g, "''")}'`);
+  } finally {
+    db.close();
+  }
+  sealCopy(target, key);
+}
+
+// A copy made with VACUUM INTO from an open library: encrypted with the
+// library's key too, never left plain.
+export function sealCopy(target: string, key: Buffer | null) {
+  if (key && isPlainLibrary(target)) {
+    const b = new Database(target);
+    b.pragma("journal_mode = delete");
+    b.pragma(`hexrekey='${key.toString("hex")}'`);
+    b.close();
+  }
+}
+
+export const keyOfDb = (db: Db) => keys.get(db) ?? null;
+
+// For tests and the upgrade check: does this file open with this key?
+export function opensWith(file: string, key: Buffer | null) {
+  try {
+    connect(file, key, { readonly: true }).close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 // Every database step runs while the app waits for it, so a slow one is
 // noted with its first words (see busy.ts) when the app was too busy to answer.
@@ -251,9 +373,10 @@ function timed(db: Db): Db {
   return db;
 }
 
-export function openDb(file: string): Db {
+export function openDb(file: string, key: Buffer | null = null): Db {
   mkdirSync(path.dirname(file), { recursive: true });
-  const db = timed(new DatabaseSync(file));
+  const db = timed(connect(file, key));
+  keys.set(db, key);
   // A short wait instead of "database is locked" while the background
   // write-back thread (or one still closing) holds the file a moment.
   db.exec("pragma busy_timeout = 3000; pragma journal_mode = wal; pragma foreign_keys = on; pragma synchronous = normal;");
@@ -335,6 +458,9 @@ export const fromBlob = (b: Uint8Array) => new Float32Array(b.buffer.slice(b.byt
 // every two seconds without holding anyone up. Closing the database stops
 // that thread first (the final write-back then happens on close, as before).
 const backgroundStops = new WeakMap<Db, () => Promise<void>>();
+// The key each open library was opened with (the write-back thread opens
+// its own connection with the same key).
+const keys = new WeakMap<Db, Buffer | null>();
 
 // Closes the library and waits until nothing else holds its file open.
 export async function closeDbFully(db: Db) {
@@ -348,14 +474,15 @@ export function checkpointInBackground(db: Db, file: string, everyMs = 2000) {
   db.exec("pragma wal_autocheckpoint = 0");
   const worker = new Worker(
     `const { workerData, parentPort } = require("node:worker_threads");
-     const { DatabaseSync } = require("node:sqlite");
-     const db = new DatabaseSync(workerData.file);
+     const Database = require(workerData.module);
+     const db = new Database(workerData.file);
+     if (workerData.key) db.pragma("hexkey='" + workerData.key + "'");
      db.exec("pragma busy_timeout = 0");
      const t = setInterval(() => {
        try { db.exec("pragma wal_checkpoint(PASSIVE)"); } catch {}
      }, workerData.everyMs);
      parentPort.on("message", (m) => { if (m === "stop") { clearInterval(t); try { db.close(); } catch {} parentPort.postMessage("stopped"); } });`,
-    { eval: true, workerData: { file, everyMs } },
+    { eval: true, workerData: { file, everyMs, key: keys.get(db)?.toString("hex") ?? null, module: require.resolve("better-sqlite3-multiple-ciphers") } },
   );
   worker.unref();
   worker.on("error", () => {

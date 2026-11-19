@@ -4,7 +4,7 @@ import { Button, Card, Notice, Select, TextArea } from "@/components/ui";
 import { reportProblem } from "@/lib/actions/support";
 import { requireMembership } from "@/lib/session";
 
-const GUIDES = ["start", "post", "approve", "calendar", "brand", "mac", "upload", "pause"] as const;
+const GUIDES = ["start", "post", "approve", "calendar", "brand", "mac", "upload", "pause", "plan"] as const;
 const NEWS = ["n1", "n2", "n3", "n4", "n5", "n6"] as const;
 
 // Help centre: short guides, a guide for the person's own role, what's new,

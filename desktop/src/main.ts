@@ -10,7 +10,8 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, ne
 import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
-import { checkpointInBackground, closeDbFully, openDb, tx, type Db } from "./core/db";
+import { backupLibrary, checkpointInBackground, closeDbFully, encryptLibrary, isPlainLibrary, keyOfDb, LibraryLockedError, openDb, sealCopy, tx, type Db } from "./core/db";
+import { allowed, appState, CHECK_EVERY_MS, fromServer, keyOf, LicenceStore, merge, type AppState, type Licence } from "./core/licence";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { likelihood, SHOW_FROM, SURE } from "./core/faces";
@@ -165,6 +166,120 @@ const authStorage = {
   },
 };
 
+// The licence (0.13): the school's state and the key of the encrypted
+// library. Always on in the installed app; a developer's copy (and the
+// older robot tests) keeps a plain library unless HUB_LICENCE=on.
+const licenceOn = () => app.isPackaged || process.env.HUB_LICENCE === "on";
+let licences: LicenceStore | null = null;
+let licence: Licence | null = null;
+let libraryLocked = false;
+let licenceError: string | null = null;
+function licenceStore() {
+  licences ??= new LicenceStore(data("licence.bin"), {
+    available: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (t) => safeStorage.encryptString(t),
+    decrypt: (b) => safeStorage.decryptString(b),
+  });
+  return licences;
+}
+function libState(): AppState {
+  return licenceOn() ? appState(licence).state : "active";
+}
+const libraryKey = () => (licenceOn() ? keyOf(licence) : null);
+
+// The library opens with the school's key. A plain library from before
+// 0.13 is encrypted once (after a backup). With no key yet (not signed in,
+// or a blocked school) nothing on disk is opened: an empty library in
+// memory stands in, and the window shows the sign-in or renew notice.
+function openLibrary() {
+  const file = data("library.db");
+  libraryLocked = false;
+  if (!licenceOn()) {
+    db = openDb(file);
+    checkpointInBackground(db, file);
+    return;
+  }
+  const key = libraryKey();
+  if (key && libState() !== "blocked" && libState() !== "none") {
+    try {
+      if (isPlainLibrary(file) && encryptLibrary(file, key, data(path.join("backups", `${new Date().toISOString().slice(0, 10)}-before-encryption`))))
+        log("library encrypted with the school's key");
+      db = openDb(file, key);
+      checkpointInBackground(db, file);
+      return;
+    } catch (e) {
+      // Another school's library on this computer, or a damaged file: never
+      // overwrite it, just don't open it.
+      log(`library not opened: ${e instanceof LibraryLockedError ? "the key does not open it" : e}`);
+    }
+  }
+  libraryLocked = true;
+  db = openDb(":memory:");
+}
+
+let licenceChecking: Promise<void> | null = null;
+// Asks the server for the licence (at start, every 6 hours, after signing
+// in). Offline, the last answer counts until it runs out.
+function checkLicence(): Promise<void> {
+  licenceChecking ??= (async () => {
+    const s = settings.get();
+    const sb = client();
+    if (!licenceOn() || !sb || !s.userId || !s.schoolId) return;
+    let device = (s as unknown as { deviceId?: string }).deviceId;
+    if (!device) {
+      device = (await import("node:crypto")).randomUUID();
+      settings.set({ deviceId: device } as never);
+    }
+    const { hostname } = await import("node:os");
+    const reg = await sb.rpc("register_computer", { p_school: s.schoolId, p_device: device, p_name: hostname().slice(0, 80), p_platform: process.platform });
+    if (reg.error) {
+      licenceError = "offline";
+      return;
+    }
+    const regErr = (reg.data as { error?: string } | null)?.error ?? null;
+    const r = await sb.rpc("licence", { p_school: s.schoolId, p_device: device });
+    if (r.error || !r.data) {
+      licenceError = "offline";
+      return;
+    }
+    const next = fromServer(s.schoolId, r.data as Record<string, unknown>);
+    if ("error" in next) {
+      // Not registered: the plan is full, or the school isn't active.
+      licenceError = regErr ?? next.error;
+      if (next.error === "not-registered" || next.error === "role") {
+        licence = null;
+        licenceStore().clear();
+        await reopenLibrary();
+      }
+      return;
+    }
+    licenceError = null;
+    const before = { state: libState(), key: licence?.key ?? null };
+    licence = merge(licence, next);
+    licenceStore().write(licence);
+    if (licence.key !== before.key || (libraryLocked && libState() !== "blocked")) await reopenLibrary();
+    else if (libState() !== before.state) await restart();
+    push();
+  })()
+    .catch((e) => {
+      licenceError = "offline";
+      log(`licence: ${e instanceof Error ? e.message : e}`);
+    })
+    .finally(() => (licenceChecking = null));
+  return licenceChecking;
+}
+
+async function reopenLibrary() {
+  await sync?.stop();
+  await engine?.stop();
+  sync = null;
+  engine = null;
+  await closeDbFully(db);
+  openLibrary();
+  await restart();
+  push("all");
+}
+
 function client() {
   const s = settings.get();
   if (!s.supabaseUrl || !s.supabaseAnonKey) return null;
@@ -239,12 +354,8 @@ function backupBeforeUpdate() {
   const dir = data(path.join("backups", `${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}-from-${last ?? "old"}`));
   const fs = require("node:fs") as typeof import("node:fs");
   fs.mkdirSync(dir, { recursive: true });
-  const probe = new (require("node:sqlite").DatabaseSync)(data("library.db"));
-  try {
-    probe.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
-  } finally {
-    probe.close();
-  }
+  // Encrypted like the library itself (0.13).
+  backupLibrary(data("library.db"), libraryKey(), path.join(dir, "library.db"));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
   writeFileSync(path.join(dir, "version.txt"), last ?? "");
   const all = fs.readdirSync(data("backups")).sort();
@@ -291,6 +402,25 @@ function disk(dir: string | null) {
   }
 }
 
+function licenceInfo() {
+  const a = appState(licence);
+  return {
+    on: licenceOn(),
+    state: licenceOn() ? (libraryLocked && a.state !== "none" && a.state !== "blocked" ? "blocked" : a.state) : "active",
+    offline: a.offline,
+    locked: libraryLocked,
+    wrongLibrary: licenceOn() && libraryLocked && !!licence?.key && a.state !== "blocked" && a.state !== "none",
+    error: licenceError,
+    paidUntil: licence?.paidUntil ?? null,
+    readOnlyLeft: licence?.readOnlyLeft ?? 0,
+    daysLeft: licence?.daysLeft ?? 0,
+    validUntil: licence?.validUntil ?? null,
+    checkedAt: licence?.checkedAt ?? null,
+    contact: licence?.contact ?? "",
+    plan: licence?.plan ?? null,
+  };
+}
+
 function state() {
   const s = settings.get();
   const counts = one<Record<string, number>>(
@@ -332,6 +462,7 @@ function state() {
     alerts: s.alerts,
     setupDone: s.setupDone,
     tourDone: s.tourDone,
+    licence: licenceInfo(),
     cleanStrict: s.cleanStrict,
     rejectMonths: s.rejectMonths,
     selfFiling: s.selfFiling,
@@ -409,17 +540,18 @@ async function restart() {
   sync = null;
   engine = null;
   const s = settings.get();
-  if (s.library && existsSync(s.library)) {
+  if (s.library && existsSync(s.library) && !libraryLocked) {
     engine = new Engine({
       db,
       library: s.library,
       cache: data("cache"),
       models: models(),
-      faces: () => settings.get().faces,
+      // Read-only: small pictures are still made (to look at the library), faces aren't read or matched.
+      faces: () => settings.get().faces && libState() === "active",
       paused: () => settings.get().paused,
       aura: () => (aura?.ready() ? aura.file : null),
       vision: process.platform === "darwin" ? (jpeg) => (settings.get().faceVision ? visionFaces(jpeg) : Promise.resolve(null)) : undefined,
-      autoName: () => settings.get().autoName,
+      autoName: () => settings.get().autoName && libState() === "active",
       onChange: push,
       onPhotoReady: photoReady,
       onNamed: (ids) => syncOptedOut(ids),
@@ -432,7 +564,7 @@ async function restart() {
     for (const w of s.watched) startWatched(w);
   }
   const sb = client();
-  if (sb && s.userId && s.schoolId && s.library && existsSync(s.library)) {
+  if (sb && s.userId && s.schoolId && s.library && existsSync(s.library) && libState() === "active") {
     sync = new LibrarySync({
       supabase: sb,
       queue,
@@ -627,7 +759,13 @@ async function signIn(email: string, password: string) {
     schoolName: (m.school as unknown as { name: string } | null)?.name ?? "",
     role: m.role,
   });
+  // Another school's licence never carries over.
+  if (licence && licence.schoolId !== m.school_id) {
+    licence = null;
+    licenceStore().clear();
+  }
   await restart();
+  await checkLicence();
 }
 
 async function chooseFolder(title: string) {
@@ -784,6 +922,7 @@ function safetyCopy(version = update?.version) {
   const dir = data(path.join("backups", `before-${version ?? "update"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`));
   fs.mkdirSync(dir, { recursive: true });
   db.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
+  sealCopy(path.join(dir, "library.db"), keyOfDb(db));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
   log(`safety copy before update: ${dir}`);
   return dir;
@@ -794,6 +933,7 @@ async function startNewLibrary() {
   const dir = data(path.join("archived-libraries", new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")));
   fs.mkdirSync(dir, { recursive: true });
   db.exec(`vacuum into '${path.join(dir, "library.db").replace(/'/g, "''")}'`);
+  sealCopy(path.join(dir, "library.db"), keyOfDb(db));
   for (const f of ["settings.json", "queue.json", "events.json", "web-checks.json"]) if (existsSync(data(f))) fs.copyFileSync(data(f), path.join(dir, f));
   settings.set({ library: null, watched: [], missingAck: 0, setupDone: false });
   writeFileSync(data("start-new-library"), dir);
@@ -1739,6 +1879,9 @@ app.whenReady().then(async () => {
   });
   if (settings.get().server === OLD_DEFAULT_SERVER) settings.set({ server: DEFAULT_SERVER });
   setTermDates(settings.get().terms);
+  licence = licenceOn() ? licenceStore().read() : null;
+  // Robot test of the installed app only: a licence given to it at start.
+  if (licenceOn() && process.env.HUB_TEST && process.env.HUB_TEST_LICENCE && !licence) licence = JSON.parse(process.env.HUB_TEST_LICENCE) as Licence;
   try {
     backupBeforeUpdate();
   } catch (e) {
@@ -1751,8 +1894,7 @@ app.whenReady().then(async () => {
     for (const f of ["library.db", "library.db-wal", "library.db-shm", "queue.json", "events.json"]) rmSync(data(f), { force: true });
     rmSync(data("start-new-library"), { force: true });
   }
-  db = openDb(data("library.db"));
-  checkpointInBackground(db, data("library.db"));
+  openLibrary();
 
   // hub://thumb/12, hub://preview/12, hub://face/40, hub://portrait/S24001
   protocol.handle("hub", async (req) => {
@@ -1812,12 +1954,17 @@ app.whenReady().then(async () => {
     contextMenu: (items: MenuSpec[], _at: unknown) => popupMenu(items),
     connect: (server: string) => connect(server),
     signIn: (email: string, password: string) => signIn(email, password),
+    checkLicence: () => checkLicence().then(() => state().licence),
     signOut: async () => {
       await sync?.stop();
       sync = null;
       await client()?.auth.signOut().catch(() => {});
       settings.set({ userId: null, schoolId: null, schoolName: null, role: null });
-      await restart();
+      if (licenceOn()) {
+        licence = null;
+        licenceStore().clear();
+        await reopenLibrary();
+      } else await restart();
     },
     chooseLibrary: async () => {
       const dir = await chooseFolder("Photo library folder");
@@ -2097,6 +2244,9 @@ app.whenReady().then(async () => {
     // Only the app's own functions: never anything inherited, like "constructor".
     const fn = typeof name === "string" && Object.hasOwn(api, name) ? api[name] : null;
     if (typeof fn !== "function") return { ok: false, error: "unknown" };
+    // Read-only and blocked (0.13): the main side refuses, whatever the window shows.
+    const now = libraryLocked && libState() !== "none" && libState() !== "blocked" ? "blocked" : libState();
+    if (!allowed(name, now)) return { ok: false, error: now === "read_only" ? "read-only" : "locked" };
     // Let answers already worked out go back to the window first: most
     // questions are answered in one go on this thread, so without this
     // pause a quick answer (the photos) waits behind slower questions asked
@@ -2122,6 +2272,8 @@ app.whenReady().then(async () => {
   if (process.argv.includes("--hidden") || app.getLoginItemSettings().wasOpenedAsHidden) win?.hide();
   await restart();
   startAura();
+  setTimeout(() => void checkLicence(), 3000);
+  timers.push(setInterval(() => void checkLicence(), CHECK_EVERY_MS));
   timers.push(setInterval(() => push(), 3000));
   timers.push(setInterval(() => checkWebUploads(), 60_000));
   timers.push(setInterval(() => void sendErrors(), 10 * 60_000));

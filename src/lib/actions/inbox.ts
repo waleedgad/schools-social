@@ -1,5 +1,6 @@
 "use server";
 
+import { isActive } from "@/lib/plan";
 import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
 import { AiLimitError, getAi, type SchoolProfile } from "@/lib/ai";
@@ -26,6 +27,7 @@ async function pageToken(schoolId: string) {
 export async function suggestReplies(locale: string, comment: string, postText: string) {
   const { membership } = await inboxUser(locale);
   const supabase = await createClient();
+  if (!(await isActive(supabase, membership.school.id))) return { error: "readOnly" };
   const { data: school } = await supabase.from("schools").select("profile").eq("id", membership.school.id).single();
   try {
     return { replies: await getAi().suggestReplies(comment, postText, (school?.profile ?? {}) as SchoolProfile) };
@@ -40,7 +42,7 @@ export async function sendReply(formData: FormData) {
   const platform = formData.get("platform") === "instagram" ? "instagram" : "facebook";
   const commentId = String(formData.get("comment") ?? "");
   const message = String(formData.get("message") ?? "").trim().slice(0, 1000);
-  const token = await pageToken(membership.school.id);
+  const token = (await isActive(await createClient(), membership.school.id)) ? await pageToken(membership.school.id) : null;
   let ok = false;
   if (token && message) {
     ok = !!(await replyToComment(platform, commentId, token, message).catch(() => null));

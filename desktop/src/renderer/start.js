@@ -7,7 +7,8 @@ window.hub.onState((next, changed) => {
   const before = S;
   S = next;
   applyLook();
-  if (!before || before.language !== S.language || before.theme !== S.theme || before.textSize !== S.textSize) return rerender();
+  if (!before || before.licence?.state !== S.licence?.state || before.licence?.offline !== S.licence?.offline || before.language !== S.language || before.theme !== S.theme || before.textSize !== S.textSize) return rerender();
+  if (gateNeeded()) return;
   sidebar();
   App.views[App.view]?.onState?.(changed ?? []);
 });

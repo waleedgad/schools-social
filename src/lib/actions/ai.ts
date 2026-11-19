@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "@/i18n/navigation";
 import { AiLimitError, getAi } from "@/lib/ai";
 import { thumbPath } from "@/lib/images";
+import { isActive } from "@/lib/plan";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -39,6 +40,7 @@ export async function checkPhotos(formData: FormData) {
       : await supabase.from("events").select("title, class_name").eq("id", event).maybeSingle();
   const context = [ev?.title, ev?.class_name].filter(Boolean).join(", ");
 
+  if (!(await isActive(supabase, schoolId))) back({ error: "readOnly" });
   const ai = getAi();
   let checked = 0;
   try {
