@@ -12,7 +12,7 @@ import { BlockedScreen, PlanBar } from "./plan-bars";
 import { ReadOnlyGuard } from "./read-only-guard";
 import { isOwner } from "@/lib/owner";
 import { getPlanStatus, seesPlan } from "@/lib/plan";
-import { CommandPalette, MobileNavToggle, Shortcuts, ThemeToggle, WorkspaceSwitcher } from "./shell-client";
+import { ComfortMenu, CommandPalette, MobileNavToggle, Shortcuts, ThemeToggle, WorkspaceSwitcher } from "./shell-client";
 
 export type NavKey =
   | "today" | "posts" | "calendar" | "analytics" | "library" | "upload" | "students"
@@ -175,6 +175,7 @@ export async function AppShell({
           </Link>
           <div className="flex items-center gap-1 px-1 pt-2">
             <ThemeToggle labels={{ light: t("shell.light"), dark: t("shell.dark"), auto: t("shell.auto") }} />
+            <ComfortMenu labels={{ title: t("shell.comfort"), large: t("shell.largeText"), contrast: t("shell.highContrast") }} />
             <LanguageSwitcher />
             <Link href="/new-password" className="ms-auto rounded-md px-2 py-1 text-xs text-muted hover:bg-background">
               {t("password.change")}

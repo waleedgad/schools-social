@@ -12,5 +12,6 @@
   root.dataset.size = l.textSize;
   root.dataset.platform = l.platform;
   root.dataset.motion = l.motion;
+  root.dataset.contrast = l.contrast || "normal";
   root.style.setProperty("--accent", l.accent);
 })();

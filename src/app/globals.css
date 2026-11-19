@@ -81,6 +81,49 @@
   color-scheme: dark;
 }
 
+/* Comfort settings (header menu, saved on this device): larger text and
+   high contrast (darker words, clear lines, a strong focus ring). */
+:root[data-size="large"] { font-size: 112.5%; }
+:root[data-contrast="high"] {
+  --foreground: #000000;
+  --muted: #2b2f36;
+  --faint: #33373f;
+  --border: #6b7280;
+  --accent-ink: #123c86;
+  --danger: #8f1d14;
+  --good: #0f5a32;
+  --warn: #5c3c00;
+  --info: #123c86;
+  --violet: #3d2392;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-contrast="high"]:not([data-theme="light"]) {
+    --foreground: #ffffff;
+    --muted: #e2e5ea;
+    --faint: #d0d4db;
+    --border: #9aa1ad;
+    --accent-ink: #b9d1ff;
+    --danger: #ffb3ab;
+    --good: #a6f0c4;
+    --warn: #ffe09a;
+    --info: #b9d1ff;
+    --violet: #d6caff;
+  }
+}
+:root[data-contrast="high"][data-theme="dark"] {
+  --foreground: #ffffff;
+  --muted: #e2e5ea;
+  --faint: #d0d4db;
+  --border: #9aa1ad;
+  --accent-ink: #b9d1ff;
+  --danger: #ffb3ab;
+  --good: #a6f0c4;
+  --warn: #ffe09a;
+  --info: #b9d1ff;
+  --violet: #d6caff;
+}
+:root[data-contrast="high"] :focus-visible { outline: 3px solid var(--foreground); outline-offset: 2px; }
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);

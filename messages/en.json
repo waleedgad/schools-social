@@ -308,7 +308,13 @@
     "toDraft": "Back to draft",
     "notePlaceholder": "What should change?",
     "reject": "Ask for changes",
-    "delete": "Delete post"
+    "delete": "Delete post",
+    "presence": "{names} also has this post open. Changes you both save may overwrite each other.",
+    "swipe": {
+      "prev": "Previous",
+      "next": "Next",
+      "of": "Waiting post {n} of {total} · swipe to move"
+    }
   },
   "calendar": {
     "title": "Calendar",
@@ -581,7 +587,10 @@
     "menu": "Menu",
     "light": "Light",
     "dark": "Dark",
-    "auto": "Auto"
+    "auto": "Auto",
+    "comfort": "Easier reading",
+    "largeText": "Larger text",
+    "highContrast": "High contrast"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",

@@ -76,6 +76,7 @@ type Settings = {
   autoName: boolean;
   faceVision: boolean;
   motion: "full" | "less";
+  contrast: "normal" | "high";
   fileAsk: boolean;
   rawFolders: boolean;
   finderTags: boolean;
@@ -105,7 +106,7 @@ type Settings = {
 
 const SETTABLE: (keyof Settings)[] = [
   "language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "tourDone", "cleanStrict", "rejectMonths", "selfFiling",
-  "autoName", "faceVision", "motion", "fileAsk", "rawFolders", "finderTags", "lockOriginals", "binAuto", "cleanReminder", "importPhotographer", "importCategory", "importJunk",
+  "autoName", "faceVision", "motion", "contrast", "fileAsk", "rawFolders", "finderTags", "lockOriginals", "binAuto", "cleanReminder", "importPhotographer", "importCategory", "importJunk",
   "importSkipDup", "splitGap", "importAutoOpen", "importEject", "importErase", "blurNoPost", "teamImportAlert", "todayLayout", "wizard", "lastCleanReminder", "calendar",
 ];
 
@@ -469,6 +470,7 @@ function state() {
     autoName: s.autoName,
     faceVision: s.faceVision,
     motion: s.motion,
+    contrast: s.contrast ?? "normal",
     fileAsk: s.fileAsk,
     rawFolders: s.rawFolders,
     finderTags: s.finderTags,
@@ -1607,7 +1609,7 @@ function syncTheme() {
 function firstLook() {
   const s = settings.get();
   const dark = s.theme === "dark" || (s.theme !== "light" && nativeTheme.shouldUseDarkColors);
-  return { language: s.language === "en" ? "en" : "ar", dark, textSize: s.textSize ?? "normal", motion: s.motion ?? "full", accent: /^#[0-9a-f]{3,8}$/i.test(s.accent ?? "") ? s.accent : "#2f6fdf", platform: process.platform };
+  return { language: s.language === "en" ? "en" : "ar", dark, textSize: s.textSize ?? "normal", motion: s.motion ?? "full", contrast: s.contrast === "high" ? "high" : "normal", accent: /^#[0-9a-f]{3,8}$/i.test(s.accent ?? "") ? s.accent : "#2f6fdf", platform: process.platform };
 }
 
 function createWindow() {
@@ -1873,6 +1875,7 @@ app.whenReady().then(async () => {
     autoName: true,
     faceVision: true,
     motion: "full",
+    contrast: "normal",
     fileAsk: false,
     rawFolders: true,
     finderTags: false,
