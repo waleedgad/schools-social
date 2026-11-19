@@ -45,6 +45,8 @@ export function PostPresence({ schoolId, postId, me, label }: { schoolId: string
 // arrows. In Arabic the next post is to the left, as pages turn in Arabic.
 export function SwipeNav({ prev, next, position, total, labels, rtl }: { prev: string | null; next: string | null; position: number; total: number; labels: { prev: string; next: string; of: string }; rtl: boolean }) {
   const router = useRouter();
+  // Set once the swipe listeners are on (before that, a swipe does nothing).
+  const [armed, setArmed] = useState(false);
   useEffect(() => {
     let start: { x: number; y: number; t: number } | null = null;
     const typing = (el: EventTarget | null) => el instanceof HTMLElement && !!el.closest("input, textarea, select, [contenteditable], [data-no-swipe]");
@@ -65,6 +67,7 @@ export function SwipeNav({ prev, next, position, total, labels, rtl }: { prev: s
     };
     window.addEventListener("touchstart", down, { passive: true });
     window.addEventListener("touchend", up, { passive: true });
+    setArmed(true);
     return () => {
       window.removeEventListener("touchstart", down);
       window.removeEventListener("touchend", up);
@@ -73,7 +76,7 @@ export function SwipeNav({ prev, next, position, total, labels, rtl }: { prev: s
   if (total < 2) return null;
   const arrow = "rounded-md border border-border px-3 py-1.5 text-sm";
   return (
-    <nav className="flex items-center justify-between gap-2" aria-label={labels.of.replace("{n}", String(position)).replace("{total}", String(total))} data-testid="swipe-nav">
+    <nav className="flex items-center justify-between gap-2" aria-label={labels.of.replace("{n}", String(position)).replace("{total}", String(total))} data-testid="swipe-nav" data-armed={armed ? "" : undefined}>
       {prev ? <Link href={`/posts/${prev}`} className={arrow} rel="prev">{rtl ? "→" : "←"} {labels.prev}</Link> : <span />}
       <span className="text-xs text-muted">{labels.of.replace("{n}", String(position)).replace("{total}", String(total))}</span>
       {next ? <Link href={`/posts/${next}`} className={arrow} rel="next">{labels.next} {rtl ? "←" : "→"}</Link> : <span />}

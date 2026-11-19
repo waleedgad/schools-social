@@ -23,7 +23,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta
+      - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta
       - run: grep -v '^#' e2e/test-db.env >> "$GITHUB_ENV"
       - run: npm run build
       - run: |

@@ -76,6 +76,8 @@ async function waitingPosts(schoolId: string, writer: string, n: number) {
 }
 
 async function swipe(page: Page, dx: number) {
+  // Wait until the page has started up and listens for swipes.
+  await expect(page.locator('[data-testid="swipe-nav"][data-armed]')).toHaveCount(1);
   const box = page.viewportSize()!;
   const y = Math.round(box.height / 2);
   const x = Math.round(box.width / 2);
