@@ -532,6 +532,9 @@
       },
       "support": {
         "reported": "reported a problem"
+      },
+      "photos": {
+        "cleaned": "removed old website copies of photos that were never used (originals kept)"
       }
     }
   },

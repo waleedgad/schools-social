@@ -91,6 +91,21 @@ export async function removeWebCopies(sb: SupabaseClient, remoteIds: string[]) {
   return gone;
 }
 
+// Which of these website photo ids no longer exist there (removed by the
+// website's 6-month clean-up, or deleted on the website). An error (offline)
+// says none, so nothing is forgotten by mistake.
+export async function goneWebCopies(sb: SupabaseClient, remoteIds: string[]) {
+  const gone: string[] = [];
+  for (let i = 0; i < remoteIds.length; i += 200) {
+    const part = remoteIds.slice(i, i + 200);
+    const { data, error } = await sb.from("photos").select("id").in("id", part);
+    if (error || !data) return [];
+    const there = new Set(data.map((r) => r.id as string));
+    gone.push(...part.filter((id) => !there.has(id)));
+  }
+  return gone;
+}
+
 // Numbers for the Today screen.
 export async function summary(sb: SupabaseClient, schoolId: string) {
   const count = async (status: string[]) => {

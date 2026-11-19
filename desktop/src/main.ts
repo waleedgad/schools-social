@@ -35,7 +35,7 @@ import { compareList, parseRows, readSheet, type Known, type StudentRow } from "
 import { LibrarySync } from "./core/sync";
 import { AuraDownload } from "./core/models";
 import { visionFaces } from "./core/vision";
-import { downloadPhoto, finishCheck, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
+import { downloadPhoto, finishCheck, goneWebCopies, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 import { exclusive } from "./core/lock";
 import { noPostFace, noPostPhoto, noPostWebPhoto, photosOfPeople, webCheck, withCopies } from "./core/privacy";
 import { editorPicker, isInside, isOutside } from "./core/paths";
@@ -1389,6 +1389,25 @@ async function checkWebUploads() {
   }
 }
 
+// Before photos go into a post: website copies that are gone there (the
+// 6-month clean-up, or deleted on the website) are forgotten, so the photo
+// is sent again instead of the post failing.
+async function forgetGoneWebCopies(ids: number[]) {
+  const sb = client();
+  if (!sb || !ids.length) return 0;
+  const rows = all<{ id: number; hash: string | null; path: string; remote_id: string }>(
+    `select id, hash, path, remote_id from photos where id in (${marks(ids.length)}) and remote_id is not null`,
+    ...ids,
+  );
+  if (!rows.length) return 0;
+  const gone = new Set(await goneWebCopies(sb, rows.map((r) => r.remote_id)).catch(() => [] as string[]));
+  for (const r of rows.filter((x) => gone.has(x.remote_id))) {
+    db.prepare("update photos set remote_id = null where id = ?").run(r.id);
+    queue.unmark(r.hash ?? "", [r.path]);
+  }
+  return gone.size;
+}
+
 // Deleting on the Mac removes the web copy too (kept when it was posted).
 function removeWebCopiesOf(rows: { id: number; hash: string | null; remote_id: string | null }[]) {
   const sb = client();
@@ -1496,6 +1515,7 @@ async function newPost(ids: number[]) {
   const sb = client();
   const s = settings.get();
   if (!sb || !s.userId || !s.schoolId || !sync) throw new Error("not-signed-in");
+  await forgetGoneWebCopies(ids.slice(0, 80));
   const rows = all<{ id: number; path: string; remote_id: string | null; taken_at: string | null }>(
     `select id, path, remote_id, taken_at from photos where id in (${marks(ids.length)}) order by taken_at`,
     ...ids,
@@ -2217,6 +2237,7 @@ app.whenReady().then(async () => {
 
     newPost: (ids: number[]) => newPost(ids),
     sendNow: async (file: string) => { if (!sync) throw new Error("not-signed-in"); await sync.sendNow(file); },
+    forgetGoneWebCopies: (ids: number[]) => forgetGoneWebCopies(ids),
     cancelPost: () => {
       postCancelled = true;
       lastMessage = "";
