@@ -40,17 +40,17 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: npm run build
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/face-bench-photos
           key: face-bench-photos-v1-${{ hashFiles('desktop/bench/faces/people.json', 'desktop/bench/faces/fetch.mjs') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/face-models
           key: auraface-v1
       # Faces found in each photo, from the last run (reused only while the
       # face finding code is unchanged), so trying new settings is quick.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: ~/face-bench-cache
           key: face-bench-analysis-${{ github.run_id }}
@@ -68,7 +68,7 @@ jobs:
           mkdir -p ~/face-bench-cache
           HUB_FACE_THREADS=4 BENCH_CACHE=~/face-bench-cache/analysis.json node bench/faces/run.mjs ~/face-bench-photos ~/face-models/auraface_glintr100.onnx
       # kept even when the run fails or is cut short
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v6
         if: always()
         with:
           path: ~/face-bench-cache
