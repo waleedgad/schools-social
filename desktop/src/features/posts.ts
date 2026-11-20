@@ -376,6 +376,7 @@ export function postsApi(ctx: Ctx): Api {
     // Sends library photos (web copies) and returns their website ids.
     sendPhotos: async (ids: number[]) => {
       const out: string[] = [];
+      await ctx.call("forgetGoneWebCopies", ids.slice(0, 40)).catch(() => null);
       for (const id of ids.slice(0, 40)) {
         const p = one<{ path: string; remote_id: string | null }>("select path, remote_id from photos where id = ?", id);
         if (!p) continue;

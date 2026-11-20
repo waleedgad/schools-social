@@ -35,7 +35,7 @@ import { compareList, parseRows, readSheet, type Known, type StudentRow } from "
 import { LibrarySync } from "./core/sync";
 import { AuraDownload } from "./core/models";
 import { visionFaces } from "./core/vision";
-import { downloadPhoto, finishCheck, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
+import { downloadPhoto, finishCheck, goneWebCopies, pushStudents, reblurWebCopy, removeWebCopies, setOptedOut, summary, waitingPhotos } from "./core/web";
 import { exclusive } from "./core/lock";
 import { noPostFace, noPostPhoto, noPostWebPhoto, photosOfPeople, webCheck, withCopies } from "./core/privacy";
 import { editorPicker, isInside, isOutside } from "./core/paths";
@@ -76,6 +76,7 @@ type Settings = {
   autoName: boolean;
   faceVision: boolean;
   motion: "full" | "less";
+  contrast: "normal" | "high";
   fileAsk: boolean;
   rawFolders: boolean;
   finderTags: boolean;
@@ -105,7 +106,7 @@ type Settings = {
 
 const SETTABLE: (keyof Settings)[] = [
   "language", "sendMode", "faces", "paused", "openAtLogin", "textSize", "theme", "accent", "quietFrom", "quietTo", "alerts", "setupDone", "tourDone", "cleanStrict", "rejectMonths", "selfFiling",
-  "autoName", "faceVision", "motion", "fileAsk", "rawFolders", "finderTags", "lockOriginals", "binAuto", "cleanReminder", "importPhotographer", "importCategory", "importJunk",
+  "autoName", "faceVision", "motion", "contrast", "fileAsk", "rawFolders", "finderTags", "lockOriginals", "binAuto", "cleanReminder", "importPhotographer", "importCategory", "importJunk",
   "importSkipDup", "splitGap", "importAutoOpen", "importEject", "importErase", "blurNoPost", "teamImportAlert", "todayLayout", "wizard", "lastCleanReminder", "calendar",
 ];
 
@@ -469,6 +470,7 @@ function state() {
     autoName: s.autoName,
     faceVision: s.faceVision,
     motion: s.motion,
+    contrast: s.contrast ?? "normal",
     fileAsk: s.fileAsk,
     rawFolders: s.rawFolders,
     finderTags: s.finderTags,
@@ -1389,6 +1391,25 @@ async function checkWebUploads() {
   }
 }
 
+// Before photos go into a post: website copies that are gone there (the
+// 6-month clean-up, or deleted on the website) are forgotten, so the photo
+// is sent again instead of the post failing.
+async function forgetGoneWebCopies(ids: number[]) {
+  const sb = client();
+  if (!sb || !ids.length) return 0;
+  const rows = all<{ id: number; hash: string | null; path: string; remote_id: string }>(
+    `select id, hash, path, remote_id from photos where id in (${marks(ids.length)}) and remote_id is not null`,
+    ...ids,
+  );
+  if (!rows.length) return 0;
+  const gone = new Set(await goneWebCopies(sb, rows.map((r) => r.remote_id)).catch(() => [] as string[]));
+  for (const r of rows.filter((x) => gone.has(x.remote_id))) {
+    db.prepare("update photos set remote_id = null where id = ?").run(r.id);
+    queue.unmark(r.hash ?? "", [r.path]);
+  }
+  return gone.size;
+}
+
 // Deleting on the Mac removes the web copy too (kept when it was posted).
 function removeWebCopiesOf(rows: { id: number; hash: string | null; remote_id: string | null }[]) {
   const sb = client();
@@ -1496,6 +1517,7 @@ async function newPost(ids: number[]) {
   const sb = client();
   const s = settings.get();
   if (!sb || !s.userId || !s.schoolId || !sync) throw new Error("not-signed-in");
+  await forgetGoneWebCopies(ids.slice(0, 80));
   const rows = all<{ id: number; path: string; remote_id: string | null; taken_at: string | null }>(
     `select id, path, remote_id, taken_at from photos where id in (${marks(ids.length)}) order by taken_at`,
     ...ids,
@@ -1587,7 +1609,7 @@ function syncTheme() {
 function firstLook() {
   const s = settings.get();
   const dark = s.theme === "dark" || (s.theme !== "light" && nativeTheme.shouldUseDarkColors);
-  return { language: s.language === "en" ? "en" : "ar", dark, textSize: s.textSize ?? "normal", motion: s.motion ?? "full", accent: /^#[0-9a-f]{3,8}$/i.test(s.accent ?? "") ? s.accent : "#2f6fdf", platform: process.platform };
+  return { language: s.language === "en" ? "en" : "ar", dark, textSize: s.textSize ?? "normal", motion: s.motion ?? "full", contrast: s.contrast === "high" ? "high" : "normal", accent: /^#[0-9a-f]{3,8}$/i.test(s.accent ?? "") ? s.accent : "#2f6fdf", platform: process.platform };
 }
 
 function createWindow() {
@@ -1853,6 +1875,7 @@ app.whenReady().then(async () => {
     autoName: true,
     faceVision: true,
     motion: "full",
+    contrast: "normal",
     fileAsk: false,
     rawFolders: true,
     finderTags: false,
@@ -2217,6 +2240,7 @@ app.whenReady().then(async () => {
 
     newPost: (ids: number[]) => newPost(ids),
     sendNow: async (file: string) => { if (!sync) throw new Error("not-signed-in"); await sync.sendNow(file); },
+    forgetGoneWebCopies: (ids: number[]) => forgetGoneWebCopies(ids),
     cancelPost: () => {
       postCancelled = true;
       lastMessage = "";

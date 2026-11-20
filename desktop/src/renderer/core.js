@@ -469,6 +469,7 @@ function applyLook() {
   root.dataset.size = S.textSize;
   root.dataset.platform = S.platform ?? "";
   root.dataset.motion = S.motion ?? "full";
+  root.dataset.contrast = S.contrast ?? "normal";
   root.style.setProperty("--accent", S.accent || "#2f6fdf");
 }
 

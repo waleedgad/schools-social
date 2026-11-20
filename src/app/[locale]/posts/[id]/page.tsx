@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Composer, type ComposerData } from "@/components/composer";
+import { PostPresence, SwipeNav } from "@/components/post-extras";
 import { AppShell } from "@/components/shell";
 import { Chip, Notice } from "@/components/ui";
 import { redirect } from "@/i18n/navigation";
@@ -74,6 +75,13 @@ export default async function PostPage({
 
   const m = (meta as { page_id: string | null; page_name: string | null; ig_username: string | null; fb_paused: boolean; ig_paused: boolean }[] | null)?.[0];
   const status = post.status as PostStatus;
+  // Phone approval: the other posts waiting at the same step, to swipe through.
+  const waiting = status === "in_review" || status === "waiting_extra";
+  const { data: queue } = waiting
+    ? await supabase.from("posts").select("id").eq("school_id", schoolId).eq("status", status).order("created_at").limit(100)
+    : { data: [] as { id: string }[] };
+  const queueIds = (queue ?? []).map((q) => q.id as string);
+  const at = queueIds.indexOf(id);
   const role = membership.role;
   const author = post.created_by === user.id;
 
@@ -176,6 +184,17 @@ export default async function PostPage({
       {notice}
       {status === "rejected" && post.review_note && <Notice tone="warn">{t("posts.changesAsked", { note: post.review_note })}</Notice>}
       {status === "failed" && post.publish_error && <Notice>{t("posts.failedBecause", { error: post.publish_error })}</Notice>}
+      <PostPresence schoolId={schoolId} postId={id} me={{ id: user.id, name: membership.fullName }} label={t("posts.presence")} />
+      {at >= 0 && (
+        <SwipeNav
+          prev={queueIds[at - 1] ?? null}
+          next={queueIds[at + 1] ?? null}
+          position={at + 1}
+          total={queueIds.length}
+          rtl={locale === "ar"}
+          labels={{ prev: t("posts.swipe.prev"), next: t("posts.swipe.next"), of: t("posts.swipe.of", { n: "{n}", total: "{total}" }) }}
+        />
+      )}
       <Composer data={data} />
     </AppShell>
   );

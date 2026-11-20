@@ -27,6 +27,15 @@
 }
 :root[data-size="large"] { --fs: 15.5px; }
 :root[data-size="small"] { --fs: 12.5px; }
+:root[data-contrast="high"] {
+  --text: #000; --muted: #2b2f36; --faint: #33373f; --line: #6b7280; --line2: #9aa1ad; --accent-ink: color-mix(in srgb, var(--accent) 55%, #000);
+  --good: #0f5a32; --warn: #5c3c00; --bad: #8f1d14; --info: #123c86; --violet: #3d2392; --grey: #1f2329; --glass: #fff; --side: #eef0f3;
+}
+:root[data-contrast="high"][data-theme="dark"] {
+  --text: #fff; --muted: #e2e5ea; --faint: #d0d4db; --line: #9aa1ad; --line2: #6b7280; --accent-ink: color-mix(in srgb, var(--accent) 35%, #fff);
+  --good: #a6f0c4; --warn: #ffe09a; --bad: #ffb3ab; --info: #b9d1ff; --violet: #d6caff; --grey: #eef0f3; --glass: #1e2126; --side: #1b1d22;
+}
+:root[data-contrast="high"] :focus-visible { outline: 3px solid var(--text) !important; outline-offset: 2px; }
 :root[data-motion="less"] * { transition: none !important; animation: none !important; }
 * { box-sizing: border-box; }
 html, body { height: 100%; }

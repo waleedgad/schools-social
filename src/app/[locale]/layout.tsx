@@ -12,7 +12,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const plex = IBM_Plex_Sans_Arabic({ subsets: ["arabic"], weight: ["400", "500", "600", "700"], variable: "--font-plex" });
 
 // Applies the saved light/dark choice before the page paints.
-const THEME = `try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
+// Also the comfort settings (larger text, high contrast), saved on this device.
+const THEME = `try{var d=document.documentElement,t=localStorage.getItem("theme");if(t)d.setAttribute("data-theme",t);if(localStorage.getItem("size")==="large")d.setAttribute("data-size","large");if(localStorage.getItem("contrast")==="high")d.setAttribute("data-contrast","high")}catch(e){}`;
 // Catches errors from the very start (even before the page is ready) and hands
 // them to the error reporter once it loads (components/error-reporter.tsx).
 const ERRORS = `(function(){var q=window.__errq=[];function add(m,s){if(window.__report)window.__report(m,s);else if(q.length<20)q.push([m,s])}addEventListener("error",function(e){if(e.message||e.error)add(e.message||String(e.error),e.error&&e.error.stack)});addEventListener("unhandledrejection",function(e){var r=e.reason;add(r&&r.message||String(r),r&&r.stack)})})()`;

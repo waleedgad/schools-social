@@ -37,6 +37,7 @@ function settingGroups(page, extra) {
             srow(L("Text size", "حجم النص"), "", choose("textSize", S.textSize, [["small", L("Small", "صغير")], ["normal", L("Normal", "عادي")], ["large", L("Large", "كبير")]]), "text size font حجم"),
             srow(L("School colour", "لون المدرسة"), L("Used for buttons and highlights.", "يُستخدم للأزرار والتمييز."), `<input type="color" data-set="accent" value="${esc(S.accent)}" /><button class="link small" data-act="accent0">${L("Reset", "إعادة")}</button>`, "colour color accent لون"),
             srow(L("Less movement", "حركة أقل"), L("Turns off the zoom and slide animations.", "يوقف حركات التكبير والانزلاق."), toggle("motion", S.motion === "less"), "animation motion حركة"),
+            srow(L("High contrast", "تباين عالٍ"), L("Darker text and clearer lines and buttons, easier to read.", "نص أغمق وخطوط وأزرار أوضح، أسهل في القراءة."), toggle("contrast", S.contrast === "high"), "contrast high accessibility تباين"),
           ],
         },
         {
@@ -326,6 +327,7 @@ App.views.settings = {
         let v = el.type === "checkbox" ? el.checked : el.value;
         if (el.dataset.type === "num") v = Number(v);
         if (key === "motion") v = el.checked ? "less" : "full";
+        if (key === "contrast") v = el.checked ? "high" : "normal";
         if (key === "fileMode") {
           await call("set", "selfFiling", v !== "off");
           await setSetting("fileAsk", v === "ask");

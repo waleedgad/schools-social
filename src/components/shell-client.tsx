@@ -185,6 +185,47 @@ export function ThemeToggle({ labels }: { labels: { light: string; dark: string;
   );
 }
 
+// Comfort settings: larger text and high contrast. Saved on this device only
+// (the page applies them before it paints, see the layout).
+export function ComfortMenu({ labels }: { labels: { title: string; large: string; contrast: string } }) {
+  const [large, setLarge] = useState(false);
+  const [high, setHigh] = useState(false);
+  useEffect(() => {
+    const d = document.documentElement;
+    setLarge(d.getAttribute("data-size") === "large");
+    setHigh(d.getAttribute("data-contrast") === "high");
+  }, []);
+  const set = (key: "size" | "contrast", on: boolean, value: string) => {
+    const d = document.documentElement;
+    if (on) d.setAttribute(`data-${key}`, value);
+    else d.removeAttribute(`data-${key}`);
+    try {
+      if (on) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    } catch {
+      // private mode: works until the page is closed
+    }
+  };
+  return (
+    <details className="relative">
+      <summary title={labels.title} aria-label={labels.title} className="list-none cursor-pointer rounded-md px-1.5 py-1 text-xs font-semibold text-muted hover:bg-background">
+        Aa
+      </summary>
+      <div className="absolute bottom-full z-20 mb-1 w-56 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm shadow-[var(--shadow)]">
+        <p className="text-xs font-semibold text-muted">{labels.title}</p>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={large} onChange={(e) => (setLarge(e.target.checked), set("size", e.target.checked, "large"))} />
+          {labels.large}
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={high} onChange={(e) => (setHigh(e.target.checked), set("contrast", e.target.checked, "high"))} />
+          {labels.contrast}
+        </label>
+      </div>
+    </details>
+  );
+}
+
 export function MobileNavToggle({ label }: { label: string }) {
   return (
     <button

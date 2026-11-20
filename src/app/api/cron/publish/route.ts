@@ -5,6 +5,7 @@ import { refreshMetrics } from "@/lib/metrics";
 import { sendPlanWarnings } from "@/lib/plan-warnings";
 import { publishDue } from "@/lib/publish";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
+import { cleanOldWebCopies, sendComputerOffAlerts } from "@/lib/upkeep";
 
 // Called every 5 minutes by a Supabase scheduled job (pg_cron), because the
 // free Vercel plan only runs its own cron once a day. Calling it early or
@@ -26,9 +27,13 @@ async function run(request: NextRequest) {
   const alerts = await flushAlerts(admin).catch(() => 0);
   // Plan ending soon or read-only: once a day at most, per school and person.
   const planWarnings = await sendPlanWarnings(admin).catch(() => 0);
+  // A library computer quiet for over a day: one email (once email is set up).
+  const computersOff = await sendComputerOffAlerts(admin).catch(() => 0);
+  // Web copies over 6 months old and never used: removed, a batch at a time, 01:00-02:00 UTC.
+  const cleaned = await cleanOldWebCopies(admin).catch(() => 0);
   // Results for the analytics page; never let it stop publishing.
   await refreshMetrics(admin).catch(() => null);
-  return NextResponse.json({ published, alerts, digests, planWarnings });
+  return NextResponse.json({ published, alerts, digests, planWarnings, computersOff, cleaned });
 }
 
 export const GET = run;
