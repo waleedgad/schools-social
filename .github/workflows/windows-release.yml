@@ -73,7 +73,7 @@ jobs:
           }
       - name: The built app starts, reads photos and finds faces
         run: PACKAGED_APP="$PWD/release/win-unpacked/School Social Hub Library.exe" npx playwright test e2e/packaged.spec.ts
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-release
           path: |

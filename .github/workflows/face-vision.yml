@@ -39,7 +39,7 @@ jobs:
         run: node bench/faces/fetch.mjs ~/face-bench-photos 50
       - name: Check Apple Vision
         run: node bench/faces/vision.mjs ~/face-bench-photos 12
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: vision-report
