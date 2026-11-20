@@ -31,7 +31,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: npm run build
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/face-bench-photos
           key: face-bench-photos-mac-v1-${{ hashFiles('desktop/bench/faces/people.json', 'desktop/bench/faces/fetch.mjs') }}
