@@ -41,7 +41,7 @@ jobs:
           xcrun stapler validate "$APP"
       - name: The built app starts, reads photos and finds faces
         run: PACKAGED_APP="$PWD/release/mac-arm64/School Social Hub Library.app/Contents/MacOS/School Social Hub Library" npx playwright test e2e/packaged.spec.ts
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mac-release
           path: |

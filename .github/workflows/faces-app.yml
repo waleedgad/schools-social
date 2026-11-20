@@ -53,7 +53,7 @@ jobs:
       - if: runner.os == 'macOS'
         run: FACE_PHOTOS=~/face-bench-photos npx playwright test e2e/faces-real.spec.ts
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: faces-app-${{ matrix.os }}
           path: |
