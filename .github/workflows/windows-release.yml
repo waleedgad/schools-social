@@ -40,7 +40,7 @@ jobs:
       WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX_BASE64 }}
       WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-node@v4
