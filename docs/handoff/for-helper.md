@@ -3,6 +3,28 @@
 Read this first. It replaces manager-instructions.md and manager-handoff.md.
 Waleed is the product owner and does a short final check; he does not test. Status page for him: https://claude.ai/artifact/691oyedQyELer24ijAXrA5 (keep it current).
 
+## UPDATE 21 Nov 2026 (newer than everything below; the "Where things stand" and "Next, in order" parts are OUT OF DATE)
+Live now: 0.12 + 0.13 on main = 0cfc61b. Next release is 0.14 (Mac check, real FB/IG post test, read-excel-file fix, design+accessibility+security). Captions are 0.15.
+Two code threads are running on their own branches: (A) "Add design style, accessibility, security check" and (B) "Finish yearbook, graduation, inbox, integrations". Do not touch their files.
+
+### WHO DOES WHAT (21 Nov, decided with Waleed)
+- Thread "Test and secure live 0.13 (helper)" already does tasks 1 and 2.
+- **The OTHER Claude (Waleed's own Claude, reads this file) does tasks 3 and 4** (fake Meta server tests, then privacy papers for the lawyer). Skip 1 and 2. When done, write tracker/helper-report-21nov-other.md and tell Waleed; the coordinator will check it.
+
+### Helper tasks (do now, in this order; none of them change app code on those branches)
+1. **Bug testing of live 0.13 (read-only for code).** Run the Playwright end-to-end suite against a local copy of main (source e2e/test-db.env first). Then click through the owner page, plans, trial, read-only and blocked states in English and Arabic, on phone and desktop sizes. Log every bug in bugs.md with the next free B-number.
+2. **Security testing (read-only).** Check that one school can never read or change another school's data (students, photos, posts, face data, plans) through the website routes and Supabase row-level security; check owner-only routes reject non-owners, upload routes reject bad files and sizes, and the licence/read-only/blocked rules are enforced on the server. Add findings to tracker/security-check.md. Do not change code for them; log them so thread A can fix.
+3. **Fake Meta server tests (L-24).** New test-only files, no edits to app source except a config switch for the Meta base URL.
+4. **Privacy papers for the lawyer** (documents only): data and face-data map, draft privacy policy and school terms (Egypt PDPL 151/2020), marked "needs lawyer's check".
+
+5. **Payment gateways research (document only, L-29).** Compare Paymob, Fawry, Kashier for selling the system to Egyptian schools (fees, recurring billing, EGP/USD, onboarding needs, API). Recommend one. Write tracker/payments-research.md.
+6. **Release set-up and monitoring files (L-28, CI/config only, new files, on its own branch).** release-please config, Lighthouse CI, health-ping workflow, Electron Fuses settings proposal, ZAP baseline workflow. Do not edit app source.
+7. **Windows signing and Apple Developer prep (documents only).** Compare a normal Windows code-signing certificate vs Microsoft Store for an Egypt-based seller (cost, steps, timing), and list exact steps for the Apple Developer join by about 25 Jan 2027. Write tracker/signing-options.md so Waleed can choose.
+8. **Test data and screenshots (read-only on code).** Refresh Arabic/English screenshots of live 0.13 screens into /mnt/project-files/screenshots/0.13/ where missing.
+
+### Report back
+When finished (or at each safe point), write tracker/helper-report-21nov.md: done / bugs found (B-numbers, severity) / security findings / what is next / branch names. Post one short line in your thread. The coordinator (me) will check the report when you finish and relay it to Waleed. Commit and push often and leave a handoff note before any usage limit.
+
 ## Rules
 1. Never touch main. It is fast-forwarded only after Waleed says OK.
 2. Only one thread changes app code at a time, on one branch. Document-only work can run in parallel.
@@ -80,7 +102,7 @@ Approving a spec or a release checklist, his short check of a release, OK to fas
 
 ---
 ## Log of what the helper did (append one line after each step: date, what, branch/commit)
-This repo copy is the source of truth. The copy in `tracker/for-helper.md` points here.
+This repo copy and the shared-folder copy (`tracker/for-helper.md`) hold the same instructions (synced 21 Nov 2026); this log lives here.
 
 - 2026-11-17: read the other Claude's handoff, compared with the plan and rules (no code clashes; process notes reported to Waleed). Branch `claude/project-thread-q91dwp`.
 - 2026-11-17: integrated PR #3's five blank-picture fixes (B-97..B-101) and the missing parts of PR #1 (B-102) onto the 0.12 line; dropped the duplicate B-96 fix. Branch q91dwp.
