@@ -140,3 +140,30 @@ test("a school admin cannot open the owner page or call the owner functions", as
   const keys = await asAdmin.from("school_keys").select("*");
   expect(keys.data ?? []).toEqual([]);
 });
+
+// S-21N-01: the "admins update their school" rule had no column limits, so a
+// school admin could give their school a bigger plan, a later paid-until date
+// or lift a forced block straight through the database. Migration 0021.
+test("a school admin cannot change their own plan, dates or state; ordinary settings still save", async () => {
+  const a = await person("plan-cheat");
+  const { data: s } = await admin().from("schools").insert({ name: "Plan cheat school" }).select("id, plan_id, paid_until, extra_managers").single();
+  await admin().from("memberships").insert({ school_id: s!.id, user_id: a.id, role: "admin", full_name: "Admin" });
+  const { data: session } = await createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } }).auth.signInWithPassword({ email: a.email, password });
+  const asAdmin = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { global: { headers: { Authorization: `Bearer ${session.session!.access_token}` } }, auth: { persistSession: false } });
+  const tries: Record<string, unknown>[] = [
+    { plan_id: "large" }, { plan_managers: 99 }, { plan_computers: 9 }, { extra_managers: 50 }, { extra_computers: 9 },
+    { paid_until: "2099-01-01" }, { trial: false }, { forced_state: "active" }, { forced_reason: "x" }, { read_only_days: 60 },
+  ];
+  for (const change of tries) {
+    const r = await asAdmin.from("schools").update(change).eq("id", s!.id).select("id");
+    expect(r.error?.message, JSON.stringify(change)).toContain("owner-only");
+  }
+  const { data: after } = await admin().from("schools").select("plan_id, paid_until, extra_managers").eq("id", s!.id).single();
+  expect(after).toEqual({ plan_id: s!.plan_id, paid_until: s!.paid_until, extra_managers: s!.extra_managers });
+  // The school's own settings still save, and the server key still changes dates.
+  const ok = await asAdmin.from("schools").update({ self_filing: true }).eq("id", s!.id).select("id");
+  expect(ok.error).toBeNull();
+  expect(ok.data).toHaveLength(1);
+  const server = await admin().from("schools").update({ paid_until: "2030-01-01" }).eq("id", s!.id);
+  expect(server.error).toBeNull();
+});
