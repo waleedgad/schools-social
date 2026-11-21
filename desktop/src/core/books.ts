@@ -29,6 +29,8 @@ export type Page = {
   date?: string | null;
   year?: string | null;
   locked?: boolean;
+  // Students' quotes collected on the website, under their names on a class page.
+  quotes?: Record<string, string>;
 };
 export type BookSpec = {
   kind: BookKind;
@@ -198,6 +200,44 @@ export function draftPages(db: Db, spec: BookSpec, keep: Page[] = []): Page[] {
   return pages.filter((p, i, a) => a.indexOf(p) === i);
 }
 
+// ---------- Texts collected on the website, put where they belong ----------
+// The principal's word on the welcome page, each class teacher's message on
+// their class page, each student's quote under their name on the class page
+// they're on. Locked (approved) pages are left alone; a text already on its
+// page is not added twice. Returns the pages and how many texts were placed.
+export type Collected = { kind: string; class_name?: string | null; student_code?: string | null; body: string };
+export function placeTexts(pages: Page[], texts: Collected[]) {
+  let placed = 0;
+  const out = pages.map((p) => ({ ...p, quotes: p.quotes ? { ...p.quotes } : undefined }));
+  const addText = (p: Page, body: string) => {
+    const t = body.trim();
+    if (!t) return false;
+    const arabic = /[\u0600-\u06FF]/.test(t);
+    const cur = (arabic ? p.textAr : p.text) ?? "";
+    if (cur.includes(t)) return false;
+    if (arabic) p.textAr = [cur, t].filter(Boolean).join("\n");
+    else p.text = [cur, t].filter(Boolean).join("\n");
+    return true;
+  };
+  for (const x of texts) {
+    if (x.kind === "principal") {
+      const page = out.find((p) => p.type === "welcome" && !p.locked);
+      if (page && addText(page, x.body)) placed++;
+    } else if (x.kind === "teacher" && x.class_name) {
+      const page = out.find((p) => p.type === "class" && p.className === x.class_name && !p.locked);
+      if (page && addText(page, x.body)) placed++;
+    } else if (x.kind === "quote" && x.student_code) {
+      const body = x.body.trim().slice(0, 140);
+      for (const page of out.filter((p) => p.type === "class" && !p.locked && p.students?.includes(x.student_code!))) {
+        if (page.quotes?.[x.student_code] === body) continue;
+        page.quotes = { ...(page.quotes ?? {}), [x.student_code]: body };
+        placed++;
+      }
+    }
+  }
+  return { pages: out, placed };
+}
+
 // ---------- Checks: fair balance, everyone in, ready, print quality ----------
 export function bookChecks(db: Db, spec: BookSpec, pages: Page[]) {
   const classes = classesOf(db, spec);
@@ -320,7 +360,7 @@ export function bookHtml(db: Db, spec: BookSpec, pages: Page[], r: Resolver, opt
       const teacher = p.type === "class" && p.className ? (db.prepare("select t.id, t.name_en, t.name_ar, t.portrait, t.can_post, t.kind, null since, null left_on, null class_name, (select f.id from faces f where f.student_id = t.id and f.status in ('confirmed', 'manual', 'portrait') order by f.w desc limit 1) face from class_teachers ct join students t on t.id = ct.teacher_id where ct.class_name = ?").get(p.className) as Student | undefined) : undefined;
       const grad = spec.kind === "graduation" || /12|KG2/i.test(spec.grade ?? p.className ?? "");
       return `<header><h1>${titleOf(p)}</h1>${teacher ? `<p class="sub">${ar ? "معلم الفصل" : "Class teacher"}: ${esc(nameOf(teacher))}</p>` : ""}</header>${textOf(p)}
-        <div class="faces c${cols}">${list.map((s) => `<figure class="${s.left_on ? "left" : ""}">${faceHtml(s)}<figcaption><b>${esc(nameOf(s))}</b>${both || otherOf(s) ? `<small>${esc(otherOf(s))}</small>` : ""}${grad && s.since ? `<small class="since">${esc(sinceLabel(s))}</small>` : ""}</figcaption></figure>`).join("")}</div>`;
+        <div class="faces c${cols}">${list.map((s) => `<figure class="${s.left_on ? "left" : ""}">${faceHtml(s)}<figcaption><b>${esc(nameOf(s))}</b>${both || otherOf(s) ? `<small>${esc(otherOf(s))}</small>` : ""}${grad && s.since ? `<small class="since">${esc(sinceLabel(s))}</small>` : ""}${p.quotes?.[s.id] ? `<q dir="auto">${esc(p.quotes[s.id])}</q>` : ""}</figcaption></figure>`).join("")}</div>`;
     }
     const n = Math.min(p.photos.length, 9);
     const head = `<header><h2>${titleOf(p)}</h2>${p.date ? `<p class="sub">${esc(p.date)}</p>` : ""}</header>${textOf(p)}`;
@@ -370,7 +410,7 @@ export function bookHtml(db: Db, spec: BookSpec, pages: Page[], r: Resolver, opt
   .faces figure { margin: 0; text-align: center; } .faces figure.left { opacity: .85; }
   .faces img, .faces span { width: ${27 * scale}mm; height: ${27 * scale}mm; border-radius: 50%; object-fit: cover; display: grid; place-items: center; margin: 0 auto; background: #eef0f3; font-size: 16pt; color: var(--sub); border: ${0.8 * scale}mm solid var(--soft); }
   .faces.c6 img, .faces.c6 span { width: ${23 * scale}mm; height: ${23 * scale}mm; }
-  .faces figcaption { font-size: ${8 * scale}pt; margin-top: 1.2mm; line-height: 1.25; } .faces small { display: block; color: var(--sub); } .faces .since { color: var(--accent); }
+  .faces figcaption { font-size: ${8 * scale}pt; margin-top: 1.2mm; line-height: 1.25; } .faces small { display: block; color: var(--sub); } .faces .since { color: var(--accent); } .faces q { display: block; font-style: italic; color: var(--sub); font-size: ${6.8 * scale}pt; margin-top: .6mm; quotes: "“" "”"; }
   .ph { flex: 1; display: grid; gap: ${3 * scale}mm; min-height: 0; }
   .ph img { width: 100%; height: 100%; object-fit: cover; border-radius: ${1.5 * scale}mm; min-height: 0; display: block; }
   .ph.single { grid-template: 1fr / 1fr; }

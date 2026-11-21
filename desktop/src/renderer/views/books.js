@@ -308,10 +308,21 @@ App.views.books = {
     body.innerHTML = `<div class="row small"><span class="grow">${L(`Version ${r.version} · ${okd} names checked`, `النسخة ${num(r.version)} · ${num(okd)} اسم مراجَع`)}</span><span class="tag ${r.status === "approved" ? "good" : ""}">${esc(r.status ?? "")}</span></div>
       ${fixes.length ? `<div class="card side"><b class="small">${L("Name fixes from teachers", "تصحيحات الأسماء من المعلمين")}</b>${fixes.map((c) => `<div class="trow small"><span class="grow">${esc(c.student ? name(c.student) : c.student_code)} → <b>${esc(c.fixed_name ?? "")}</b>${c.note ? `<div class="tiny muted">${esc(c.note)}</div>` : ""}</span>${c.fixed_name ? `<button class="btn small" data-fix="${esc(c.student_code)}" data-name="${esc(c.fixed_name)}">${L("Apply", "تطبيق")}</button>` : ""}</div>`).join("")}</div>` : ""}
       ${r.comments.length ? `<div class="card side"><b class="small">${L("Comments", "التعليقات")}</b>${r.comments.map((c) => `<div class="trow small ${c.done ? "muted" : ""}" data-pg="${c.page}"><span class="grow"><b>${L(`Page ${c.page}`, `صفحة ${num(c.page)}`)}</b> · ${esc(c.body)} <span class="tiny muted">${esc(c.author_name ?? "")}</span></span></div>`).join("")}</div>` : ""}
-      ${r.texts.length ? `<div class="card side"><b class="small">${L("Texts written for the book", "نصوص كُتبت للكتاب")}</b>${r.texts.map((t, i) => `<div class="col gap4" style="padding: 6px 0; border-top: 1px solid var(--line)"><span class="tiny muted">${esc(t.author_name ?? "")} · ${esc(t.class_name ?? t.kind)}</span><span class="small" dir="auto">${esc(t.body)}</span><button class="btn small" data-use="${i}" style="align-self: flex-start">${L("Use on this page", "استخدامه في هذه الصفحة")}</button></div>`).join("")}</div>` : ""}
+      ${r.texts.length ? `<div class="card side"><div class="row"><b class="small grow">${L("Texts written for the book", "نصوص كُتبت للكتاب")}</b><button class="btn small primary" id="rv-place">${icon("sparkles", 12)} ${L("Put them all in the book", "ضعها كلها في الكتاب")}</button></div><p class="tiny muted">${L("The principal's word on the welcome page, each teacher's message on their class page, quotes under each student's name. Locked pages stay as they are.", "كلمة المدير في صفحة الترحيب، ورسالة كل معلم في صفحة فصله، والاقتباسات تحت اسم كل طالب. الصفحات المقفلة تبقى كما هي.")}</p>${r.texts.map((t, i) => `<div class="col gap4" style="padding: 6px 0; border-top: 1px solid var(--line)"><span class="tiny muted">${esc(t.author_name ?? "")} · ${esc(t.class_name ?? t.kind)}</span><span class="small" dir="auto">${esc(t.body)}</span><button class="btn small" data-use="${i}" style="align-self: flex-start">${L("Use on this page", "استخدامه في هذه الصفحة")}</button></div>`).join("")}</div>` : ""}
       ${!fixes.length && !r.comments.length && !r.texts.length ? `<p class="small muted">${L("No answers yet.", "لا ردود بعد.")}</p>` : ""}`;
     $$("[data-fix]", body).forEach((b) => (b.onclick = async () => { await call("bookFixName", b.dataset.fix, b.dataset.name); undoToast(L("Name fixed in the class list", "صُحّح الاسم في قائمة الفصل")); b.remove(); this.preview(); }));
     $$("[data-pg]", body).forEach((row) => (row.onclick = () => { const p = BK.book.pages[Number(row.dataset.pg) - 1]; if (p) { BK.page = p.id; this.pages(); this.preview(); } }));
+    $("#rv-place", body)?.addEventListener("click", async () => {
+      try {
+        const x = await call("bookPlaceTexts", BK.book.id);
+        if (!x) return;
+        const nb = await quiet("book", BK.book.id);
+        if (nb) BK.book = nb;
+        this.pages();
+        this.preview();
+        undoToast(x.placed ? L(`${x.placed} texts put in the book`, `وُضع ${num(x.placed)} نص في الكتاب`) : L("Every text is already in the book", "كل النصوص موجودة في الكتاب بالفعل"));
+      } catch {}
+    });
     $$("[data-use]", body).forEach((b) => (b.onclick = () => {
       const t = r.texts[Number(b.dataset.use)];
       const arabic = /[؀-ۿ]/.test(t.body);

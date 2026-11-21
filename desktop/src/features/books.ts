@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, shell } from "electron";
 import sharp from "sharp";
-import { bookChecks, bookHtml, draftPages, pageCandidates, pageSize, type BookSpec, type Page, type Resolver } from "../core/books";
+import { bookChecks, bookHtml, draftPages, pageCandidates, pageSize, placeTexts, type Collected, type BookSpec, type Page, type Resolver } from "../core/books";
 import { safeName } from "../core/library";
 import { exclusive } from "../core/lock";
 import { source } from "../core/media";
@@ -268,6 +268,18 @@ export function booksApi(ctx: Ctx): Api {
     };
   }
 
+  // Every text collected on the website put where it belongs (welcome page,
+  // class pages, quotes under names). Locked pages are left alone.
+  async function placeAll(id: number) {
+    const b = load(id);
+    const macId = `${s().deviceId ?? "mac"}-${id}`;
+    const t = await ctx.appApi("bookCollected", { macId });
+    if (!t?.texts) throw new Error("not-signed-in");
+    const r = placeTexts(b.pages, t.texts as Collected[]);
+    if (r.placed) store(id, b.spec, r.pages);
+    return { placed: r.placed, total: (t.texts as unknown[]).length };
+  }
+
   // A teacher's corrected spelling goes into the class list.
   function fixName(code: string, fixed: string) {
     const arabic = /[؀-ۿ]/.test(fixed);
@@ -347,6 +359,7 @@ export function booksApi(ctx: Ctx): Api {
     bookSend: (id: number) => send(id),
     bookReview: (id: number) => review(id),
     bookFixName: (code: string, fixed: string) => fixName(code, fixed),
+    bookPlaceTexts: (id: number) => placeAll(id),
     bookStudentBooks: (id: number) => studentBooks(id),
     bookLogo: async () => {
       const r = await dialog.showOpenDialog(ctx.win()!, { title: "School logo", properties: ["openFile"], filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "svg"] }] });
