@@ -103,7 +103,7 @@ export default async function StaffPage({
                 {m.user_id === user.id ? (
                   <span className="text-sm text-muted">{t(`roles.${m.role}`)}</span>
                 ) : (
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <form action={changeRole} className="flex items-center gap-2">
                       <input type="hidden" name="locale" value={locale} />
                       <input type="hidden" name="userId" value={m.user_id} />

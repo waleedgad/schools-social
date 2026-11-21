@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isComms, type Role } from "@/lib/roles";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
+import { isOwnPath } from "@/lib/paths";
 
 // Pages for class teachers (faces to check, coverage, yearbook names, shot
 // lists). Teachers can't read the class lists or the library themselves, so
@@ -42,8 +43,7 @@ export async function classStudents(supabase: SupabaseClient, schoolId: string, 
 // paths are signed: a path stored by a member (book pages, face checks) that
 // points into another school is dropped (B-106).
 export async function signPaths(supabase: SupabaseClient, schoolId: string, paths: string[], seconds = 3600) {
-  const own = `${schoolId}/`;
-  const list = [...new Set(paths.filter((p) => !!p && p.startsWith(own) && !p.includes("..")))];
+  const list = [...new Set(paths.filter((p) => isOwnPath(schoolId, p)))];
   if (!list.length) return new Map<string, string>();
   const { data } = await staffClient(supabase).storage.from("photos").createSignedUrls(list, seconds);
   return new Map((data ?? []).filter((s) => s.signedUrl).map((s) => [s.path as string, s.signedUrl as string]));

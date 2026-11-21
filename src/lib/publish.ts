@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notify } from "./alerts";
 import { addComment, MetaError, publishStory, publishToFacebook, publishToInstagram } from "./meta";
 import { stateWithServiceKey } from "./plan";
+import { isOwnPath } from "./paths";
 
 type Post = {
   id: string;
@@ -58,6 +59,8 @@ async function publishClaimed(admin: SupabaseClient, post: Post) {
 
   let urls: string[] = [];
   if (photos.length) {
+    // S-21N-03: only the school's own files are signed with the server key.
+    if (photos.some((p) => !isOwnPath(post.school_id, p.edited_path ?? p.storage_path))) return fail("A photo in this post belongs to another school.");
     const { data: signed } = await admin.storage
       .from("photos")
       .createSignedUrls(photos.map((p) => p.edited_path ?? p.storage_path), 60 * 60);

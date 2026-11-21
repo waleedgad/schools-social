@@ -1,5 +1,6 @@
 import "server-only";
 import { isActive } from "./plan";
+import { isOwnPath } from "./paths";
 import { publishStory } from "@/lib/meta";
 import type { PostCtx } from "@/lib/post-core";
 import { can } from "@/lib/roles";
@@ -33,7 +34,7 @@ export async function reusePost(ctx: PostCtx, id: string, kind: "story" | "recap
     if (!meta?.ig_user_id || !meta.page_token) return { ok: false, error: "instagram" };
     const { data: first } = await supabase.from("post_photos").select("photo:photos(storage_path, edited_path)").eq("post_id", id).order("position").limit(1).maybeSingle();
     const photo = first?.photo as unknown as { storage_path: string; edited_path: string | null } | null;
-    if (!photo) return { ok: false, error: "photos" };
+    if (!photo || !isOwnPath(schoolId, photo.edited_path ?? photo.storage_path)) return { ok: false, error: "photos" };
     const { data: signed } = await admin.storage.from("photos").createSignedUrl(photo.edited_path ?? photo.storage_path, 3600);
     if (!signed?.signedUrl) return { ok: false, error: "photos" };
     try {
