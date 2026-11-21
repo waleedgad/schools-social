@@ -1,7 +1,7 @@
 # Privacy papers for the lawyer
 
 Status: DRAFTS, **all need the lawyer's check**. Nothing here is legal advice and nothing here is for schools or parents yet.
-Written 17 Nov 2026 by the helper session ("School Software 2"). Documents only: no app code changed.
+Written 17 Nov 2026, **updated 21 Nov 2026 for live 0.13** (owner page, plans, encrypted Mac library, Mac-off email, 6-month clean-up) by the helper session ("School Software 2"). Documents only: no app code changed.
 
 | File | What it is |
 |---|---|
@@ -32,7 +32,11 @@ Sources read: Baker McKenzie, Al Tamimi, Chambers, CMS, Clyde & Co, Kennedys, Fo
 9. **Photographers and the owner using links** (no account): what notice do they get?
 10. **Published posts** on Facebook and Instagram: our duty once Meta holds the photo; takedown on a parent's request.
 11. **Sign-in token delay:** a removed staff member keeps web access up to about 1 hour. Acceptable? How to say it?
-12. **Egyptian-law content** of terms: liability, limits, courts, e-signature, Arabic as the governing text.
+12. **Blocked schools (0.13):** a school that stops paying is read-only for 14 days, then blocked. How long do we keep its data, and what must we hand back or delete?
+13. **Our own staff's access:** the owner account can see every school's staff names, emails and computers. Is that covered by the school terms? Who may hold an owner account?
+14. **The library key lives in our database** (needed for the licence). Is that acceptable, and what is the school's remedy if the key is lost?
+15. **Email alerts** (via Resend, once switched on) use staff emails: consent or legitimate interest, and the processor agreement.
+16. **Egyptian-law content** of terms: liability, limits, courts, e-signature, Arabic as the governing text.
 
 ## What the product team should fix or build (found while writing)
 Marked **[DEV]** in the drafts. These need app code, so they go to the thread that owns app code, not to the helper.
@@ -41,6 +45,8 @@ Marked **[DEV]** in the drafts. These need app code, so they go to the thread th
 - Check that **expired face-question pictures are really deleted** by a job, not only marked with an expiry date.
 - A **notice before sending a screenshot** in problem reports.
 - A **written breach plan** (72-hour clock).
+- A rule and a job for **what happens to a blocked school's data**.
+- Confirm in the security test that an **owner account cannot read students, photos or posts**.
 - Confirm in a test that **GPS is removed** from web copies.
 - Confirm what **WhatsApp intake** stores about the sender.
 - Decide the Gemini tier question (4 above) before any real school uses AI picks.

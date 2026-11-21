@@ -1,6 +1,6 @@
 # Privacy Policy (DRAFT)
 
-> **DRAFT. Needs lawyer's check before anyone sees it.** Written 17 Nov 2026 by the helper session. Square brackets [ ] are blanks or open points. Facts about the product come from `data-map.md`. An Arabic version is to be written after the lawyer's edits (Arabic first product); do not translate before then.
+> **DRAFT. Needs lawyer's check before anyone sees it.** Written 17 Nov 2026, updated 21 Nov 2026 for 0.13 by the helper session. Square brackets [ ] are blanks or open points. Facts about the product come from `data-map.md`. An Arabic version is to be written after the lawyer's edits (Arabic first product); do not translate before then.
 
 **Product:** School Social Hub (website) and School Social Hub Library (Mac and Windows app)
 **Operator:** [company name, commercial register number, address in Egypt], "we"
@@ -15,7 +15,8 @@ If you are a parent or guardian, **your school is your first contact** for quest
 **About students** (and teachers, staff, parents, visitors listed by the school): full name in English and Arabic, school student ID, class, grade, stage, birthday, join and leave dates, clubs and achievements, class teacher, parent phone number if the school adds it, and whether the family agreed to social media use.
 **Photos:** school photos. Originals stay on the school's computer. We keep **small web copies** of photos the school chooses, in private storage.
 **Face data (biometric):** the Mac app finds faces and turns each into a list of numbers to suggest "this looks like [student]". **These numbers stay on the school's computer. They are not sent to us.** A suggestion becomes a name only after a staff member says yes. To ask a class teacher "is this [student]?", the app may send us **two small pictures** (the face and the whole photo made small). We delete them when the teacher answers, or after 14 days.
-**Staff:** email address or phone number, role, school, the computers they use, and a log of actions (who did what and when).
+**Staff:** email address or phone number, role, school, the computers they use, and a log of actions (who did what and when). We use staff email addresses to send alerts (for example when a library computer has been off for over a day, or a plan is about to end).
+**Schools' accounts:** the plan, paid-until date, payment records (amount, date, method) and notes we keep about each school.
 **People outside the school** who use a link: a name or label the school gives the link, and any comment they type.
 **Problem and error reports:** what the person typed, technical logs, and, if they choose, a screenshot. A screenshot can show students, so people are told before sending one. [LAWYER/DEV: add this notice in the app]
 
@@ -34,7 +35,7 @@ If you are a parent or guardian, **your school is your first contact** for quest
 ## 5. Who else sees data
 - **Google (Gemini)**, to suggest the best photos and write caption drafts. Photos are sent as images. Captions are told never to name a student. [**OPEN, MUST FIX BEFORE REAL SCHOOLS:** on Google's free tier, Google may use submitted content to improve its products and human reviewers may read it. The paid tier does not. State here which tier is used. See `README.md` question 4.]
 - **Meta (Facebook and Instagram)**, when the school posts. After posting, Meta's own rules apply.
-- **Supabase** (database, file storage, sign-in codes) and **Vercel** (the website). [regions, agreements]
+- **Supabase** (database, file storage, sign-in codes), **Vercel** (the website) and **Resend** (alert emails, once switched on). [regions, agreements]
 - **Authorities**, only where a law or a court requires it.
 Everyone who helps us run the service is bound by a written agreement. [LAWYER: processor contracts.]
 
@@ -43,13 +44,14 @@ Our website, database and files and the AI service are hosted outside Egypt, in 
 
 ## 7. How long we keep it
 - Face question pictures: until answered, or 14 days.
-- Web copies of photos, students and posts: until the school removes them, or its contract with us ends, then [30] days and deleted. [DEV: build "delete this school" and "delete this student" end to end; today a student can be removed but linked data needs a test.]
+- Web copies of photos: removed automatically after **6 months** if they are unused and the school's computer holds the original; otherwise until the school removes them.
+- Students and posts: until the school removes them, or its contract with us ends, then [30] days and deleted. A school that stops paying is read-only for 14 days and then blocked: [what happens to its data after that? set a period]. [DEV: build "delete this school" and "delete this student" end to end; today a student can be removed but linked data needs a test.]
 - Staff sign-in and activity log: while the school is a customer and [12] months after.
 - Error and problem reports: [90] days. [DEV: no limit exists today.]
 - Access is checked from a sign-in token, so a removed staff member can keep web access for **up to about 1 hour**. [Tell schools in the product note.]
 
 ## 8. Security
-Private storage, links to photos that expire (1 hour), every school's data separated by database rules, staff roles (admin, comms, principal, teacher), an activity log, sign-in by one-time code. The Mac app's local database is not yet encrypted (planned for release 0.14). [LAWYER: describe accurately; do not overstate.]
+Private storage, links to photos that expire (1 hour), every school's data separated by database rules, staff roles (admin, comms, principal, teacher), an activity log, sign-in by one-time code. The library on the school's computer is **encrypted** (from 0.13); the key is kept in our database and given only to a signed-in, licensed computer of that school. [LAWYER: describe accurately, do not overstate; key custody is an open point.] Our own staff with an "owner" account can see schools' staff lists and plan records, **not** students' photos or names through the product. [Confirm after the security test.]
 If personal data is breached, we will tell the school and the Personal Data Protection Centre within **72 hours** of knowing, and help the school tell the people affected within three working days. [LAWYER: confirm timings and who notifies whom.]
 
 ## 9. Your rights

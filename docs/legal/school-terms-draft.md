@@ -1,6 +1,6 @@
 # School Terms of Service (DRAFT)
 
-> **DRAFT. Needs lawyer's check.** Written 17 Nov 2026 by the helper session. Blanks in [ ]. Commercial terms (price, plans, licences) come from the owner-and-plans spec for release 0.13 and are **not** written here.
+> **DRAFT. Needs lawyer's check.** Written 17 Nov 2026, updated 21 Nov 2026 for live 0.13 by the helper session. Blanks in [ ]. Prices are not written here; the **plan mechanics that now exist in the product** are described in section 9 so the lawyer can turn them into terms.
 
 Between **[company name]** ("we") and **[school name, address, registration]** ("the school").
 
@@ -22,7 +22,7 @@ The school is the **controller**. We are the **processor** and act only on the s
 1. Process personal data only for the school's instructions and the purposes in the Privacy Policy.
 2. Keep the school's data separate from other schools'.
 3. Keep **face numbers on the school's computer** and never send them to us.
-4. Use the safeguards in the Privacy Policy (section 8) and tell the school and the Personal Data Protection Centre of a breach within 72 hours of knowing. [LAWYER: who notifies the Centre, the controller or the processor.]
+4. Encrypt the library on the school's computer, and give the key only to the school's signed-in, licensed computers. Use the safeguards in the Privacy Policy (section 8) and tell the school and the Personal Data Protection Centre of a breach within 72 hours of knowing. [LAWYER: who notifies the Centre, the controller or the processor.]
 5. Use sub-processors (Google, Meta, Supabase, Vercel) under written agreements and tell the school of changes. [list and regions]
 6. Help the school answer people's requests (see, correct, delete, limit).
 7. At the end of the contract, give the school its data and then delete our copies within [30] days. The school's originals are already on its own computer.
@@ -40,8 +40,14 @@ The app is not yet code-signed, so Windows and Mac show a warning on first run. 
 ## 8. Availability and support
 [Service level, support hours: product owner to set.] Updates to the app are offered through the app.
 
-## 9. Fees, plans, licences, term, ending, liability, law and courts
-[To come from the owner-and-plans spec (release 0.13) and the lawyer. **Do not draft here.**] Governing law: [Egyptian law]. Courts: [Cairo].
+## 9. Plans, licences, ending
+How the product works today (0.13), for the lawyer to turn into terms:
+- A plan is two numbers: **managing users** (Admin, Comms lead, Comms) and **library computers**. Teachers, staff, photographers and the principal are free and not counted. Small 2 / 1, Standard 4 / 2, Large 8 / 4 (managers / computers), plus extras the owner can add.
+- A new school starts on a **14-day trial**. When the paid-until date passes: **Active -> 14 days Read-only -> Blocked**. Read-only: the school can look but not change anything, the app stops face reading, naming and sending. Blocked: no access, and the library key is no longer given to the school's computers. The owner can force a state by hand.
+- **The licence check:** the app asks the website at start and every 6 hours, and can work offline for up to **10 days**.
+- **Sign-up is closed**: schools are created by the owner. [Confirm.]
+- [LAWYER: what happens to a blocked school's data and for how long; notice before blocking; refunds; limit of liability; how we prove payment.]
+Fees, term and ending, liability, governing law (Egyptian law) and courts (Cairo): [to come from the product owner and the lawyer].
 
 ---
 

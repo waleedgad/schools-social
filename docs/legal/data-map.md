@@ -1,6 +1,6 @@
 # Data map: what School Social Hub holds, where, and who sees it
 
-Status: DRAFT, **needs lawyer's check**. Written by the helper session on 17 Nov 2026 from the code of the 0.12 line (`claude/project-thread-q91dwp`, head 8b64991). Facts below come from the database migrations (`supabase/migrations/0001..0018`) and the desktop code. Items marked **[CHECK]** are things the code cannot tell us.
+Status: DRAFT, **needs lawyer's check**. First written 17 Nov 2026 from the 0.12 line, **updated 21 Nov 2026 for live 0.13** (main = d872b95: owner page, plans, licences, encrypted Mac library, Mac-off email, 6-month clean-up). Facts below come from the database migrations (`supabase/migrations/0001..0020`) and the desktop code. Items marked **[CHECK]** are things the code cannot tell us.
 
 ## 1. The three places data lives
 
@@ -8,6 +8,7 @@ Status: DRAFT, **needs lawyer's check**. Written by the helper session on 17 Nov
 |---|---|---|
 | **The school's Mac or PC** (desktop app) | The photo library and its index, `library.db` (SQLite) in the app's data folder, plus the original photos in the school's own folder | The school |
 | **The website** (Next.js on Vercel) and its **database and file storage** (Supabase: Postgres + a private `photos` bucket) | Staff accounts, the class list, small web copies of chosen photos, posts, approvals | Us (the product owner) [CHECK: company name; hosting regions of Vercel and Supabase] |
+| **The operator's owner page** (`/owner`, 0.13) | Plans, payments, notes and a log about each school; lets the product owner see every school's staff list | The owner account(s) only (table `owners`) |
 | **Outside services** the website calls | Google Gemini (AI picks and captions), Meta (Facebook Page and Instagram posting), Supabase sign-in (email or SMS one-time code), optional WhatsApp photo intake | Third parties, see section 5 |
 
 Principle in the product: **the originals and the face data stay on the school's computer. Only small web copies of chosen photos go to the website.**
@@ -48,6 +49,24 @@ Sent from the Mac when the school imports a class list (`desktop/src/core/web.ts
 - **WhatsApp photo intake** (`api/whatsapp`): staff send photos to the school's WhatsApp number; the sender's phone number is therefore seen by the system [CHECK: whether it is stored; read `src/app/api/whatsapp/route.ts` before writing the policy].
 - **People in published photos and captions**: once a post is published on Facebook or Instagram it is under Meta's rules, not ours.
 
+### 2.6 Owner page, plans and payments (0.13)
+- **Owners** (`owners`: the product owner's account) can read every school's name, plan state, **staff names, roles, emails, last-seen times, invitations and computers** (policies "owners read schools / memberships / computers / invites"; function `owner_school_people`). By the policies in migration 0019 an owner is **not** given read access to students, photos or posts through the app. [CHECK: the helper thread's security test (task 2) should confirm no owner path reaches student or photo data. Also: who exactly holds an owner account, and is it protected by a second step at sign-in?]
+- **Payments** (`payments`): amount, currency, date, method (transfer, cash, cheque, card, other), covers-until date, a note (up to 300 characters), who recorded it. This is business data about the **school**, but a note or method could identify a person. No card numbers are stored; payment gateways are not built yet (research L-29).
+- **Owner notes** (`owner_notes`) and the **owner log** (`owner_log`, every owner action with before and after values).
+- **Plans and limits** per school: plan, number of managing users and library computers, paid-until date, trial flag, forced state (active, read-only, blocked) with a reason.
+- **Read-only and blocked schools:** after "paid until" a school has 14 days read-only, then is blocked. **Nothing in the code says what then happens to a blocked school's data** (kept? deleted after how long?). [CHECK: needs a rule and a deletion step, see README.]
+
+### 2.7 Library key and licence check (0.13)
+- The Mac and Windows library file is now **encrypted** on the computer (engine `better-sqlite3-multiple-ciphers`, MIT). The key is one **32-byte secret per school kept in our database** (`school_keys`), given only to a computer that has signed in and passed the licence check (`licence()`), and **never to a blocked school**. The computer keeps it in the operating system's secure store and can work offline for up to 10 days. A plain library is encrypted once, after a backup (the backup is encrypted too).
+- The computer contacts the website at start, every 6 hours and after sign-in: it sends a **device ID, a name and the platform** (`register_computer`, `licence`). That is the "computers" list.
+- Because the key is stored by us, **we could decrypt a library file if we also had the file** (we do not receive it). [CHECK: key custody, rotation (`rotated_at` exists), and what a school does if it loses access.]
+
+### 2.8 Alerts by email (0.13)
+- **"Mac off" email** when a library computer has been quiet for more than a day: sent to the school's **Admin and Comms lead emails**, once per time it goes quiet (`computers.off_alert_at`). It contains the school name, the computer's name and kind, and a link.
+- **Plan warnings** (in-app alert and email to Admin and Comms lead).
+- Sending uses the **Resend** email service and starts only when the key `RESEND_API_KEY` is set (not set at the time of writing). [CHECK: Resend becomes a **new processor** with staff email addresses; region and agreement.]
+- **"Who's working on this"**: names of staff with the same post open, over Supabase Realtime; **nothing is stored**.
+
 ## 3. Content the system creates
 - **Posts**: Arabic and English captions, versions, comments, approvals, schedule, status, metrics from Meta (`posts`, `post_versions`, `post_comments`, `post_metrics`, `account_metrics`).
 - **Rules built in**: a post cannot use a photo marked opted-out or "not for posting"; the privacy check blocks **student names in captions** (in 0.12 the plan is: *warn*, not block, for a name in a caption; the captions branch is not in 0.12), and the AI is told never to name or describe an individual student.
@@ -67,6 +86,7 @@ Sent from the Mac when the school imports a class list (`desktop/src/core/web.ts
 |---|---|---|
 | **Google (Gemini API)** | Photos (as images, to pick the best and flag sensitive ones) and caption requests: school name, event, class, a prompt | **Open issue.** On the **free tier** Google's terms say it uses submitted content to improve its products, human reviewers may read it, and it says not to submit sensitive or personal information. On the **paid tier** it does not use prompts or files to improve products. The product owner has decided to stay on the free tier until the final release (17 Nov 2026 note). **Photos of students on the free tier is the main privacy risk to resolve before real schools use it.** Also: the Gemini terms (Oct 2025 version) bar services "directed towards or likely to be accessed by" people under 18 [CHECK: our users are staff, but the photos are of students] |
 | **Meta (Facebook, Instagram, WhatsApp)** | Published photos and captions; Page token | Under Meta's terms; school is the publisher |
+| **Resend** (email, from 0.13; not yet switched on) | Staff email addresses, school and computer names in alert emails | New processor [CHECK: region, agreement] |
 | **Supabase** | Everything on the website side (database, files, sign-in, SMS or email codes) | Processor [CHECK: region, data processing agreement] |
 | **Vercel** | The website and its server logs | Processor [CHECK: region, DPA] |
 | **SMS or email provider for sign-in codes** | Phone number or email | Via Supabase [CHECK: which provider] |
@@ -82,7 +102,9 @@ Almost certainly all of the website, database, files and AI calls run outside Eg
 | Sign-in access after removal | Up to about 1 hour |
 | Upload link | 30 days by default, or until revoked |
 | Review link | 7 days by default |
-| Web copies of photos | Until staff remove them (Bin on the Mac; the web copy is removed when the photo is replaced or deleted) [CHECK: no automatic age limit found] |
+| Web copies of photos | **0.13: automatic clean-up of web copies older than 6 months** (batches of 200, 01:00-02:00 UTC), but **only** copies whose original is on the school's computer and that are **unused**: not in a post, a shared album, an AI pick, an open face question, or an announcement design (`old_web_copies()`; one "photos.cleaned" line per school in Activity). Originals on the school's drives are never touched. Otherwise until staff remove them. |
+| Blocked school's data | **No rule found** (see 2.6) |
+| Payments, owner notes, owner log | No limit found (business records, [CHECK: legal retention period for accounts]) |
 | Students | Until staff remove them (`removeStudent`, logged in `audit_log`); former students keep `left_on` |
 | Face numbers, the library | On the school's computer, until the school deletes them |
 | Error and problem reports | **No limit found** |
