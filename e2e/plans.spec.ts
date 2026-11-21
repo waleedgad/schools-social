@@ -167,3 +167,23 @@ test("a school admin cannot change their own plan, dates or state; ordinary sett
   const server = await admin().from("schools").update({ paid_until: "2030-01-01" }).eq("id", s!.id);
   expect(server.error).toBeNull();
 });
+
+// S-21N-02: a school's time zone set to a name the database doesn't know
+// used to break the read-only/blocked check for every school, so the
+// publishing job posted for paused schools. Migration 0022.
+test("a made-up time zone is refused and the school states still read", async () => {
+  const a = await person("tz-cheat");
+  const { data: s } = await admin().from("schools").insert({ name: "Time zone school" }).select("id").single();
+  await admin().from("memberships").insert({ school_id: s!.id, user_id: a.id, role: "admin", full_name: "Admin" });
+  const { data: session } = await createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } }).auth.signInWithPassword({ email: a.email, password });
+  const asAdmin = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { global: { headers: { Authorization: `Bearer ${session.session!.access_token}` } }, auth: { persistSession: false } });
+  const bad = await asAdmin.from("schools").update({ timezone: "Not/AZone" }).eq("id", s!.id).select("id");
+  expect(bad.error?.message).toContain("bad-timezone");
+  const badServer = await admin().from("schools").update({ timezone: "Not/AZone" }).eq("id", s!.id);
+  expect(badServer.error?.message).toContain("bad-timezone");
+  const good = await asAdmin.from("schools").update({ timezone: "Asia/Dubai" }).eq("id", s!.id).select("id");
+  expect(good.error).toBeNull();
+  const states = await admin().rpc("all_school_states");
+  expect(states.error).toBeNull();
+  expect((states.data as { id: string; state: string }[]).find((x) => x.id === s!.id)?.state).toBe("active");
+});

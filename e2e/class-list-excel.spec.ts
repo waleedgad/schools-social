@@ -18,7 +18,7 @@ test("an Excel class list is read and imported", async ({ page }) => {
   await expect(page.getByText("63 students found.")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Import them" }).click();
   await expect(page.locator("main")).toContainText("Imported 63 students.", { timeout: 20_000 });
-  // B-135: the English name column is used, not the student number.
+  // B-136: the English name column is used, not the student number.
   await expect(page.locator("main")).toContainText("Omar Tamer Farouk");
   expect(errors).toEqual([]);
 });

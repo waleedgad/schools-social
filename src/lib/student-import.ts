@@ -32,7 +32,7 @@ export function parseConsent(value: unknown): StudentInput["consent_social"] {
 export function rowsToStudents(rows: unknown[][]): StudentInput[] {
   if (rows.length < 2) return [];
   const header = rows[0].map(normalize);
-  // "Name (English)" counts as "name" (B-135: school-system exports add the language in brackets).
+  // "Name (English)" counts as "name" (B-136: school-system exports add the language in brackets).
   const column = (key: keyof StudentInput) => header.findIndex((h) => HEADERS[key].includes(h) || HEADERS[key].includes(h.replace(/\s*\(.*\)\s*$/, "")));
   const nameCol = column("full_name") >= 0 ? column("full_name") : 0;
   const classCol = column("class_name");

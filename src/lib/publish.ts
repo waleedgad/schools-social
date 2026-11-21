@@ -130,10 +130,16 @@ export async function publishDue(admin: SupabaseClient, limit = 5, budgetMs = 40
   }
 
   // Paused schools keep their queue; nothing goes out until they resume.
-  const { data: paused } = await admin.from("schools").select("id").gt("posting_paused_until", now);
+  const { data: paused, error: pausedError } = await admin.from("schools").select("id").gt("posting_paused_until", now);
   // Schools that are read-only or blocked keep their scheduled posts too;
   // they go out once the school is active again.
-  const { data: states } = await admin.rpc("all_school_states");
+  const { data: states, error: statesError } = await admin.rpc("all_school_states");
+  // S-21N-02: if either list can't be read, nobody's posts go out this run
+  // (fail closed), instead of treating every school as active.
+  if (pausedError || statesError || !Array.isArray(states)) {
+    console.error("publishDue: school states unavailable, nothing published", pausedError?.message ?? statesError?.message);
+    return 0;
+  }
   const pausedIds = [
     ...new Set([...(paused ?? []).map((s) => s.id as string), ...((states ?? []) as { id: string; state: string }[]).filter((s) => s.state !== "active").map((s) => s.id)]),
   ];
