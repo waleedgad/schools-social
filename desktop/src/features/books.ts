@@ -168,7 +168,7 @@ export function booksApi(ctx: Ctx): Api {
     const res = await printResolver(b.spec, b.pages);
     const size = pageSize(b.spec);
     const missing = await withBook(bookHtml(ctx.db(), b.spec, b.pages, res), b.spec, async (w, missing) => {
-      const out = await w.webContents.printToPDF({ pageSize: { width: size.width, height: size.height }, printBackground: true, margins: { marginType: "none" }, preferCSSPageSize: true });
+      const out = await w.webContents.printToPDF({ pageSize: { width: size.width, height: size.height }, printBackground: true, margins: { top: 0, bottom: 0, left: 0, right: 0 }, preferCSSPageSize: true });
       writeFileSync(file!, out);
       return missing;
     });
@@ -289,7 +289,7 @@ export function booksApi(ctx: Ctx): Api {
       ctx.message(`book:${made + 1}/${list.length}`);
       const res = await printResolver(spec, pages);
       const size = pageSize(spec);
-      await withBook(bookHtml(ctx.db(), spec, pages, res), spec, async (w) => writeFileSync(file, await w.webContents.printToPDF({ pageSize: { width: size.width, height: size.height }, printBackground: true, margins: { marginType: "none" }, preferCSSPageSize: true })))
+      await withBook(bookHtml(ctx.db(), spec, pages, res), spec, async (w) => writeFileSync(file, await w.webContents.printToPDF({ pageSize: { width: size.width, height: size.height }, printBackground: true, margins: { top: 0, bottom: 0, left: 0, right: 0 }, preferCSSPageSize: true })))
         .then(() => made++)
         .catch(() => {});
     }

@@ -26,7 +26,7 @@ export function StaffImport({ locale }: { locale: string }) {
     setError(false);
     setDone(null);
     try {
-      const table = file.name.toLowerCase().endsWith(".csv") ? parseCsv(await file.text()) : ((await (await import("read-excel-file")).default(file)) as unknown[][]);
+      const table = file.name.toLowerCase().endsWith(".csv") ? parseCsv(await file.text()) : ((await (await import("read-excel-file/browser")).readSheet(file)) as unknown[][]);
       const head = (table[0] ?? []).map((c) => String(c ?? "").trim().toLowerCase());
       const at = (k: keyof StaffRow) => head.findIndex((h) => COLS[k].includes(h));
       const idx = { name: at("name"), email: at("email"), phone: at("phone"), role: at("role"), classes: at("classes") };

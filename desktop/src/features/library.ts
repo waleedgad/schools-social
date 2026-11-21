@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { clipboard, nativeImage, shell } from "electron";
+import { clipboard, ClipboardItem, nativeImage, shell } from "electron";
 import { tx } from "../core/db";
 import { finderTags } from "../core/vision";
 import { schoolYear, term } from "../core/library";
@@ -398,7 +398,8 @@ export function libraryApi(ctx: Ctx): Api {
     },
     copyPhoto: async (id: number) => {
       const file = await ctx.engine()?.preview(id);
-      if (file) clipboard.writeImage(nativeImage.createFromPath(file));
+      // Electron 45 clipboard: one PNG entry (the old writeImage was removed).
+      if (file) await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(nativeImage.createFromPath(file).toPNG())], { type: "image/png" }) })]);
     },
     revealMany: (ids: number[]) => {
       const p = all<{ path: string }>(`select path from photos where id in (${marks(ids.length)})`, ...ids);
