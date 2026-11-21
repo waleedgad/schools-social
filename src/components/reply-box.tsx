@@ -6,7 +6,7 @@ import { sendReply, suggestReplies } from "@/lib/actions/inbox";
 import { Button } from "./ui";
 
 // AI suggests three replies; the person picks or edits one and sends it.
-export function ReplyBox({ locale, platform, comment, text, postText }: { locale: string; platform: string; comment: string; text: string; postText: string }) {
+export function ReplyBox({ locale, platform, comment, text, postText, kind = "comment", saved = [] }: { locale: string; platform: string; comment: string; text: string; postText: string; kind?: "comment" | "message"; saved?: { title: string; body: string }[] }) {
   const t = useTranslations("inbox");
   const [value, setValue] = useState("");
   const [ideas, setIdeas] = useState<string[]>([]);
@@ -17,6 +17,16 @@ export function ReplyBox({ locale, platform, comment, text, postText }: { locale
       <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="platform" value={platform} />
       <input type="hidden" name="comment" value={comment} />
+      <input type="hidden" name="kind" value={kind} />
+      {saved.length > 0 && (
+        <div className="flex flex-wrap gap-1" aria-label={t("saved.title")}>
+          {saved.map((r, i) => (
+            <button type="button" key={i} onClick={() => setValue(r.body)} title={r.body} className="rounded-full border border-border px-2 py-0.5 text-start text-[11px] text-muted hover:text-accent-ink" dir="auto">
+              {r.title}
+            </button>
+          ))}
+        </div>
+      )}
       {ideas.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {ideas.map((r, i) => (

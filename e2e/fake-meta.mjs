@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 const port = Number(process.env.FAKE_META_PORT ?? 3998);
 const comments = new Map(); // object id -> [{ id, platform, text, author, at, hidden, replies, fail }]
 const calls = [];
+const convos = new Map(); // page id + platform -> [{ id, withId, withName, messages: [{ text, fromPage, at }] }]
 const emails = []; // what the website sent by email
 const containers = new Set(); // Instagram media waiting to be published
 let failRule = null; // { path, message }: the next calls whose path contains it are refused
@@ -51,6 +52,12 @@ createServer(async (req, res) => {
     comments.set(objectId, list.map((c, i) => ({ id: `${objectId}_c${i}`, platform, hidden: false, replies: [], at: new Date(Date.now() - i * 60_000).toISOString(), ...c })));
     return json(res, 200, { ok: true });
   }
+  // Private conversations for the inbox's Messages view (release 0.15).
+  if (url.pathname === "/__seedConvos") {
+    const { pageId, platform, list } = JSON.parse(body);
+    convos.set(`${pageId}|${platform}`, list.map((c, i) => ({ id: `t_${pageId}_${platform}_${i}`, messages: [{ text: c.text, fromPage: !!c.fromPage, at: new Date(Date.now() - i * 60_000).toISOString() }], ...c })));
+    return json(res, 200, { ok: true });
+  }
   if (url.pathname === "/__calls") {
     const prefix = url.searchParams.get("prefix") ?? "";
     return json(res, 200, calls.filter((c) => c.path.startsWith(prefix)));
@@ -86,6 +93,28 @@ createServer(async (req, res) => {
           : { id: c.id, text: c.text, username: c.author, timestamp: c.at, hidden: c.hidden, replies: { data: c.replies.map((_, i) => ({ id: `r${i}` })) } },
       ),
     });
+  }
+  if (req.method === "GET" && edge === "conversations") {
+    const list = convos.get(`${id}|${params.platform === "instagram" ? "instagram" : "messenger"}`) ?? [];
+    return json(res, 200, {
+      data: list.map((c) => {
+        const last = c.messages.at(-1);
+        return { id: c.id, updated_time: last.at, participants: { data: [{ id, name: "Test Page" }, { id: c.withId, name: c.withName, username: c.withName }] }, messages: { data: [{ message: last.text, created_time: last.at, from: last.fromPage ? { id } : { id: c.withId } }] } };
+      }),
+    });
+  }
+  if (req.method === "POST" && edge === "messages") {
+    const to = JSON.parse(params.recipient ?? "{}").id;
+    const text = JSON.parse(params.message ?? "{}").text;
+    for (const list of convos.values()) {
+      const c = list.find((x) => x.withId === to);
+      if (c) {
+        if (c.fail) return json(res, 400, { error: { message: "(#10) This message is sent outside of allowed window." } });
+        c.messages.push({ text, fromPage: true, at: new Date().toISOString() });
+        return json(res, 200, { recipient_id: to, message_id: newId("m") });
+      }
+    }
+    return json(res, 400, { error: { message: "(#100) No matching user found" } });
   }
   if (failRule && path.includes(failRule.path)) return json(res, 400, { error: { message: failRule.message } });
 

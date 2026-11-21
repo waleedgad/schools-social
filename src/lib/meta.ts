@@ -24,6 +24,10 @@ export const META_SCOPES = [
   "read_insights",
   "instagram_manage_comments",
   "instagram_manage_insights",
+  // Private messages in the inbox (release 0.15): Page messages and
+  // Instagram direct messages.
+  "pages_messaging",
+  "instagram_manage_messages",
 ];
 
 export const metaAppId = () => (process.env.META_APP_ID ?? "").trim();
@@ -224,6 +228,40 @@ export async function listComments(platform: "facebook" | "instagram", objectId:
   } catch {
     return [];
   }
+}
+
+export type InboxMessage = { id: string; platform: "facebook" | "instagram"; withName: string; withId: string; text: string; at: string; fromPage: boolean };
+
+// The Page's latest private conversations on Messenger or Instagram, newest
+// first, each with its last message and who sent it.
+export async function listConversations(pageId: string, ownIds: string[], token: string, platform: "facebook" | "instagram"): Promise<InboxMessage[]> {
+  if (!isGraphId(pageId)) return [];
+  try {
+    type Person = { id: string; name?: string; username?: string };
+    const r = await graph<{ data: { id: string; updated_time: string; participants?: { data: Person[] }; messages?: { data: { message?: string; from?: Person; created_time: string }[] } }[] }>(`${pageId}/conversations`, {
+      platform: platform === "facebook" ? "messenger" : "instagram",
+      fields: "id,updated_time,participants,messages.limit(1){message,from,created_time}",
+      limit: "25",
+      access_token: token,
+    });
+    const own = new Set([pageId, ...ownIds]);
+    return r.data
+      .map((c) => {
+        const other = c.participants?.data.find((p) => !own.has(p.id));
+        const last = c.messages?.data?.[0];
+        return { id: c.id, platform, withName: other?.name ?? other?.username ?? "", withId: other?.id ?? "", text: last?.message ?? "", at: last?.created_time ?? c.updated_time, fromPage: !!last?.from && own.has(last.from.id) };
+      })
+      .filter((c) => isGraphId(c.withId));
+  } catch {
+    return [];
+  }
+}
+
+// A private reply from the Page (Messenger or Instagram), as an answer to a
+// message the person sent (Meta allows this within 24 hours of it).
+export async function sendPageMessage(pageId: string, recipientId: string, token: string, text: string) {
+  if (!isGraphId(pageId) || !isGraphId(recipientId)) throw new MetaError("bad recipient id");
+  return (await graph<{ message_id?: string; recipient_id?: string }>(`${pageId}/messages`, { recipient: JSON.stringify({ id: recipientId }), message: JSON.stringify({ text }), messaging_type: "RESPONSE", access_token: token }, "POST")).message_id ?? "sent";
 }
 
 export async function replyToComment(platform: "facebook" | "instagram", commentId: string, token: string, message: string) {

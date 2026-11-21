@@ -1148,7 +1148,7 @@
   },
   "inbox": {
     "title": "Inbox",
-    "subtitle": "Comments on your posts from the last 3 weeks.",
+    "subtitle": "Comments on your posts from the last 3 weeks, and private messages.",
     "sent": "Reply sent.",
     "failed": "Couldn't send the reply. Check the account connection.",
     "notConnected": "Connect Facebook and Instagram first",
@@ -1168,7 +1168,24 @@
     "replyPlaceholder": "Write a reply…",
     "suggest": "Suggest replies",
     "send": "Reply",
-    "aiError": "No suggestions right now."
+    "aiError": "No suggestions right now.",
+    "views": {
+      "comments": "Comments",
+      "messages": "Private messages"
+    },
+    "private": "private",
+    "you": "You",
+    "messagesHint": "Messages people sent the Page on Messenger and Instagram. Meta lets the Page answer within 24 hours of their last message.",
+    "saved": {
+      "title": "Saved replies",
+      "hint": "Answers you use often. Tap one under any comment or message to put it in the box.",
+      "none": "No saved replies yet.",
+      "remove": "Remove",
+      "name": "Name",
+      "namePlaceholder": "For example: Fees",
+      "body": "Reply",
+      "add": "Save the reply"
+    }
   },
   "help": {
     "title": "Help",

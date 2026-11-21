@@ -103,3 +103,77 @@ test("inbox: comments show, AI ideas never send by themselves, replies and hidin
   await expect(main).toContainText("All answered");
   expect(errors).toEqual([]);
 });
+
+// Release 0.15: private messages (Messenger and Instagram) in the inbox, and
+// saved replies the team taps instead of typing.
+test("inbox: saved replies and private messages", async ({ page, request }) => {
+  test.setTimeout(90_000);
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+  const email = await newSchool(page, "inbox-messages");
+  const errors = watchErrors(page);
+  const { data: users } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const userId = users.users.find((u) => u.email === email)!.id;
+  const { data: m } = await admin.from("memberships").select("school_id").eq("user_id", userId).single();
+  const schoolId = m!.school_id as string;
+  const pageId = `9${Date.now()}`;
+  const igId = `17${Date.now()}`;
+  await admin.from("meta_connections").upsert({ school_id: schoolId, page_id: pageId, page_name: "Test Page", page_token: "not-a-real-token", ig_user_id: igId });
+  const seed = (platform: string, list: object[]) => request.post(`${META}/__seedConvos`, { data: { pageId, platform, list } });
+  await seed("messenger", [
+    { withId: "5551", withName: "Hany Samir", text: "كم مصروفات KG1؟" },
+    { withId: "5552", withName: "Dina Adel", text: "Thanks for the photos!", fromPage: true },
+  ]);
+  await seed("instagram", [{ withId: "7771", withName: "mariam.z", text: "Is the open day on Saturday?" }]);
+
+  // A saved reply.
+  await page.goto("/en/inbox");
+  const savedBox = page.getByTestId("saved-replies");
+  await savedBox.locator("summary").click();
+  await savedBox.getByLabel("Name").fill("Fees");
+  await savedBox.getByLabel("Reply").fill("Please send us a private message and we'll share the fees.");
+  await savedBox.getByRole("button", { name: "Save the reply" }).click();
+  await expect(page.getByTestId("saved-replies")).toContainText("Saved replies (1)");
+  const { data: snip } = await admin.from("snippets").select("kind, title").eq("school_id", schoolId);
+  expect(snip).toEqual([{ kind: "reply", title: "Fees" }]);
+
+  // Messages: the two waiting ones show, the answered one only under All.
+  await page.goto("/en/inbox?view=messages");
+  const main = page.locator("main");
+  await expect(main).toContainText("كم مصروفات KG1؟");
+  await expect(main).toContainText("Is the open day on Saturday?");
+  await expect(main).not.toContainText("Thanks for the photos!");
+  await expect(main).toContainText("To answer 2");
+  await page.screenshot({ path: test.info().outputPath("inbox-messages.png"), fullPage: true });
+
+  // The saved reply fills the box; sending answers the person privately.
+  const card = page.locator("li", { hasText: "كم مصروفات" });
+  await card.getByRole("button", { name: "Fees" }).click();
+  await expect(card.getByPlaceholder("Write a reply…")).toHaveValue("Please send us a private message and we'll share the fees.");
+  await card.getByPlaceholder("Write a reply…").fill("مصروفات KG1 في الملف المرفق على صفحتنا، أهلاً بكم");
+  await card.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(page).toHaveURL(/view=messages/);
+  await expect(page).toHaveURL(/sent=1/);
+  const posts = ((await (await request.get(`${META}/__calls?prefix=${pageId}/messages`)).json()) as { method: string; params: Record<string, string> }[]).filter((c) => c.method === "POST");
+  expect(posts).toHaveLength(1);
+  expect(JSON.parse(posts[0].params.recipient)).toEqual({ id: "5551" });
+  expect(JSON.parse(posts[0].params.message)).toEqual({ text: "مصروفات KG1 في الملف المرفق على صفحتنا، أهلاً بكم" });
+  expect(posts[0].params.messaging_type).toBe("RESPONSE");
+  await expect(main).not.toContainText("كم مصروفات KG1؟");
+  await expect(main).toContainText("To answer 1");
+
+  // A changed recipient can't aim the Page key at another address.
+  const ig = page.locator("li", { hasText: "open day" });
+  await ig.getByPlaceholder("Write a reply…").fill("Yes, from 10 am");
+  await ig.locator('input[name="comment"]').evaluateAll((els) => els.forEach((el) => ((el as HTMLInputElement).value = "123/feed")));
+  await ig.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(page).toHaveURL(/sent=0/);
+  const after = ((await (await request.get(`${META}/__calls?prefix=${pageId}/messages`)).json()) as { method: string }[]).filter((c) => c.method === "POST");
+  expect(after).toHaveLength(1);
+
+  // Removing the saved reply.
+  await page.goto("/en/inbox");
+  await page.getByTestId("saved-replies").locator("summary").click();
+  await page.getByTestId("saved-replies").getByRole("button", { name: "Remove" }).click();
+  await expect(page.getByTestId("saved-replies")).toContainText("Saved replies (0)");
+  expect(errors).toEqual([]);
+});
