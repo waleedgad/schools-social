@@ -97,7 +97,7 @@ test("publish now reaches Facebook and Instagram, and a retry never posts twice"
   await expect(page.locator("main")).toContainText("aspect ratio is not supported");
 
   // 3. Fixed on Meta's side, retry: only Instagram gets it.
-  await request.post(`${META}/__fail`, { data: "" });
+  await request.post(`${META}/__fail`, { data: { path: `${igUser}/media`, clear: true } });
   const fbAfterFail = (await calls(pageId)).length;
   expect(fbAfterFail - fbBefore).toBe(3);
   await page.getByRole("button", { name: "Try publishing again" }).click();

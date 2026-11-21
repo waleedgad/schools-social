@@ -9,7 +9,13 @@ const comments = new Map(); // object id -> [{ id, platform, text, author, at, h
 const calls = [];
 const emails = []; // what the website sent by email
 const containers = new Set(); // Instagram media waiting to be published
-let failRule = null; // { path, message }: the next calls whose path contains it are refused
+// { path, message, status?, code?, subcode?, type?, times? }: the next calls whose
+// path contains it are refused the way Meta refuses them (status 400 and
+// error.code by default; a non-JSON page when status is 500 and no message).
+// With times, only that many calls are refused, then the rule clears itself.
+// Several rules can be on at once (tests run side by side); { path, clear: true }
+// takes one off and an empty body takes them all off.
+let failRules = [];
 let n = 0;
 const newId = (kind) => `${kind}_${Date.now()}_${++n}`;
 
@@ -64,7 +70,9 @@ createServer(async (req, res) => {
   }
   if (url.pathname === "/__emails") return json(res, 200, emails);
   if (url.pathname === "/__fail") {
-    failRule = body ? JSON.parse(body) : null;
+    const rule = body ? JSON.parse(body) : null;
+    failRules = rule ? failRules.filter((r) => r.path !== rule.path) : [];
+    if (rule && !rule.clear) failRules.push(rule);
     return json(res, 200, { ok: true });
   }
 
@@ -87,7 +95,15 @@ createServer(async (req, res) => {
       ),
     });
   }
-  if (failRule && path.includes(failRule.path)) return json(res, 400, { error: { message: failRule.message } });
+  const rule = failRules.find((r) => path.includes(r.path));
+  if (rule) {
+    if (rule.times !== undefined && --rule.times <= 0) failRules = failRules.filter((r) => r !== rule);
+    if (!rule.message) {
+      res.writeHead(rule.status ?? 500, { "content-type": "text/html" });
+      return res.end("<html><body>Sorry, something went wrong.</body></html>");
+    }
+    return json(res, rule.status ?? 400, { error: { message: rule.message, type: rule.type ?? "OAuthException", code: rule.code ?? 100, error_subcode: rule.subcode, fbtrace_id: "fake" } });
+  }
 
   // Publishing: Facebook photos and posts, Instagram media and stories.
   if (req.method === "POST" && (edge === "photos" || edge === "media")) {
