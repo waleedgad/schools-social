@@ -233,6 +233,17 @@ test("yearbooks, graduation books, student books and flipbooks", async () => {
   expect(pdfs.sort()).toEqual(["G12A Laila Mostafa.pdf", "G12A Nour Adel.pdf", "G12A Omar Hassan.pdf"]);
   for (const f of pdfs) expect(pdfInfo(path.join(out, f)).pages).toBeGreaterThan(1);
 
+  // ---------- A graduation book for every graduate of G12A (release 0.15) ----------
+  const gmade = await call<{ made: number; total: number }>("bookStudentBooks", grad);
+  expect(gmade).toEqual({ made: 3, total: 3 });
+  const gpdfs = readdirSync(out).filter((f) => f.startsWith("Graduation G12A "));
+  expect(gpdfs.sort()).toEqual(["Graduation G12A Laila Mostafa.pdf", "Graduation G12A Nour Adel.pdf", "Graduation G12A Omar Hassan.pdf"]);
+  // The graduation archive lists the class with Omar's book.
+  const archive = await call<{ className: string; current: boolean; students: { id: string; book: number | null }[] }[]>("graduates");
+  const g12 = archive.find((x) => x.className === "G12A")!;
+  expect(g12.students.map((x) => x.id).sort()).toEqual(["S1", "S2", "S3"]);
+  expect(g12.students.find((x) => x.id === "S1")!.book).toBe(grad);
+
   // ---------- A flipbook ----------
   const flip = await call<{ folder: string; pages: number; missing: number }>("bookFlipbook", grad);
   expect(flip.missing).toBe(0);

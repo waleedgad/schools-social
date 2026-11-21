@@ -29,6 +29,26 @@ App.views.books = {
       `<div class="content">${list.length ? `<div class="photos cards">${list.map((b) => `<div class="zcard" data-b="${b.id}">${b.cover ? `<img loading="lazy" src="hub://thumb/${b.cover}" />` : `<div class="zph">${icon(BOOK_KINDS()[b.spec.kind]?.[1] ?? "book-open", 28)}</div>`}
           <div><b>${esc(b.spec.title ?? "")}</b><span>${esc(BOOK_KINDS()[b.spec.kind]?.[0] ?? "")} · ${esc(b.spec.year)} · ${L(`${b.pages} pages`, `${num(b.pages)} صفحة`)}${b.locked ? ` · ${icon("lock", 10)} ${num(b.locked)}` : ""}</span></div></div>`).join("")}</div>`
         : emptyState("book-open", L("No books yet", "لا كتب بعد"), L("Start a yearbook for a grade or a class, a book for each student, or a graduation book. The Mac drafts every page from your library.", "ابدأ كتابًا سنويًا لصف أو فصل، أو كتابًا لكل طالب، أو كتاب تخرج. يصمم الماك كل الصفحات من مكتبتك."), `<button class="btn primary" id="bk-new2">${L("New book", "كتاب جديد")}</button>`)}</div>`;
+    // The graduation archive, by class year.
+    const grads = (await quiet("graduates")) ?? [];
+    if (grads.length) {
+      const box = document.createElement("div");
+      box.className = "col gap8";
+      box.style.marginTop = "22px";
+      box.id = "grad-archive";
+      box.innerHTML = `<div class="row"><h2 class="grow" style="margin:0">${icon("graduation-cap", 18)} ${L("Graduation archive", "أرشيف التخرج")}</h2><button class="btn small" id="gr-photos">${icon("image", 13)} ${L("Graduation photos", "صور حفلات التخرج")}</button></div>
+        <p class="small muted" style="margin:0">${L("Every graduating class by class year, kept after they leave. Make a graduation book for a graduate, or for the whole class from the book's … menu.", "كل دفعة تخرج حسب العام، تبقى بعد مغادرتهم. اعمل كتاب تخرج لخريج، أو للفصل كله من قائمة … في الكتاب.")}</p>
+        ${grads.map((g) => `<div class="card col gap6" data-grad="${esc(g.className)}"><div class="row"><b class="grow">${g.current ? L(`Graduating this year · Class of ${g.year}`, `يتخرجون هذا العام · دفعة ${num(g.year)}`) : L(`Class of ${g.year}`, `دفعة ${num(g.year)}`)} · ${esc(g.className || "—")}</b><span class="tag">${L(`${g.students.length} graduates`, `${num(g.students.length)} خريج`)}</span></div>
+          <div class="row wrap gap6">${g.students.map((st) => `<button class="btn small ${st.book ? "" : "quiet"}" data-gs="${esc(st.id)}" data-gb="${st.book ?? ""}" data-gc="${esc(g.className)}" data-gy="${esc(g.year)}" title="${L(`${st.photos} photos over the years`, `${num(st.photos)} صورة على مر السنين`)}">${st.book ? icon("book-open", 12) : icon("plus", 12)} ${esc(name(st))} <span class="tiny muted">${num(st.photos)}</span></button>`).join("")}</div></div>`).join("")}`;
+      $(".content", main)?.append(box);
+      $("#gr-photos", box).onclick = () => go("library", { album: "occ:graduation", title: L("Graduations", "حفلات التخرج") });
+      $$("[data-gs]", box).forEach((b) => (b.onclick = async () => {
+        if (b.dataset.gb) return go("books", { id: Number(b.dataset.gb) });
+        const y = Number(b.dataset.gy);
+        const id = await call("newBook", { kind: "graduation", year: `${y - 1}-${y}`, studentId: b.dataset.gs, className: b.dataset.gc || null });
+        if (id) go("books", { id });
+      }));
+    }
     const open = () => newBookBox();
     $("#bk-new", main).onclick = open;
     $("#bk-new2", main)?.addEventListener("click", open);
@@ -70,6 +90,7 @@ App.views.books = {
       { label: L("Send to the website for review", "إرسال إلى الموقع للمراجعة"), run: async () => { toast(L("Making the page pictures and sending them…", "جارٍ عمل صور الصفحات وإرسالها…")); try { const r = await call("bookSend", b.id); toast(L(`Sent ${r.pages} pages (version ${r.version}). Class teachers can check the names on their phones.`, `أُرسلت ${num(r.pages)} صفحة (النسخة ${num(r.version)}). يمكن لمعلمي الفصول مراجعة الأسماء على هواتفهم.`), { ms: 7000 }); } catch {} } },
       { label: L("Save as a flipbook…", "حفظ ككتاب يُقلَّب…"), run: async () => { toast(L("Making the flipbook…", "جارٍ عمل الكتاب…")); const r = await call("bookFlipbook", b.id); if (r) toast(L(`Flipbook of ${r.pages} pages saved. Open index.html in any browser.`, `حُفظ كتاب من ${num(r.pages)} صفحة. افتح index.html في أي متصفح.`)); } },
       b.spec.kind === "student" && b.spec.className && { label: L(`Make a book for every student in ${b.spec.className}…`, `عمل كتاب لكل طالب في ${b.spec.className}…`), run: async () => { toast(L("Making the books. This takes a while for a big class.", "جارٍ عمل الكتب. يستغرق ذلك وقتًا للفصل الكبير.")); const r = await call("bookStudentBooks", b.id); if (r) toast(L(`${r.made} of ${r.total} books saved`, `حُفظ ${num(r.made)} من ${num(r.total)} كتاب`)); } },
+      b.spec.kind === "graduation" && { label: L("Make a graduation book for every graduate of the class…", "عمل كتاب تخرج لكل خريج في الفصل…"), run: async () => { toast(L("Making the graduation books. This takes a while for a big class.", "جارٍ عمل كتب التخرج. يستغرق ذلك وقتًا للفصل الكبير.")); const r = await call("bookStudentBooks", b.id); if (r) toast(L(`${r.made} of ${r.total} graduation books saved`, `حُفظ ${num(r.made)} من ${num(r.total)} كتاب تخرج`)); } },
       "-",
       { label: L("Delete this book", "حذف هذا الكتاب"), run: async () => { await call("deleteBook", b.id); undoToast(L("Book deleted", "حُذف الكتاب")); go("books", { list: true }); } },
     ]);

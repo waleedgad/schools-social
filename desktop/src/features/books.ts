@@ -291,24 +291,68 @@ export function booksApi(ctx: Ctx): Api {
     return { placed: r.placed, total: (t.texts as unknown[]).length };
   }
 
+  // The graduation archive: every graduating class by class year ("Class of
+  // 2026"), this year's KG2 and Grade 12 classes first, with each graduate,
+  // how many named photos they have over all their years, and their
+  // graduation book if one was made. Graduates are kept after they leave.
+  function graduates() {
+    const rows = all<{ id: string; name_en: string | null; name_ar: string | null; class_name: string | null; left_why: string | null; left_on: string | null; final: string | null; photos: number }>(
+      `select s.id, s.name_en, s.name_ar, s.class_name, s.left_why, s.left_on,
+              (select max(h.year) from school_history h where h.student_id = s.id) final,
+              (select count(distinct f.photo_id) from faces f where f.student_id = s.id and f.status in ('confirmed', 'manual')) photos
+       from students s
+       where s.kind = 'student' and (s.left_why = 'graduated'
+         or (s.left_on is null and (upper(coalesce(s.grade, '')) in ('KG2', 'KG 2', 'GRADE 12', '12') or upper(coalesce(s.class_name, '')) like 'KG2%' or upper(coalesce(s.class_name, '')) like 'G12%' or coalesce(s.class_name, '') like '12%')))
+       order by coalesce(s.name_en, s.name_ar)`,
+    );
+    const books = new Map<string, number>();
+    for (const b of all<Row>("select * from books order by updated_at desc")) {
+      const sp = JSON.parse(b.spec) as BookSpec;
+      if (sp.kind === "graduation" && sp.studentId && !books.has(sp.studentId)) books.set(sp.studentId, b.id);
+    }
+    const yearEnd = (y: string | null) => /(\d{4})\D*$/.exec(y ?? "")?.[1] ?? null;
+    const now = new Date();
+    const thisYear = String(now.getMonth() >= 8 ? now.getFullYear() + 1 : now.getFullYear());
+    const groups = new Map<string, { year: string; current: boolean; className: string; students: { id: string; name_en: string | null; name_ar: string | null; photos: number; book: number | null }[] }>();
+    for (const r of rows) {
+      const current = r.left_why !== "graduated";
+      const year = current ? thisYear : yearEnd(r.final) ?? (r.left_on ?? "").slice(0, 4) ?? thisYear;
+      const key = `${current ? 1 : 0}|${year}|${r.class_name ?? ""}`;
+      const g = groups.get(key) ?? groups.set(key, { year, current, className: r.class_name ?? "", students: [] }).get(key)!;
+      g.students.push({ id: r.id, name_en: r.name_en, name_ar: r.name_ar, photos: r.photos, book: books.get(r.id) ?? null });
+    }
+    return [...groups.values()].sort((a, b) => Number(b.current) - Number(a.current) || b.year.localeCompare(a.year) || a.className.localeCompare(b.className));
+  }
+
   // A teacher's corrected spelling goes into the class list.
   function fixName(code: string, fixed: string) {
     const arabic = /[؀-ۿ]/.test(fixed);
     return ctx.call("saveStudent", code, arabic ? { name_ar: fixed } : { name_en: fixed });
   }
 
-  // One book per student in a class: each drafted for that student, all into one folder.
+  // The class a per-student or graduation book is for.
+  const classOf = (spec: BookSpec) => spec.className ?? (spec.studentId ? one<{ class_name: string | null }>("select class_name from students where id = ?", spec.studentId)?.class_name : null) ?? null;
+
+  // One book per student in a class: each drafted for that student, all into
+  // one folder. For a graduation book: one graduation book for every
+  // graduate of the class (KG2, Grade 12), graduates who already left included.
   async function studentBooks(id: number) {
     const b = load(id);
-    if (!b.spec.className) return null;
-    const dir = testDir() ?? (await ctx.chooseFolder("Folder for the books"));
+    const cls = classOf(b.spec);
+    if (!cls) return null;
+    const grad = b.spec.kind === "graduation";
+    const dir = testDir() ?? (await ctx.chooseFolder(grad ? "Folder for the graduation books" : "Folder for the books"));
     if (!dir) return null;
-    const list = all<{ id: string; name_en: string | null; name_ar: string | null }>("select id, name_en, name_ar from students where class_name = ? and kind = 'student' order by coalesce(name_en, name_ar)", b.spec.className);
+    const list = all<{ id: string; name_en: string | null; name_ar: string | null }>(
+      `select id, name_en, name_ar from students where class_name = ? and kind = 'student' ${grad ? "and (left_on is null or left_why = 'graduated')" : ""} order by coalesce(name_en, name_ar)`,
+      cls,
+    );
     let made = 0;
     for (const st of list) {
-      const spec = { ...b.spec, studentId: st.id, title: st.name_en ?? st.name_ar ?? st.id };
+      const who = st.name_en ?? st.name_ar ?? st.id;
+      const spec = { ...b.spec, studentId: st.id, className: cls, title: grad ? `Graduation ${who}` : who };
       const pages = draftPages(ctx.db(), spec);
-      const file = path.join(dir, `${safeName(`${b.spec.className} ${st.name_en ?? st.name_ar ?? st.id}`)}.pdf`);
+      const file = path.join(dir, `${safeName(`${grad ? "Graduation " : ""}${cls} ${who}`)}.pdf`);
       ctx.message(`book:${made + 1}/${list.length}`);
       const res = await printResolver(spec, pages);
       const size = pageSize(spec);
@@ -371,6 +415,7 @@ export function booksApi(ctx: Ctx): Api {
     bookReview: (id: number) => review(id),
     bookFixName: (code: string, fixed: string) => fixName(code, fixed),
     bookPlaceTexts: (id: number) => placeAll(id),
+    graduates: () => graduates(),
     bookStudentBooks: (id: number) => studentBooks(id),
     bookLogo: async () => {
       const r = await dialog.showOpenDialog(ctx.win()!, { title: "School logo", properties: ["openFile"], filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "svg"] }] });
