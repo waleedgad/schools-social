@@ -10,7 +10,7 @@ test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs o
 
 test("switches show a focus ring from the keyboard", async ({ page }) => {
   await newSchool(page, "focus");
-  await page.goto("/en/settings");
+  await page.goto("/en/settings?tab=approvals");
   const box = page.locator("input.peer.sr-only").first();
   await expect(box).toBeAttached();
   await page.keyboard.press("Tab");
