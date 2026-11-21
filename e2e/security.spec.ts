@@ -49,6 +49,7 @@ async function seed(sb: SupabaseClient, school: string, userId: string) {
     audit_log: { action: "test" },
     book_checks: { book_id: book.id, student_code: "S1" },
     book_comments: { book_id: book.id, page: 1, body: "secret" },
+    book_page_approvals: { book_id: book.id, version: 1, page: 1, approved: true },
     book_texts: { book_id: book.id, body: "secret" },
     categories: { name_ar: "سر", name_en: "Secret" },
     error_reports: { hash: `security-${school}`, source: "web", message: "secret" },

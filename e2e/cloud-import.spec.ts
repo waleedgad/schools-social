@@ -48,6 +48,7 @@ test.describe("with the test website", () => {
     await box.getByRole("button", { name: "Add these photos" }).click();
     await expect(box).toContainText("isn't a Google Drive, OneDrive or Dropbox photo");
     await page.screenshot({ path: test.info().outputPath("cloud-import.png"), fullPage: true });
-    expect(errors).toEqual([]);
+    // The refused link's 400 answer is expected; nothing else may go wrong.
+    expect(errors.filter((e) => !e.includes("status of 400"))).toEqual([]);
   });
 });
