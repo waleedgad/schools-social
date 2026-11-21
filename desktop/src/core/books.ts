@@ -1,5 +1,6 @@
 import type { Db } from "./db";
 import { noPostPhoto } from "./privacy";
+import { autoLayout, facePosition } from "./book-layout";
 
 // Yearbooks laid out on this Mac: a book for a grade or for one class, a
 // book for each student, and graduation books (KG2, Grade 12). The Mac makes
@@ -280,14 +281,34 @@ export function bookHtml(db: Db, spec: BookSpec, pages: Page[], r: Resolver, opt
     const src = blurred ? null : r.face(s);
     return src ? `<img src="${src}" />` : `<span>${esc(nameOf(s).slice(0, 1))}</span>`;
   };
-  const img = (id: number) => `<img src="${r.photo(id)}" />`;
+  // Each photo's shape, faces and how good it is, for the automatic layout
+  // and so faces are never cut off by a frame.
+  const shapeQ = db.prepare("select width, height, coalesce(quality, 0.5) + coalesce(rating, 0) * 0.2 + case when flag > 0 then 0.5 else 0 end score from photos where id = ?");
+  const facesQ = db.prepare("select x, y, w, h from faces where photo_id = ? and w > 0 and h > 0");
+  const lphoto = (id: number) => {
+    const s = (shapeQ.get(id) as { width: number | null; height: number | null; score: number } | undefined) ?? { width: null, height: null, score: 0 };
+    return { id, w: s.width ?? 0, h: s.height ?? 0, score: s.score ?? 0, faces: facesQ.all(id) as { x: number; y: number; w: number; h: number }[] };
+  };
+  const posOf = (id: number, shape: number) => {
+    const p = lphoto(id);
+    const [x, y] = facePosition(p.w, p.h, shape, p.faces);
+    return `object-position: ${x}% ${y}%`;
+  };
+  const img = (id: number, shape = 1) => `<img src="${r.photo(id)}" style="${posOf(id, shape)}" />`;
+  // The page's photo area (mm): the page less its margins, the title and any text.
+  const areaShape = (p: Page) => {
+    const textLen = (p.text ?? "").length + (p.textAr ?? "").length;
+    const aw = w - 24 * scale;
+    const ah = h - 30 * scale - 16 * scale - 5 * scale * 2 - Math.ceil(textLen / 90) * 5.5 * scale;
+    return aw / Math.max(40 * scale, ah);
+  };
   const sinceLabel = (s: Student) => (s.since ? (ar ? `معنا منذ ${String(s.since).slice(0, 4)}` : `With us since ${String(s.since).slice(0, 4)}`) : "");
 
   const body = (p: Page) => {
     if (p.type === "cover") {
       const st = p.students?.[0] ? (person.get(p.students[0]) as Student | undefined) : undefined;
       const style = spec.cover?.style ?? (st ? "plain" : "photo");
-      const bg = style === "photo" && p.photos[0] ? `<div class="coverimg">${img(p.photos[0])}</div>` : "";
+      const bg = style === "photo" && p.photos[0] ? `<div class="coverimg">${img(p.photos[0], w / h)}</div>` : "";
       const faces = style === "faces" ? `<div class="coverfaces">${classesOf(db, spec).flatMap((c) => studentsIn(db, spec, c)).filter((s) => s.can_post).slice(0, 48).map((s) => `<i>${faceHtml(s)}</i>`).join("")}</div>` : "";
       return `<div class="cover ${style}">${bg}${faces}<div class="covertext">${r.logo ? `<img class="logo" src="${r.logo}" />` : ""}<p class="sub">${esc(spec.school)}</p>
         ${st ? `<div class="hero">${faceHtml(st)}</div><h1>${esc(nameOf(st))}</h1><h2>${esc(otherOf(st))}</h2>` : `<h1>${titleOf(p)}</h1>`}
@@ -302,8 +323,18 @@ export function bookHtml(db: Db, spec: BookSpec, pages: Page[], r: Resolver, opt
         <div class="faces c${cols}">${list.map((s) => `<figure class="${s.left_on ? "left" : ""}">${faceHtml(s)}<figcaption><b>${esc(nameOf(s))}</b>${both || otherOf(s) ? `<small>${esc(otherOf(s))}</small>` : ""}${grad && s.since ? `<small class="since">${esc(sinceLabel(s))}</small>` : ""}</figcaption></figure>`).join("")}</div>`;
     }
     const n = Math.min(p.photos.length, 9);
-    const layout = p.layout === "auto" ? (n <= 1 ? "single" : n <= 4 ? "hero" : "grid") : p.layout;
-    return `<header><h2>${titleOf(p)}</h2>${p.date ? `<p class="sub">${esc(p.date)}</p>` : ""}</header>${textOf(p)}${n ? `<div class="ph ${layout} n${n}">${p.photos.slice(0, 9).map(img).join("")}</div>` : ""}`;
+    const head = `<header><h2>${titleOf(p)}</h2>${p.date ? `<p class="sub">${esc(p.date)}</p>` : ""}</header>${textOf(p)}`;
+    if (!n) return head;
+    const shape = areaShape(p);
+    if (p.layout === "auto") {
+      // Frames fitted to each photo's shape; the best photo biggest; faces kept in.
+      const placed = autoLayout(p.photos.slice(0, 9).map(lphoto), shape);
+      const pct = (v: number) => `${Math.round(v * 10000) / 100}%`;
+      return `${head}<div class="ph free n${n}">${placed.map((c) => `<div class="cell" style="left:${pct(c.rect.x)};top:${pct(c.rect.y)};width:${pct(c.rect.w)};height:${pct(c.rect.h)}"><img src="${r.photo(c.id)}" style="object-position: ${c.pos[0]}% ${c.pos[1]}%" /></div>`).join("")}</div>`;
+    }
+    // Chosen layouts: frames roughly square in a grid, the page's shape for one photo.
+    const frame = p.layout === "single" ? shape : p.layout === "hero" ? shape * 1.4 : 1;
+    return `${head}<div class="ph ${p.layout} n${n}">${p.photos.slice(0, 9).map((id) => img(id, frame)).join("")}</div>`;
   };
   const marks = slug
     ? `<i class="cm" style="left:${slug + bleed}mm;top:0;height:${slug - 1}mm"></i><i class="cm" style="left:${pw - slug - bleed}mm;top:0;height:${slug - 1}mm"></i><i class="cm" style="left:${slug + bleed}mm;bottom:0;height:${slug - 1}mm"></i><i class="cm" style="left:${pw - slug - bleed}mm;bottom:0;height:${slug - 1}mm"></i>
@@ -343,6 +374,7 @@ export function bookHtml(db: Db, spec: BookSpec, pages: Page[], r: Resolver, opt
   .ph { flex: 1; display: grid; gap: ${3 * scale}mm; min-height: 0; }
   .ph img { width: 100%; height: 100%; object-fit: cover; border-radius: ${1.5 * scale}mm; min-height: 0; display: block; }
   .ph.single { grid-template: 1fr / 1fr; }
+  .ph.free { display: block; position: relative; margin: -${1.5 * scale}mm; } .ph.free .cell { position: absolute; padding: ${1.5 * scale}mm; } .ph.free .cell img { height: 100%; }
   .ph.hero.n2 { grid-template: 1fr 1fr / 1fr; } .ph.hero.n3 { grid-template: 2fr 1fr / 1fr 1fr; } .ph.hero.n3 img:first-child { grid-column: span 2; } .ph.hero.n4 { grid-template: 2fr 1fr / 1fr 1fr 1fr; } .ph.hero.n4 img:first-child { grid-column: span 3; }
   .ph.grid { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; } .ph.grid.n5 img:first-child, .ph.grid.n7 img:first-child, .ph.grid.n9 img:first-child { grid-column: span 2; } .ph.grid.n7, .ph.grid.n8, .ph.grid.n9 { grid-template-columns: 1fr 1fr 1fr; } .ph.grid.n7 img:first-child { grid-column: span 3; }
   .ph.collage { grid-template-columns: repeat(6, 1fr); grid-auto-rows: 1fr; } .ph.collage img:nth-child(3n+1) { grid-column: span 4; } .ph.collage img:nth-child(3n+2) { grid-column: span 2; } .ph.collage img:nth-child(3n) { grid-column: span 6; }
