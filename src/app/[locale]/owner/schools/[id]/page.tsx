@@ -83,7 +83,7 @@ export default async function OwnerSchoolPage({
       {sp.created && <Notice tone="good">{t("owner.school.created")}</Notice>}
 
       {st && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-4" data-testid="owner-school-state">
+        <div className="flex flex-wrap items-center gap-3 card p-4" data-testid="owner-school-state">
           <Chip tone={tone[st.state]}>{t(`plan.states.${st.state}`)}</Chip>
           {st.forced && <Chip tone="violet">{t("owner.school.forced")}</Chip>}
           <span className="text-sm">{t("owner.school.paidUntil", { date: date(st.paid_until) })}</span>

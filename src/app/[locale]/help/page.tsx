@@ -31,7 +31,7 @@ export default async function HelpPage({ params, searchParams }: { params: Promi
       </Card>
       <div className="grid gap-3 md:grid-cols-2">
         {guides.map((g) => (
-          <details key={g} className="rounded-xl border border-border bg-surface p-4 open:shadow-sm">
+          <details key={g} className="card p-4">
             <summary className="cursor-pointer font-semibold">{t(`help.guides.${g}.title`)}</summary>
             <p className="mt-2 whitespace-pre-line text-sm text-muted">{t(`help.guides.${g}.body`)}</p>
           </details>

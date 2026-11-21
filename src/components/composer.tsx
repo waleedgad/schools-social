@@ -152,7 +152,7 @@ function Preview({ data, platform, caption, photos }: { data: ComposerData; plat
   const name = platform === "facebook" ? data.pageName : data.igName;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface text-sm shadow-sm">
+    <div className="overflow-hidden card text-sm">
       <div className="flex items-center gap-2 p-3">
         <span className="grid size-8 place-items-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">{data.schoolName.slice(0, 2)}</span>
         <div className="leading-tight">

@@ -46,7 +46,7 @@ export default async function OwnerSchoolsPage({ params, searchParams }: { param
       {!shown.length ? (
         <Empty icon="people" title={t("owner.schools.empty")} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <div className="overflow-x-auto card">
           <table className="w-full min-w-[760px] text-sm" data-testid="owner-schools">
             <thead className="text-start text-xs text-muted">
               <tr className="border-b border-border">

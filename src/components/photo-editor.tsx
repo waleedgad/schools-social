@@ -105,7 +105,7 @@ export function PhotoEditor({
 
   return (
     <div className="grid gap-6 md:grid-cols-[1fr_16rem]">
-      <div ref={preview} className="min-h-64 rounded-xl border border-border bg-surface p-2">
+      <div ref={preview} className="min-h-64 card p-2">
         {state === "loading" && <p className="p-6 text-center text-muted">{t("loading")}</p>}
       </div>
       <div className="space-y-4">

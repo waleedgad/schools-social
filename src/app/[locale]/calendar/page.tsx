@@ -281,7 +281,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
             const evs = inM.reduce((a, d) => a + d.events.length, 0);
             const month = `${label}-${String(m + 1).padStart(2, "0")}`;
             return (
-              <Link key={m} href={{ pathname: "/calendar", query: { view: "month", month } }} className="rounded-xl border border-border bg-surface p-3 hover:border-accent">
+              <Link key={m} href={{ pathname: "/calendar", query: { view: "month", month } }} className="card p-3 transition hover:shadow-pop">
                 <div className="flex items-baseline justify-between">
                   <b>{fmt({ month: "long" }, new Date(Date.UTC(2026, m, 1)))}</b>
                   <span className="text-xs text-muted">{t("more.calendar.posts", { count: list.length })}</span>

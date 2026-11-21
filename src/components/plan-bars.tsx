@@ -39,7 +39,7 @@ export async function BlockedScreen({ status, schoolName, locale }: { status: Pl
   const t = await getTranslations();
   return (
     <main data-testid="blocked" className="grid min-h-dvh place-items-center bg-background px-4">
-      <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 text-center">
+      <div className="w-full max-w-md space-y-4 card p-6 text-center">
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-danger-bg text-danger">
           <Icon name="warning" />
         </span>

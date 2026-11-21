@@ -156,7 +156,7 @@ export function PostBoard({ locale, view, posts, labels, canWrite, startIdea }: 
     return (
       <div className="space-y-2">
         {note && <p className="text-xs text-muted">{note}</p>}
-        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
+        <ul className="divide-y divide-border overflow-hidden card">
           {posts.map((p) => (
             <li key={p.id} className="flex items-center gap-3 p-2.5">
               {canWrite && <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} aria-label={labels.selected} />}

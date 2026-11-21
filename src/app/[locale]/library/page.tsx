@@ -203,7 +203,7 @@ export default async function LibraryPage({
             {!photos?.length && <p className="text-muted">{t("library.empty")}</p>}
 
             {!!photos?.length && (
-              <form id="new-post" action={createPost} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 text-sm">
+              <form id="new-post" action={createPost} className="flex flex-wrap items-center gap-3 card p-3 text-sm">
                 <input type="hidden" name="locale" value={locale} />
                 {current && <input type="hidden" name="event" value={current.id} />}
                 <span className="text-muted">{t("library.selectHint")}</span>
@@ -213,7 +213,7 @@ export default async function LibraryPage({
 
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {(photos ?? []).map((p) => (
-                <li key={p.id} className="overflow-hidden rounded-xl border border-border bg-surface">
+                <li key={p.id} className="overflow-hidden card">
                   <div className="relative">
                     <a href={url.get(shown(p))} target="_blank" rel="noreferrer" className="block">
                       {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
