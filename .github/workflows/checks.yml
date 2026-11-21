@@ -1,17 +1,78 @@
-# Runs the automatic checks on every change, before anything reaches Waleed.
+# Runs the automatic checks before anything reaches Waleed.
 # Website: type check, lint, a full build and the robot tests against a
-# private test database. Mac app: its tests and robot
-# tests on a real Mac (and on Linux, which is quicker). Windows joins once the app ships there.
+# private test database. Mac app: its tests and robot tests on Linux on
+# every push; on a real Mac and on Windows only for the "full set" (below).
+#
+# Saving GitHub minutes (21 Nov 2026, tracker/ci-cost-note.md):
+# - A newer push to the same branch stops the older run (concurrency).
+# - Pushes that only change notes (docs/, *.md) run nothing.
+# - The Mac and Windows jobs (10x and 2x the cost of Linux) run only for the
+#   "full set": pull requests into main, pushes to main or release/* branches,
+#   desktop-v* tags, a commit message containing [full ci], or a manual run
+#   (Actions > Checks > Run workflow).
+# - The Mac/Windows install packages are built only on main, release/*,
+#   desktop-v* tags or a manual run.
 name: Checks
 
 on:
   push:
+    paths-ignore: ["docs/**", "desktop/docs/**", "*.md", "desktop/*.md"]
   pull_request:
+    branches: [main]
+    paths-ignore: ["docs/**", "desktop/docs/**", "*.md", "desktop/*.md"]
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Also run the Mac and Windows checks"
+        type: boolean
+        default: true
+      package:
+        description: "Also build the Mac and Windows install packages"
+        type: boolean
+        default: false
+
+# One run per branch (or pull request): a newer push stops the older run.
+# Runs on main are never stopped half way.
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # Decides whether this run is the "full set" (Mac + Windows too) and
+  # whether the install packages are built. Takes a few seconds on Linux.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.p.outputs.full }}
+      package: ${{ steps.p.outputs.package }}
+      desktop_os: ${{ steps.p.outputs.desktop_os }}
+    steps:
+      - id: p
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          MSG: ${{ github.event.head_commit.message }}
+          IN_FULL: ${{ inputs.full }}
+          IN_PACKAGE: ${{ inputs.package }}
+        run: |
+          full=false; package=false
+          case "$REF" in refs/heads/main|refs/heads/release/*|refs/tags/desktop-v*) full=true; package=true;; esac
+          [ "$EVENT" = pull_request ] && full=true
+          case "$MSG" in *"[full ci]"*) full=true;; esac
+          if [ "$EVENT" = workflow_dispatch ]; then
+            [ "$IN_FULL" = true ] && full=true
+            [ "$IN_PACKAGE" = true ] && package=true
+          fi
+          if [ $full = true ]; then os='["ubuntu-latest","macos-latest","windows-latest"]'; else os='["ubuntu-latest"]'; fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "desktop_os=$os" >> "$GITHUB_OUTPUT"
+          echo "Full set (Mac + Windows): $full. Install packages: $package." >> "$GITHUB_STEP_SUMMARY"
+
   website:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,6 +94,11 @@ jobs:
       - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta
       - run: grep -v '^#' e2e/test-db.env >> "$GITHUB_ENV"
       - run: npm run build
+      # Keep the downloaded test browser between runs (saves the download).
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       # The Mac app sending to and deleting from the same test database.
@@ -53,13 +119,16 @@ jobs:
           path: |
             e2e-report
             desktop/e2e-report
+          retention-days: 7
 
   desktop:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ fromJSON(needs.plan.outputs.desktop_os) }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: desktop
@@ -70,6 +139,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
+      # Keep the Electron download between runs (it sometimes times out).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/Library/Caches/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json') }}
       # The Electron download sometimes times out (504): try three times.
       - shell: bash
         run: for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done
@@ -86,20 +163,26 @@ jobs:
         with:
           name: app-test-report-${{ matrix.os }}
           path: desktop/e2e-report
+          retention-days: 7
           if-no-files-found: ignore
-      # Every tab in English and Arabic as this computer draws it (kept 14 days).
+      # Every tab in English and Arabic as this computer draws it (kept 7 days).
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-screens-${{ matrix.os }}
           path: desktop/test-results/**/*-*.png
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: ignore
 
   # Build check: make the real app a school installs (Apple Silicon Mac and
   # Windows, not signed yet) and start it once: it must read photos with its
   # image engine and load its face engine.
+  # Only on main, release/* branches, desktop-v* tags or a manual run with
+  # "build the install packages" ticked.
   package:
+    needs: plan
+    if: needs.plan.outputs.package == 'true'
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -124,6 +207,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
+      # Keep the Electron download between runs (it sometimes times out).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/Library/Caches/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json') }}
       # The Electron download sometimes times out (504): try three times.
       - shell: bash
         run: for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done
@@ -134,20 +225,24 @@ jobs:
         with:
           name: mac-app-apple-silicon
           path: desktop/release/*.zip
-          retention-days: 14
-      # A Windows test build (installer), kept 14 days.
+          retention-days: 7
+      # A Windows test build (installer), kept 7 days.
       - if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
           path: desktop/release/*.exe
-          retention-days: 14
+          retention-days: 7
 
   # Update check: install this version on Windows, then let it update itself
   # to a pretend next version from a local update server. It must make a
   # safety copy first and keep the library, names and settings.
+  # Full set only.
   update:
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: desktop
@@ -159,6 +254,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
+      # Keep the Electron download between runs (it sometimes times out).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/Library/Caches/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('desktop/package-lock.json') }}
       # The Electron download sometimes times out (504): try three times.
       - shell: bash
         run: for i in 1 2 3; do npm ci && break; [ $i = 3 ] && exit 1; sleep 20; done

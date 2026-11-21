@@ -10,6 +10,11 @@ on:
       - desktop/src/core/busy.ts
       - desktop/src/core/db.ts
       - .github/workflows/windows-soak.yml
+# A newer push to the same branch stops the older run (saves Mac/Windows minutes).
+concurrency:
+  group: windows-soak-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   nothing-hangs:
     runs-on: windows-latest

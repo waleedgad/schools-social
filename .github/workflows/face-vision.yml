@@ -13,6 +13,11 @@ on:
       - desktop/bench/faces/vision.mjs
       - .github/workflows/face-vision.yml
 
+# A newer push to the same branch stops the older run (saves Mac/Windows minutes).
+concurrency:
+  group: face-vision-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   vision:
     runs-on: macos-latest

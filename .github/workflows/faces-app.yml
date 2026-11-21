@@ -19,6 +19,11 @@ on:
       - desktop/bench/faces/**
       - .github/workflows/faces-app.yml
 
+# A newer push to the same branch stops the older run (saves Mac/Windows minutes).
+concurrency:
+  group: faces-app-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   faces:
     strategy:
