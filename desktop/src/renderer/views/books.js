@@ -303,9 +303,15 @@ App.views.books = {
       $("#rv-send", body).onclick = async () => { try { await call("bookSend", BK.book.id); toast(L("Sent for review", "أُرسل للمراجعة")); this.side(); } catch {} };
       return;
     }
+    if (r.lockedNow) {
+      const nb = await quiet("book", BK.book.id);
+      if (nb) BK.book = nb;
+      this.pages();
+      toast(L(`${r.lockedNow} pages approved on the website are now locked`, `قُفلت ${num(r.lockedNow)} صفحة اعتُمدت على الموقع`));
+    }
     const fixes = r.checks.filter((c) => c.fixed_name || c.ok === false);
     const okd = r.checks.filter((c) => c.ok).length;
-    body.innerHTML = `<div class="row small"><span class="grow">${L(`Version ${r.version} · ${okd} names checked`, `النسخة ${num(r.version)} · ${num(okd)} اسم مراجَع`)}</span><span class="tag ${r.status === "approved" ? "good" : ""}">${esc(r.status ?? "")}</span></div>
+    body.innerHTML = `<div class="row small"><span class="grow">${L(`Version ${r.version} · ${okd} names checked · ${r.approved} pages approved`, `النسخة ${num(r.version)} · ${num(okd)} اسم مراجَع · ${num(r.approved)} صفحة معتمدة`)}</span><span class="tag ${r.status === "approved" ? "good" : ""}">${esc(r.status ?? "")}</span></div>
       ${fixes.length ? `<div class="card side"><b class="small">${L("Name fixes from teachers", "تصحيحات الأسماء من المعلمين")}</b>${fixes.map((c) => `<div class="trow small"><span class="grow">${esc(c.student ? name(c.student) : c.student_code)} → <b>${esc(c.fixed_name ?? "")}</b>${c.note ? `<div class="tiny muted">${esc(c.note)}</div>` : ""}</span>${c.fixed_name ? `<button class="btn small" data-fix="${esc(c.student_code)}" data-name="${esc(c.fixed_name)}">${L("Apply", "تطبيق")}</button>` : ""}</div>`).join("")}</div>` : ""}
       ${r.comments.length ? `<div class="card side"><b class="small">${L("Comments", "التعليقات")}</b>${r.comments.map((c) => `<div class="trow small ${c.done ? "muted" : ""}" data-pg="${c.page}"><span class="grow"><b>${L(`Page ${c.page}`, `صفحة ${num(c.page)}`)}</b> · ${esc(c.body)} <span class="tiny muted">${esc(c.author_name ?? "")}</span></span></div>`).join("")}</div>` : ""}
       ${r.texts.length ? `<div class="card side"><div class="row"><b class="small grow">${L("Texts written for the book", "نصوص كُتبت للكتاب")}</b><button class="btn small primary" id="rv-place">${icon("sparkles", 12)} ${L("Put them all in the book", "ضعها كلها في الكتاب")}</button></div><p class="tiny muted">${L("The principal's word on the welcome page, each teacher's message on their class page, quotes under each student's name. Locked pages stay as they are.", "كلمة المدير في صفحة الترحيب، ورسالة كل معلم في صفحة فصله، والاقتباسات تحت اسم كل طالب. الصفحات المقفلة تبقى كما هي.")}</p>${r.texts.map((t, i) => `<div class="col gap4" style="padding: 6px 0; border-top: 1px solid var(--line)"><span class="tiny muted">${esc(t.author_name ?? "")} · ${esc(t.class_name ?? t.kind)}</span><span class="small" dir="auto">${esc(t.body)}</span><button class="btn small" data-use="${i}" style="align-self: flex-start">${L("Use on this page", "استخدامه في هذه الصفحة")}</button></div>`).join("")}</div>` : ""}

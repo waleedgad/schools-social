@@ -1409,7 +1409,12 @@
       "forClass": "For class",
       "textBody": "Text",
       "textHint": "Arabic or English. Up to 1,500 characters.",
-      "addTextButton": "Add the text"
+      "addTextButton": "Add the text",
+      "approvePage": "Approve this page",
+      "unapprovePage": "Take back",
+      "pageApproved": "Page approved",
+      "approvedBy": "Approved by {name}",
+      "pagesApproved": "{n} of {total} pages approved"
     },
     "albums": {
       "title": "Albums",

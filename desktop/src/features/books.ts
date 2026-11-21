@@ -241,13 +241,13 @@ export function booksApi(ctx: Ctx): Api {
     const { images } = await pagePictures(id, 900);
     const macId = `${s().deviceId ?? "mac"}-${id}`;
     const v = version(id, "Sent for review");
-    const out: { n: number; title: string; image: string; students: string[]; type: string }[] = [];
+    const out: { n: number; id: string; title: string; image: string; students: string[]; type: string }[] = [];
     for (let i = 0; i < images.length; i++) {
       const p = b.pages[i];
       const storagePath = `${schoolId}/books/${macId}/v${v}-${i + 1}.jpg`;
       const { error } = await sb.storage.from("photos").upload(storagePath, images[i], { contentType: "image/jpeg", upsert: true });
       if (error) throw new Error("upload-failed");
-      out.push({ n: i + 1, title: p.titleAr || p.title, image: storagePath, students: p.students ?? [], type: p.type });
+      out.push({ n: i + 1, id: p.id, title: p.titleAr || p.title, image: storagePath, students: p.students ?? [], type: p.type });
     }
     const r = await ctx.appApi("book", { macId, title: b.spec.title, kind: b.spec.kind, grade: b.spec.grade, className: b.spec.className, version: v, pages: out });
     if (r?.error) throw new Error(r.error);
@@ -258,6 +258,15 @@ export function booksApi(ctx: Ctx): Api {
     const macId = `${s().deviceId ?? "mac"}-${id}`;
     const [r, t] = await Promise.all([ctx.appApi("bookReview", { macId }).catch(() => null), ctx.appApi("bookCollected", { macId }).catch(() => null)]);
     const names = new Map(all<{ id: string; name_en: string | null; name_ar: string | null }>("select id, name_en, name_ar from students").map((x) => [x.id, x]));
+    // Pages the principal approved on the website are locked here, so a new
+    // draft or "write page texts" leaves them as they are.
+    const approved = new Set<string>(((r?.approvals ?? []) as { page_id: string | null; approved: boolean }[]).filter((a) => a.approved && a.page_id).map((a) => a.page_id!));
+    let locked = 0;
+    if (approved.size) {
+      const b = load(id);
+      const pages = b.pages.map((p) => (approved.has(p.id) && !p.locked ? (locked++, { ...p, locked: true }) : p));
+      if (locked) store(id, b.spec, pages, false);
+    }
     return {
       sent: !!r?.id || !!r?.version,
       status: r?.status ?? null,
@@ -265,6 +274,8 @@ export function booksApi(ctx: Ctx): Api {
       checks: (r?.checks ?? []).map((c: Record<string, unknown>) => ({ ...c, student: names.get(String(c.student_code)) ?? null })),
       comments: r?.comments ?? [],
       texts: t?.texts ?? [],
+      approved: approved.size,
+      lockedNow: locked,
     };
   }
 

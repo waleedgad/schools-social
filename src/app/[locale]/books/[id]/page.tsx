@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { AppShell } from "@/components/shell";
 import { Button, ButtonLink, Card, Chip, Notice, Pills, Select, TextArea } from "@/components/ui";
 import { Link } from "@/i18n/navigation";
+import { approveBookPage } from "@/lib/actions/books";
 import { addBookText, checkBookNames, commentOnBook, removeBookText, resolveBookComment, setBookStatus } from "@/lib/actions/team";
 import { isComms } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
@@ -21,6 +22,8 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   const supabase = await createClient();
   const schoolId = membership.school.id;
   const comms = isComms(membership.role);
+  // The principal approves page by page (so do the admin and the comms team).
+  const approver = comms || membership.role === "principal";
   const { data: book } = await supabase.from("books").select("id, title, kind, grade, class_name, version, status, pages").eq("id", id).eq("school_id", schoolId).maybeSingle();
   if (!book) {
     return (
@@ -35,11 +38,13 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   const page = pages[n - 1];
   const scope = await classScope(supabase, schoolId, user.id, membership.role);
 
-  const [{ data: comments }, { data: checks }, { data: texts }] = await Promise.all([
+  const [{ data: comments }, { data: checks }, { data: texts }, { data: approvals }] = await Promise.all([
     supabase.from("book_comments").select("id, page, body, author_name, done, created_at").eq("book_id", id).order("created_at"),
     supabase.from("book_checks").select("student_code, ok, fixed_name, note").eq("book_id", id),
     supabase.from("book_texts").select("id, kind, class_name, student_code, body, author_name, user_id, created_at").eq("book_id", id).order("created_at"),
+    supabase.from("book_page_approvals").select("page, approved, author_name").eq("book_id", id).eq("version", book.version as number),
   ]);
+  const approvedPages = new Map((approvals ?? []).filter((a) => a.approved).map((a) => [a.page as number, (a.author_name as string | null) ?? ""]));
   const urls = await signPaths(supabase, schoolId, tab === "pages" ? [page?.image ?? "", pages[n]?.image ?? ""] : []);
   const pageComments = (comments ?? []).filter((c) => c.page === n);
   const openByPage = new Map<number, number>();
@@ -68,7 +73,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
       workspaces={workspaces}
       active="books"
       title={book.title as string}
-      subtitle={`${t(`books.kind.${book.kind}`)} · ${t("books.version", { v: book.version as number })} · ${t(`books.status.${book.status}`)}`}
+      subtitle={`${t(`books.kind.${book.kind}`)} · ${t("books.version", { v: book.version as number })} · ${t(`books.status.${book.status}`)} · ${t("books.pagesApproved", { n: approvedPages.size, total: pages.length })}`}
       actions={
         comms && (
           <form action={setBookStatus} className="flex gap-2">
@@ -98,11 +103,38 @@ export default async function BookPage({ params, searchParams }: { params: Promi
               <span className="text-sm">{t("books.pageOf", { n, total: pages.length })}{page?.title ? ` · ${page.title}` : ""}</span>
               <ButtonLink href={{ pathname: `/books/${id}`, query: { page: String(Math.min(pages.length, n + 1)) } }} variant="quiet" className={n >= pages.length ? "pointer-events-none opacity-40" : ""}>›</ButtonLink>
             </div>
+            {page && (
+              <div className="flex flex-wrap items-center justify-center gap-2" data-testid="page-approval">
+                {approvedPages.has(n) ? (
+                  <>
+                    <Chip tone="good">{approvedPages.get(n) ? t("books.approvedBy", { name: approvedPages.get(n)! }) : t("books.pageApproved")}</Chip>
+                    {approver && (
+                      <form action={approveBookPage}>
+                        {hidden}
+                        <input type="hidden" name="page" value={n} />
+                        <input type="hidden" name="approved" value="0" />
+                        <Button variant="quiet">{t("books.unapprovePage")}</Button>
+                      </form>
+                    )}
+                  </>
+                ) : (
+                  approver && (
+                    <form action={approveBookPage}>
+                      {hidden}
+                      <input type="hidden" name="page" value={n} />
+                      <input type="hidden" name="approved" value="1" />
+                      <Button variant="good" icon="check">{t("books.approvePage")}</Button>
+                    </form>
+                  )
+                )}
+              </div>
+            )}
             <div className="flex gap-1 overflow-x-auto pb-1">
               {pages.map((p) => (
                 <Link key={p.n} href={{ pathname: `/books/${id}`, query: { page: String(p.n) } }} className={`relative grid size-9 shrink-0 place-items-center rounded-md border text-xs ${p.n === n ? "border-accent bg-accent-bg font-bold text-accent-ink" : "border-border"}`}>
                   {p.n}
                   {openByPage.get(p.n) ? <span className="absolute -end-1 -top-1 size-2.5 rounded-full bg-warn" /> : null}
+                  {approvedPages.has(p.n) ? <span className="absolute -bottom-1 -end-1 size-2.5 rounded-full bg-good" aria-label={t("books.pageApproved")} /> : null}
                 </Link>
               ))}
             </div>

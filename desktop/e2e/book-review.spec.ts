@@ -18,7 +18,7 @@ const web = process.env.WEB_URL ?? "http://localhost:3123";
 test.skip(!url || !anon || !service || !process.env.WEB_URL, "needs the test database and website (WEB_URL)");
 
 type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<{ ok: boolean; value?: unknown; error?: string }> } };
-type Review = { sent: boolean; status: string | null; version: number | null; checks: { student_code: string; ok: boolean; fixed_name: string | null }[]; comments: { page: number; body: string }[]; texts: { kind: string; body: string; class_name: string | null }[] };
+type Review = { approved: number; sent: boolean; status: string | null; version: number | null; checks: { student_code: string; ok: boolean; fixed_name: string | null }[]; comments: { page: number; body: string }[]; texts: { kind: string; body: string; class_name: string | null }[] };
 
 test("a class book goes to the website, the teacher checks it, the Mac sees the answers", async () => {
   test.setTimeout(240_000);
@@ -30,11 +30,14 @@ test("a class book goes to the website, the teacher checks it, the Mac sees the 
   const teacherEmail = `teacher-${stamp}@example.com`;
   const lead = await user(leadEmail);
   const teacher = await user(teacherEmail);
+  const principalEmail = `principal-${stamp}@example.com`;
+  const principal = await user(principalEmail);
   const { data: school } = await admin.from("schools").insert({ name: "Book review school" }).select("id").single();
   const schoolId = school!.id as string;
   const { error: me } = await admin.from("memberships").insert([
     { school_id: schoolId, user_id: lead, role: "admin", full_name: "Comms Lead", classes: [] },
     { school_id: schoolId, user_id: teacher, role: "teacher", full_name: "Ms Salma", classes: ["G6B"] },
+    { school_id: schoolId, user_id: principal, role: "principal", full_name: "Dr Hoda", classes: [] },
   ]);
   expect(me).toBeNull();
   await admin.from("students").insert([
@@ -128,6 +131,30 @@ test("a class book goes to the website, the teacher checks it, the Mac sees the 
   await page.getByRole("button", { name: "Add the text" }).click();
   await expect(page).toHaveURL(/saved=text/);
   await expect(page.locator("main")).toContainText("Dear G6B, what a year!");
+  // A teacher can't approve pages.
+  await page.goto(`${web}/en/books/${webBook.id}`);
+  await expect(page.getByRole("button", { name: "Approve this page" })).toHaveCount(0);
+
+  // The principal approves pages 1 and 2, page by page (release 0.15).
+  const pctx = await browser.newContext();
+  const pp = await pctx.newPage();
+  await pp.goto(`${web}/en/login`);
+  await pp.getByLabel("Email").first().fill(principalEmail);
+  await pp.getByLabel("Password").fill(password);
+  await pp.getByRole("button", { name: "Sign in" }).first().click();
+  await expect(pp).not.toHaveURL(/login/, { timeout: 30_000 });
+  for (const n of [1, 2]) {
+    await pp.goto(`${web}/en/books/${webBook.id}?page=${n}`);
+    await pp.getByRole("button", { name: "Approve this page" }).click();
+    await expect(pp.getByTestId("page-approval")).toContainText("Approved by Dr Hoda");
+  }
+  await pp.screenshot({ path: test.info().outputPath("book-page-approved.png") });
+  await expect(pp.locator("body")).toContainText(`2 of ${sent.pages} pages approved`);
+  // Taking one back, then approving again.
+  await pp.getByRole("button", { name: "Take back" }).click();
+  await expect(pp.getByRole("button", { name: "Approve this page" })).toBeVisible();
+  await pp.getByRole("button", { name: "Approve this page" }).click();
+  await expect(pp.getByTestId("page-approval")).toContainText("Approved by Dr Hoda");
   await browser.close();
 
   // The Mac sees everything.
@@ -139,6 +166,15 @@ test("a class book goes to the website, the teacher checks it, the Mac sees the 
   expect(byCode.R2).toMatchObject({ ok: false, fixed_name: "Laila Moustafa" });
   expect(review.comments).toMatchObject([{ page: 1, body: "Please use the team photo on the cover" }]);
   expect(review.texts).toMatchObject([{ kind: "teacher", class_name: "G6B", body: "Dear G6B, what a year! Ms Salma" }]);
+  // The two approved pages are locked on the Mac now.
+  expect(review.approved).toBe(2);
+  const locked = await call<{ pages: { locked?: boolean }[] }>("book", bookId);
+  expect(locked.pages.slice(0, 2).every((p) => p.locked)).toBe(true);
+  expect(locked.pages.slice(2).some((p) => p.locked)).toBe(false);
+  // The class message goes onto the class page by itself.
+  const placed = await call<{ placed: number }>("bookPlaceTexts", bookId);
+  expect(placed.placed).toBe(1);
+  expect(await call<string>("bookHtml", bookId)).toContain("Dear G6B, what a year! Ms Salma");
   // The corrected spelling goes into the Mac's class list and the book.
   await call("bookFixName", "R2", "Laila Moustafa");
   expect(await call<string>("bookHtml", bookId)).toContain("Laila Moustafa");

@@ -1409,7 +1409,12 @@
       "forClass": "للفصل",
       "textBody": "النص",
       "textHint": "بالعربية أو الإنجليزية. حتى ١٥٠٠ حرف.",
-      "addTextButton": "أضف النص"
+      "addTextButton": "أضف النص",
+      "approvePage": "اعتماد هذه الصفحة",
+      "unapprovePage": "إلغاء الاعتماد",
+      "pageApproved": "الصفحة معتمدة",
+      "approvedBy": "اعتمدها {name}",
+      "pagesApproved": "{n} من {total} صفحة معتمدة"
     },
     "albums": {
       "title": "الألبومات",

@@ -394,11 +394,13 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
     case "bookReview": {
       const { data: book } = await supabase.from("books").select("id, version, status").eq("school_id", schoolId).eq("mac_id", String(body.macId ?? "")).maybeSingle();
       if (!book) return { checks: [], comments: [] };
-      const [{ data: checks }, { data: comments }] = await Promise.all([
+      const [{ data: checks }, { data: comments }, { data: approvals }] = await Promise.all([
         supabase.from("book_checks").select("student_code, ok, fixed_name, note, checked_at").eq("book_id", book.id),
         supabase.from("book_comments").select("id, page, body, author_name, done, created_at").eq("book_id", book.id).order("created_at"),
+        // Pages the principal approved in the version on the website (the Mac locks them).
+        supabase.from("book_page_approvals").select("page, page_id, approved, author_name, at").eq("book_id", book.id).eq("version", book.version),
       ]);
-      return { ...book, checks: checks ?? [], comments: comments ?? [] };
+      return { ...book, checks: checks ?? [], comments: comments ?? [], approvals: approvals ?? [] };
     }
   }
   return handlePosts(ctx, body, locale);
