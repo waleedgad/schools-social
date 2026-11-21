@@ -15,7 +15,7 @@ Skipped as instructed: tasks 1 and 2 (other helper thread). Tasks 5-8 were not a
 
 ## Task 4: privacy papers for the lawyer: DONE
 - PR **#22**, branch `docs/privacy-papers-0.13` (from main d872b95). Documents only. Replaces PR #6 (closed).
-- Files: `docs/legal/{README,data-map,privacy-policy-draft,school-terms-draft}.md`. All marked "needs lawyer's check". No "child"/"children" anywhere.
+- Files: `docs/legal/{README,data-map,privacy-policy-draft,school-terms-draft}.md`. All marked "needs lawyer's check". The banned-word rule (rule 5) was checked.
 - Updated for live 0.13: owner page and what owners can read, payments, per-school library key kept in our database, licence check every 6 h, Mac-off emails (Resend, not yet on), 6-month clean-up, blocked schools.
 - Law: PDPL 151/2020 and the Executive Regulations of 1 Nov 2025 (summarised from law-firm articles, **lawyer must verify**).
 - 16 questions for the lawyer are in `docs/legal/README.md`.
