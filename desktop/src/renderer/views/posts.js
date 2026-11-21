@@ -48,6 +48,7 @@ const PROMPTS = () => [
   ["sports", L("Sports result", "نتيجة رياضية"), "Report a sports match or day: the teams, the spirit, the result, and thanks to the coaches."],
   ["trip", L("Trip", "رحلة"), "A school trip: where they went, what they saw and learned, and thanks to the hosts."],
   ["reminder", L("Reminder for parents", "تذكير لأولياء الأمور"), "A clear reminder for parents: what, when, and what to bring or do. Friendly, not bossy."],
+  ["graduation", L("Graduation congratulations", "تهنئة الخريجين"), "Congratulate this year's graduates (KG2 or Grade 12) and their families: pride in the journey from their first day to today, thanks to teachers and parents, and good wishes for what comes next. Warm and dignified, no names."],
   ["admissions", L("Open day / admissions", "يوم مفتوح / القبول"), "Invite families thinking of joining: what makes the school special, with the date and how to book."],
 ];
 const TONES = () => [["", L("Tone: the school's voice", "النبرة: صوت المدرسة")], ["warm", L("Warm", "دافئة")], ["proud", L("Proud", "فخورة")], ["formal", L("Formal", "رسمية")], ["fun", L("Fun", "مرحة")], ["informative", L("Informative", "معلوماتية")]];
@@ -395,7 +396,7 @@ async function announcementBox(opts = {}) {
   m.innerHTML = `<h2>${icon("megaphone", 18)} ${L("Announcement", "إعلان")}</h2>
     <div class="ed"><div class="col gap12">
       <b class="small">${L("School templates", "قوالب المدرسة")}</b>
-      ${pills(PACK.map((p) => [p, { clean: L("Clean", "بسيط"), bold: L("Bold", "عريض"), split: L("Split", "مقسوم"), notice: L("Notice", "تنبيه"), event: L("Event", "فعالية"), holiday: L("Holiday", "عطلة") }[p]]), st.template, "data-tpl")}
+      ${pills(PACK.map((p) => [p, { clean: L("Clean", "بسيط"), bold: L("Bold", "عريض"), split: L("Split", "مقسوم"), notice: L("Notice", "تنبيه"), event: L("Event", "فعالية"), holiday: L("Holiday", "عطلة"), graduation: L("Graduation", "التخرج") }[p]]), st.template, "data-tpl")}
       <b class="small">${L("Our own designs", "تصاميمنا")}</b>
       <div class="row">${(designs ?? []).map((d) => `<button class="dsn ${st.template === `design:${d.path}` ? "on" : ""}" data-dsn="${esc(d.path)}"><img src="${esc(d.url)}" /></button>`).join("")}<button class="btn small" id="an-add">${icon("upload", 14)} ${L("Add a design…", "إضافة تصميم…")}</button></div>
       ${pills([["post", L("Post 4:5", "منشور 4:5")], ["square", L("Square", "مربع")], ["story", L("Story", "قصة")]], st.size, "data-size")}

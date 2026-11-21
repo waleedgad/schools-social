@@ -7,7 +7,7 @@ export const SIZES = { post: [1080, 1350], square: [1080, 1080], story: [1080, 1
 export type Size = keyof typeof SIZES;
 
 // The professional pack: drawn here, coloured with the school's colour.
-export const PACK = ["clean", "bold", "split", "notice", "event", "holiday"] as const;
+export const PACK = ["clean", "bold", "split", "notice", "event", "holiday", "graduation"] as const;
 export type Template = (typeof PACK)[number] | `design:${string}`;
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -191,6 +191,64 @@ export async function drawAnnouncement(canvas: HTMLCanvasElement, template: Temp
       }
       middle("#ffffff");
       ctx.fillStyle = "#ffffff";
+      footer();
+      break;
+    }
+    case "graduation": {
+      // Congratulations to the graduates (KG2, Grade 12): a deep background in
+      // the school's colour, gold confetti and a graduation cap.
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#14161b");
+      g.addColorStop(1, t.accent);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      const gold = "#e8c25a";
+      // Confetti in fixed places, so the picture is the same every time.
+      for (let i = 0; i < 46; i++) {
+        const x = ((i * 397) % 1000) / 1000, y = (((i * 7919) % 613) / 613) * 0.34;
+        ctx.save();
+        ctx.translate(w * x, h * y + 20);
+        ctx.rotate((i * 37) % 180);
+        ctx.fillStyle = i % 3 === 0 ? gold : i % 3 === 1 ? "rgba(255,255,255,.75)" : t.accent;
+        ctx.fillRect(-9, -4, 18, 8);
+        ctx.restore();
+      }
+      // The cap: a diamond board, the crown under it and a tassel.
+      const cx = w / 2, cy = h * 0.2;
+      ctx.fillStyle = "#0d0e11";
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 70);
+      ctx.lineTo(cx + 190, cy);
+      ctx.lineTo(cx, cy + 70);
+      ctx.lineTo(cx - 190, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx - 110, cy + 30);
+      ctx.lineTo(cx - 110, cy + 110);
+      ctx.quadraticCurveTo(cx, cy + 150, cx + 110, cy + 110);
+      ctx.lineTo(cx + 110, cy + 30);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = gold;
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + 150, cy + 24);
+      ctx.lineTo(cx + 150, cy + 120);
+      ctx.stroke();
+      ctx.fillStyle = gold;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(cx + 140, cy + 115, 20, 44);
+      ctx.font = `700 44px ${fontFamily()}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      ctx.direction = "rtl";
+      ctx.fillText("مبروك للخريجين · Congratulations", w / 2, h * 0.2 + 230);
+      middle("#ffffff", h * 0.2 + 270);
+      ctx.fillStyle = gold;
       footer();
       break;
     }

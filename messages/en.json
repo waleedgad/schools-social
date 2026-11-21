@@ -1278,7 +1278,8 @@
       "split": "Split",
       "notice": "Notice",
       "event": "Event date",
-      "holiday": "Holiday"
+      "holiday": "Holiday",
+      "graduation": "Graduation"
     },
     "card": "Announcement",
     "cardHint": "Pick a ready design, type the headline in Arabic and English, and the image is made for you.",
@@ -1583,6 +1584,10 @@
           "admissions": {
             "label": "Open day / admissions",
             "text": "Invite families thinking of joining: what makes the school special, with the date and how to book."
+          },
+          "graduation": {
+            "label": "Graduation congratulations",
+            "text": "Congratulate this year's graduates (KG2 or Grade 12) and their families: pride in the journey from their first day to today, thanks to teachers and parents, and good wishes for what comes next. Warm and dignified, no names."
           }
         }
       },

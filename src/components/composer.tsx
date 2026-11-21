@@ -77,7 +77,7 @@ export type ComposerData = {
 };
 
 const area = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20";
-const PROMPT_KEYS = ["recap", "achievement", "welcome", "occasion", "thanks", "learning", "sports", "trip", "reminder", "exams", "results", "admissions"] as const;
+const PROMPT_KEYS = ["recap", "achievement", "welcome", "occasion", "thanks", "learning", "sports", "trip", "reminder", "exams", "results", "graduation", "admissions"] as const;
 const REWRITES = ["shorter", "longer", "warmer", "formal", "emoji", "fixSpelling"] as const;
 
 function ratioOf(p: Photo) {
