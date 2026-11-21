@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { prepareImage, thumbPath } from "@/lib/images";
 import { createClient } from "@/lib/supabase/client";
+import { CloudImport } from "./cloud-import";
 
 type EventOption = { id: string; title: string; event_date: string };
 type Status = "waiting" | "uploading" | "done" | "error";
@@ -69,7 +70,7 @@ export function PhotoUploader({
     }
   }
 
-  async function start(files: FileList | null) {
+  async function start(files: FileList | File[] | null) {
     if (!files?.length) return;
     const list = Array.from(files);
     const offset = items.length;
@@ -150,6 +151,8 @@ export function PhotoUploader({
           }}
         />
       </label>
+
+      <CloudImport onFiles={start} disabled={busy} />
 
       {items.length > 0 && (
         <p className="text-sm" aria-live="polite">

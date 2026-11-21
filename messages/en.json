@@ -113,7 +113,26 @@
     "chooseHint": "From your phone's camera roll or your computer. Location data is removed.",
     "progress": "{done} of {total} uploaded",
     "failed": "{count} failed",
-    "yourCount": "You've shared {count} photos so far."
+    "yourCount": "You've shared {count} photos so far.",
+    "cloud": {
+      "title": "From Google Drive, OneDrive or Dropbox",
+      "google": "Choose from Google Drive",
+      "onedrive": "Choose from OneDrive",
+      "dropbox": "Choose from Dropbox",
+      "linksLabel": "Or paste shared links to photos (one or more)",
+      "linksHint": "Share each photo as \"Anyone with the link\". Folder links don't work here: open the folder and copy each photo's link, or use the Mac app's watched folders.",
+      "add": "Add these photos",
+      "fetching": "Getting the photos…",
+      "got": "{count, plural, one {# photo added.} other {# photos added.}}",
+      "problem": {
+        "link": "{count, plural, one {# link isn't} other {# links aren't}} a Google Drive, OneDrive or Dropbox photo.",
+        "private": "{count, plural, one {# photo is} other {# photos are}} not shared. Share as \"Anyone with the link\" and try again.",
+        "notPhoto": "{count, plural, one {# link isn't} other {# links aren't}} a photo (or the file is too big for Google's quick download).",
+        "big": "{count, plural, one {# photo is} other {# photos are}} over 40 MB.",
+        "readOnly": "Your school can't add photos right now.",
+        "fetch": "Couldn't get {count, plural, one {# photo} other {# photos}}. Try again."
+      }
+    }
   },
   "library": {
     "title": "Photo library",

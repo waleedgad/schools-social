@@ -254,6 +254,9 @@ test("yearbooks, graduation books, student books and flipbooks", async () => {
   // The Yearbooks tab lists all three books.
   await win.locator('button.nav[data-go="books"]').click();
   await expect(win.locator("body")).toContainText("Graduation Omar Hassan");
+  await expect(win.locator("#grad-archive")).toContainText("Graduating this year");
+  await win.locator("#grad-archive").scrollIntoViewIfNeeded();
+  await win.screenshot({ path: test.info().outputPath("graduation-archive.png") });
   expect((await call<unknown[]>("books")).length).toBe(3);
   await app.close();
 });
