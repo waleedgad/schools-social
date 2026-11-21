@@ -109,7 +109,17 @@ test("Is this …?: the face is never a blank square and is easy to find in the 
         return q?.classList.contains("nopic") && q.querySelector("svg") ? "figure" : "blank";
       }), { timeout: 30_000, message: "B-96: the face or a plain figure, never a blank square" })
       .toMatch(/^(face|figure)$/);
-    await expect(win.locator(".zoomconfirm .fbox"), "no ring on an empty frame").toHaveCount(0);
+    // No ring on an empty frame. The window may also still hold the small
+    // copy it showed in the Library earlier (seen on Mac with Electron 45):
+    // then the photo shows and the ring on it is right.
+    await expect
+      .poll(() => win.evaluate(() => {
+        const img = document.querySelector(".zoomconfirm .boxphoto img");
+        if (!(img instanceof HTMLImageElement)) return document.querySelector(".zoomconfirm .fbox") ? "ring without a photo" : "ok";
+        if (!img.complete) return "waiting";
+        return img.naturalWidth > 0 ? "ok" : "ring on an empty frame";
+      }), { timeout: 15_000, message: "no ring on an empty frame" })
+      .toBe("ok");
     const grey = await win.locator(".zoomconfirm .q").evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(grey).not.toBe("rgba(0, 0, 0, 0)");
 
