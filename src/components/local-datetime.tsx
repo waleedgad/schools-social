@@ -22,7 +22,7 @@ export function LocalDateTime({ name, label, value, disabled }: { name: string; 
         value={local}
         disabled={disabled}
         onChange={(e) => setLocal(e.target.value)}
-        className="w-full rounded-lg border border-border bg-background px-3 py-2"
+        className="w-full rounded-control border border-border bg-background px-3 py-2"
       />
       <input type="hidden" name={name} value={local ? new Date(local).toISOString() : ""} />
     </label>

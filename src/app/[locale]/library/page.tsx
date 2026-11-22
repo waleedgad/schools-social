@@ -139,7 +139,7 @@ export default async function LibraryPage({
                 <h2 className="text-sm font-semibold">{t("portal.links")}</h2>
                 <p className="text-xs text-muted">{t("portal.linksHint")}</p>
                 {(links ?? []).map((l) => (
-                  <div key={l.id} className="space-y-1 rounded-lg border border-border p-2 text-xs">
+                  <div key={l.id} className="space-y-1 rounded-control bg-foreground/[.04] p-2 text-xs">
                     <p className="font-semibold">{l.label}</p>
                     <p className="text-muted">
                       {t("portal.linkStats", { count: l.upload_count, date: l.expires_at.slice(0, 10) })}

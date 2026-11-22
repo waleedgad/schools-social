@@ -414,7 +414,7 @@ export default async function TodayPage({ params, searchParams }: { params: Prom
             <p className="text-xs text-muted">{t("today.customiseHint")}</p>
             <ul className="grid gap-2 sm:grid-cols-2">
               {allowed.map((k) => (
-                <li key={k} className="flex items-center gap-2 rounded-lg border border-border p-2 text-sm">
+                <li key={k} className="flex items-center gap-2 rounded-control bg-foreground/[.04] p-2 text-sm">
                   <input type="checkbox" name="section" value={k} defaultChecked={want.has(k)} />
                   <span className="grow">{t(`today.sections.${k}`)}</span>
                   <input type="number" name={`order.${k}`} min={1} max={20} defaultValue={chosen.indexOf(k) + 1 || allowed.indexOf(k) + 10} className="w-14 rounded border border-border bg-surface-2 px-1 text-xs" aria-label={t("today.order")} />

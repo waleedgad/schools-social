@@ -147,9 +147,9 @@ export default async function SettingsPage({ params, searchParams }: { params: P
               <p className="text-sm text-muted">{t("settings.termsHint")}</p>
               {[...terms, { name: "", start: "", end: "" }, { name: "", start: "", end: "" }].slice(0, Math.max(3, terms.length + 1)).map((tm, i) => (
                 <div key={i} className="grid grid-cols-[1fr_9rem_9rem] gap-2">
-                  <input name="termName" defaultValue={tm.name} placeholder={t("settings.termName")} maxLength={40} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
-                  <input name="termStart" type="date" defaultValue={tm.start} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
-                  <input name="termEnd" type="date" defaultValue={tm.end} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="termName" defaultValue={tm.name} placeholder={t("settings.termName")} maxLength={40} className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="termStart" type="date" defaultValue={tm.start} className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="termEnd" type="date" defaultValue={tm.end} className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
                 </div>
               ))}
               <Button variant="quiet">{t("common.save")}</Button>
@@ -161,9 +161,9 @@ export default async function SettingsPage({ params, searchParams }: { params: P
               <p className="text-sm text-muted">{t("more.settings.holidaysHint")}</p>
               {[...holidays, ...Array.from({ length: 3 }, () => ({ name: "", start: "", end: "" }))].slice(0, holidays.length + 3).map((h, i) => (
                 <div key={i} className="grid grid-cols-[1fr_9rem_9rem] gap-2">
-                  <input name="holName" defaultValue={h.name} placeholder={t("more.settings.holidayName")} maxLength={80} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
-                  <input name="holStart" type="date" defaultValue={h.start} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
-                  <input name="holEnd" type="date" defaultValue={h.end} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="holName" defaultValue={h.name} placeholder={t("more.settings.holidayName")} maxLength={80} className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="holStart" type="date" defaultValue={h.start} className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+                  <input name="holEnd" type="date" defaultValue={h.end} className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
                 </div>
               ))}
               <fieldset className="space-y-2 border-t border-border pt-3">

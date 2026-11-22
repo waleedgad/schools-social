@@ -67,7 +67,7 @@ export default async function StaffPage({
           <form action={viewAs} className="flex flex-wrap items-center gap-2 text-sm">
             <input type="hidden" name="locale" value={locale} />
             <span id="view-as-title" className="font-semibold">{t("more.viewAs.title")}</span>
-            <select name="role" aria-labelledby="view-as-title" defaultValue="teacher" className="rounded-lg border border-border bg-background px-2 py-1 text-sm">
+            <select name="role" aria-labelledby="view-as-title" defaultValue="teacher" className="rounded-control border border-border bg-background px-2 py-1 text-sm">
               {ROLES.filter((r) => r !== "admin").map((r) => <option key={r} value={r}>{t(`roles.${r}`)}</option>)}
             </select>
             <Button variant="quiet" className="!px-3 !py-1">{t("more.viewAs.go")}</Button>
@@ -111,7 +111,7 @@ export default async function StaffPage({
                         name="role"
                         defaultValue={m.role}
                         aria-label={t("staff.role")}
-                        className="rounded-lg border border-border bg-background px-2 py-1 text-sm"
+                        className="rounded-control border border-border bg-background px-2 py-1 text-sm"
                       >
                         {roleOptions}
                       </select>

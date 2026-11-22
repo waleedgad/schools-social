@@ -73,7 +73,7 @@ export default async function CoveragePage({ params, searchParams }: { params: P
             <form className="mb-3 flex flex-wrap items-center gap-2">
               {cls && <input type="hidden" name="class" value={cls} />}
               <input type="hidden" name="show" value={show} />
-              <input name="q" defaultValue={q} placeholder={t("coverage.search")} className="min-w-40 grow rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm" />
+              <input name="q" defaultValue={q} placeholder={t("coverage.search")} className="min-w-40 grow rounded-control border border-border bg-surface-2 px-3 py-1.5 text-sm" />
             </form>
             <Pills items={[["missing", t("coverage.missing")], ["few", t("coverage.few")], ["often", t("coverage.often")], ["all", t("coverage.everyone")]].map(([k, l]) => ({ label: l, href: { pathname: "/coverage", query: query({ show: k }) }, on: show === k }))} />
             {!rows.length ? (

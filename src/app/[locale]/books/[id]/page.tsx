@@ -110,7 +110,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
           <Card title={t("books.comments")}>
             <ul className="mb-3 space-y-2">
               {pageComments.map((c) => (
-                <li key={c.id as string} className={`rounded-lg border border-border p-2 text-sm ${c.done ? "opacity-50" : ""}`}>
+                <li key={c.id as string} className={`rounded-control bg-foreground/[.04] p-2 text-sm ${c.done ? "opacity-50" : ""}`}>
                   <p className="whitespace-pre-wrap">{c.body as string}</p>
                   <div className="mt-1 flex items-center gap-2 text-xs text-muted">
                     <span className="grow">{(c.author_name as string) ?? ""}</span>
@@ -158,7 +158,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
                           {c ? ` · ${c.ok ? t("books.ok") : t("books.fixed")}` : ""}
                         </span>
                       </div>
-                      <input name={`fix.${s.code}`} defaultValue={(c?.fixed_name as string) ?? ""} placeholder={t("books.fixPlaceholder")} className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm" />
+                      <input name={`fix.${s.code}`} defaultValue={(c?.fixed_name as string) ?? ""} placeholder={t("books.fixPlaceholder")} className="rounded-control border border-border bg-surface-2 px-3 py-1.5 text-sm" />
                     </li>
                   );
                 })}
@@ -175,7 +175,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
           <Card title={t("books.textsTitle")}>
             <ul className="space-y-2">
               {(texts ?? []).map((x) => (
-                <li key={x.id as string} className="rounded-lg border border-border p-2 text-sm">
+                <li key={x.id as string} className="rounded-control bg-foreground/[.04] p-2 text-sm">
                   <div className="mb-1 flex items-center gap-2 text-xs text-muted">
                     <Chip tone="accent">{t(`books.textKind.${x.kind}`)}</Chip>
                     {x.class_name && <span>{x.class_name as string}</span>}

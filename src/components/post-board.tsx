@@ -45,7 +45,7 @@ function Card({ p, locale, labels, picked, onPick }: { p: BoardPost; locale: str
     <div
       draggable
       onDragStart={(e) => e.dataTransfer.setData("text/post", p.id)}
-      className="group relative rounded-lg border border-border bg-surface p-2.5 shadow-sm transition hover:border-accent"
+      className="group relative card p-2.5 transition hover:ring-2 hover:ring-accent/50"
     >
       {onPick && (
         <input
@@ -210,7 +210,7 @@ export function PostBoard({ locale, view, posts, labels, canWrite, startIdea }: 
               </header>
               {col.key === "idea" && canWrite && (
                 adding ? (
-                  <form action={createPost} className="space-y-1.5 rounded-lg border border-border bg-surface p-2">
+                  <form action={createPost} className="space-y-1.5 card p-2">
                     <input type="hidden" name="locale" value={locale} />
                     <input type="hidden" name="kind" value="idea" />
                     <textarea name="idea" rows={3} required autoFocus maxLength={1000} placeholder={labels.ideaPlaceholder} className="w-full rounded-md border border-border bg-surface-2 p-2 text-sm outline-none focus:border-accent" />

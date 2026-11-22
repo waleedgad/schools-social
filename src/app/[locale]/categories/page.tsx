@@ -145,7 +145,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
               {[6, 0, 1, 2, 3, 4, 5].map((d) => {
                 const list = (slots ?? []).filter((s) => s.weekday === d);
                 return (
-                  <div key={d} className="rounded-lg border border-border p-2">
+                  <div key={d} className="rounded-control bg-foreground/[.04] p-2">
                     <b className="text-xs">{day(d)}</b>
                     {!list.length && <p className="text-[11px] text-faint">—</p>}
                     <ul className="mt-1 space-y-1">

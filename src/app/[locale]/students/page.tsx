@@ -137,7 +137,7 @@ export default async function StudentsPage({
           </div>
           <form className="flex gap-2">
             {Object.entries(query({ q: undefined })).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-            <input name="q" defaultValue={q} placeholder={t("more.students.search")} className="grow rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm" />
+            <input name="q" defaultValue={q} placeholder={t("more.students.search")} className="grow rounded-control border border-border bg-surface-2 px-3 py-1.5 text-sm" />
           </form>
           {[
             { list: stages, on: stage, param: "stage", reset: { grade: undefined, class: undefined } },
@@ -189,7 +189,7 @@ export default async function StudentsPage({
                       name="consent"
                       defaultValue={s.consent_social}
                       aria-label={t("students.consentLabel")}
-                      className={`rounded-lg border border-border bg-background px-2 py-1 text-sm ${CONSENT_STYLE[s.consent_social]}`}
+                      className={`rounded-control border border-border bg-background px-2 py-1 text-sm ${CONSENT_STYLE[s.consent_social]}`}
                     >
                       <option value="unknown">{t("students.consent.unknown")}</option>
                       <option value="yes">{t("students.consent.yes")}</option>

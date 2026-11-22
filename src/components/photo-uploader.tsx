@@ -97,7 +97,7 @@ export function PhotoUploader({
           value={eventId}
           onChange={(e) => setEventId(e.target.value)}
           disabled={busy}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2"
+          className="w-full rounded-control border border-border bg-background px-3 py-2"
         >
           <option value="">{t("noEvent")}</option>
           {events.map((e) => (
@@ -116,7 +116,7 @@ export function PhotoUploader({
           maxLength={280}
           placeholder={t("notePlaceholder")}
           disabled={busy}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2"
+          className="w-full rounded-control border border-border bg-background px-3 py-2"
         />
       </label>
 

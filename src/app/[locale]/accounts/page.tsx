@@ -103,7 +103,7 @@ export default async function AccountsPage({ params, searchParams }: { params: P
           <div className="space-y-4">
             <ul className="grid gap-3 sm:grid-cols-2">
               {accounts.map((a) => (
-                <li key={a.platform} className="flex items-center gap-3 rounded-xl border border-border p-3">
+                <li key={a.platform} className="flex items-center gap-3 rounded-control bg-foreground/[.04] p-3">
                   <span className="grid size-10 place-items-center rounded-full bg-accent-bg text-accent-ink">
                     <Icon name={a.platform} size={18} />
                   </span>

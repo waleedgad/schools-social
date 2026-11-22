@@ -33,8 +33,8 @@ export function FrameUploader({ locale, schoolId }: { locale: string; schoolId: 
       }}
     >
       <input name="file" type="file" accept="image/png" required className="text-sm" />
-      <input name="name" placeholder={t("frameName")} maxLength={60} className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
-      <select name="shape" className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm">
+      <input name="name" placeholder={t("frameName")} maxLength={60} className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+      <select name="shape" className="rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm">
         <option value="4:5">4:5</option>
         <option value="1:1">1:1</option>
         <option value="9:16">9:16</option>

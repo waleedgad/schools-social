@@ -140,7 +140,7 @@ export default async function PostsPage({
       title={t("board.title")}
       subtitle={t("board.subtitle")}
       actions={
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+        <div className="flex items-center gap-1 rounded-control border border-border bg-surface p-0.5">
           {(["board", "list", "grid"] as const).map((v) => (
             <ButtonLink key={v} href={{ pathname: "/posts", query: { ...(sp.category ? { category: sp.category } : {}), view: v } }} variant={view === v ? "primary" : "ghost"} icon={v === "board" ? "board" : v === "list" ? "list" : "grid"} className="!px-2.5 !py-1.5" label={t(`board.views.${v}`)}>
               <span className="hidden lg:inline">{t(`board.views.${v}`)}</span>

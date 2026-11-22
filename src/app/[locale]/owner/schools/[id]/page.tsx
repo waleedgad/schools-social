@@ -215,7 +215,7 @@ export default async function OwnerSchoolPage({
                   <input type="hidden" name="locale" value={locale} />
                   <input type="hidden" name="school" value={school.id} />
                   <input type="hidden" name="computer" value={c.id} />
-                  <input name="reason" placeholder={t("owner.reason")} aria-label={t("owner.reason")} maxLength={300} className="w-full rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs" />
+                  <input name="reason" placeholder={t("owner.reason")} aria-label={t("owner.reason")} maxLength={300} className="w-full rounded-control border border-border bg-surface-2 px-2 py-1 text-xs" />
                   <Button variant="danger" className="shrink-0 py-1 text-xs">
                     {t("owner.school.removeComputer")}
                   </Button>

@@ -262,7 +262,7 @@ export function WorkspaceSwitcher({ current, workspaces, label }: { current: str
         name="school"
         defaultValue={current}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
+        className="w-full rounded-control border border-border bg-background px-2 py-1.5 text-xs"
       >
         {workspaces.map((w) => (
           <option key={w.id} value={w.id}>
