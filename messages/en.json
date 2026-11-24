@@ -1921,7 +1921,8 @@
       "schools": "Schools",
       "new": "New school",
       "plans": "Plans and prices",
-      "log": "Owner log"
+      "log": "Owner log",
+      "keys": "Keys and switches"
     },
     "trial": "trial",
     "daysLeft": "{days, plural, =0 {ends today} one {# day left} other {# days left}}",
@@ -2079,6 +2080,104 @@
         "extra_managers": "Extra managing users",
         "extra_computers": "Extra computers",
         "amount": "Amount"
+      }
+    },
+    "keys": {
+      "title": "Keys and switches",
+      "intro": "Every free key the website can use. Each one shows whether it is on, the exact name to add in Vercel (Project > Settings > Environment Variables) and where the key comes from. Values are never shown here.",
+      "when": {
+        "now": "Needed for testing now",
+        "schools": "Before the first school",
+        "later": "Later"
+      },
+      "on": "On",
+      "off": "Off",
+      "add": "Add in Vercel:",
+      "inSupabase": "Switch it on in Supabase: Authentication > Sign In / Providers. No Vercel key needed; the button shows on the sign-in page within 5 minutes.",
+      "optional": "Optional:",
+      "where": "Where to get it",
+      "testButton": "Test",
+      "test": {
+        "ok": "{name}: the key works.",
+        "fail": "{name}: the key didn't work. Check it in Vercel, then redeploy."
+      },
+      "redeploy": "After adding or changing a key in Vercel, redeploy the site (Deployments > ... > Redeploy) so it is used.",
+      "items": {
+        "database": {
+          "name": "Database (Supabase)",
+          "what": "Sign-in, the school's data and photos. Nothing works without it.",
+          "how": "Supabase > Project Settings > API Keys: the URL, the anon key and the service role (secret) key."
+        },
+        "site": {
+          "name": "Website address",
+          "what": "Used in links (approval links, alerts) so they open the right site.",
+          "how": "The live address, for example https://schoolsocialhub.seen-marketing.net"
+        },
+        "scheduler": {
+          "name": "Scheduler secret",
+          "what": "Protects the every-5-minutes publishing run, so only Supabase's scheduled job can start it.",
+          "how": "Any long random text; the same text goes in the Supabase scheduled job's Authorization header."
+        },
+        "gemini": {
+          "name": "AI (Gemini)",
+          "what": "Captions, photo picks, replies and every other AI text. Free tier while testing.",
+          "how": "Google AI Studio > Get API key (free)."
+        },
+        "meta": {
+          "name": "Facebook and Instagram (Meta app)",
+          "what": "Connecting the school's Page and Instagram, publishing, comments, messages and results.",
+          "how": "Meta for Developers > your app > App settings > Basic: App ID and App secret."
+        },
+        "googleSignIn": {
+          "name": "Sign in with Google",
+          "what": "Staff sign in with their school Google account.",
+          "how": "Make a free OAuth client in Google Cloud, then paste its id and secret in Supabase's Google provider."
+        },
+        "microsoftSignIn": {
+          "name": "Sign in with Microsoft",
+          "what": "Staff sign in with their school Microsoft 365 account.",
+          "how": "Register a free app in Microsoft Entra, then paste its id and secret in Supabase's Azure provider."
+        },
+        "dropbox": {
+          "name": "Dropbox picker",
+          "what": "Choose photos from Dropbox on the upload page (pasted links already work without it).",
+          "how": "Dropbox App Console > Create app > App key."
+        },
+        "googleDrive": {
+          "name": "Google Drive picker",
+          "what": "Choose photos from Google Drive on the upload page (pasted links already work without it).",
+          "how": "Google Cloud > Credentials: an OAuth client id and an API key with the Picker API switched on."
+        },
+        "oneDrive": {
+          "name": "OneDrive picker",
+          "what": "Choose photos from OneDrive on the upload page (pasted links already work without it).",
+          "how": "Microsoft Entra > App registrations > New registration: the Application (client) ID."
+        },
+        "classroom": {
+          "name": "Google Classroom class lists",
+          "what": "Bring students and classes straight from Google Classroom (the Excel import works without it).",
+          "how": "Google Cloud > Credentials: an OAuth client with the Classroom API switched on."
+        },
+        "teams": {
+          "name": "Microsoft Teams class lists",
+          "what": "Bring students and classes from Microsoft Teams / School Data Sync.",
+          "how": "Microsoft Entra > App registrations: client ID and a client secret, with EduRoster.ReadBasic."
+        },
+        "support": {
+          "name": "Support WhatsApp",
+          "what": "The WhatsApp support button in Help.",
+          "how": "Your support number with the country code, for example 201001234567."
+        },
+        "email": {
+          "name": "Email alerts (Resend)",
+          "what": "Emails to the team. Waiting for the email release (Later list L-40); Slack and Teams alerts work without it.",
+          "how": "Resend > API Keys, and verify the sending domain in Resend."
+        },
+        "whatsapp": {
+          "name": "School WhatsApp number for photos",
+          "what": "Teachers send photos to a school WhatsApp number. Needs Meta's business verification first.",
+          "how": "Meta Business > WhatsApp accounts: a permanent token, and any verify text you choose."
+        }
       }
     }
   }

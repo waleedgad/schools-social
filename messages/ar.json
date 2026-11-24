@@ -1921,7 +1921,8 @@
       "schools": "المدارس",
       "new": "مدرسة جديدة",
       "plans": "الباقات والأسعار",
-      "log": "سجل المالك"
+      "log": "سجل المالك",
+      "keys": "المفاتيح والتشغيل"
     },
     "trial": "تجريبية",
     "daysLeft": "{days, plural, =0 {تنتهي اليوم} one {بقي يوم واحد} two {بقي يومان} few {بقيت # أيام} many {بقي # يومًا} other {بقي # يوم}}",
@@ -2079,6 +2080,104 @@
         "extra_managers": "مستخدمو إدارة إضافيون",
         "extra_computers": "أجهزة إضافية",
         "amount": "المبلغ"
+      }
+    },
+    "keys": {
+      "title": "المفاتيح والتشغيل",
+      "intro": "كل المفاتيح المجانية التي يستخدمها الموقع. لكل مفتاح: هل هو يعمل، والاسم بالضبط الذي يُضاف في Vercel (Project > Settings > Environment Variables)، ومن أين يُحصل عليه. القيم نفسها لا تظهر هنا أبدًا.",
+      "when": {
+        "now": "مطلوب للتجربة الآن",
+        "schools": "قبل أول مدرسة",
+        "later": "لاحقًا"
+      },
+      "on": "يعمل",
+      "off": "متوقف",
+      "add": "أضف في Vercel:",
+      "inSupabase": "شغّله من Supabase: Authentication > Sign In / Providers. لا يحتاج مفتاحًا في Vercel؛ يظهر الزر في صفحة الدخول خلال ٥ دقائق.",
+      "optional": "اختياري:",
+      "where": "من أين تحصل عليه",
+      "testButton": "اختبار",
+      "test": {
+        "ok": "{name}: المفتاح يعمل.",
+        "fail": "{name}: المفتاح لم يعمل. راجعه في Vercel ثم أعد النشر."
+      },
+      "redeploy": "بعد إضافة مفتاح أو تغييره في Vercel، أعد نشر الموقع (Deployments > ... > Redeploy) ليبدأ استخدامه.",
+      "items": {
+        "database": {
+          "name": "قاعدة البيانات (Supabase)",
+          "what": "الدخول وبيانات المدرسة والصور. لا يعمل شيء بدونها.",
+          "how": "Supabase > Project Settings > API Keys: الرابط والمفتاح العام ومفتاح الخدمة السري."
+        },
+        "site": {
+          "name": "عنوان الموقع",
+          "what": "يُستخدم في الروابط (روابط الموافقة والتنبيهات) لتفتح الموقع الصحيح.",
+          "how": "العنوان الفعلي، مثل https://schoolsocialhub.seen-marketing.net"
+        },
+        "scheduler": {
+          "name": "كلمة سر الجدولة",
+          "what": "تحمي تشغيل النشر كل ٥ دقائق، فلا يبدأه إلا مهمة Supabase المجدولة.",
+          "how": "أي نص طويل عشوائي؛ ونفس النص يوضع في ترويسة Authorization في مهمة Supabase المجدولة."
+        },
+        "gemini": {
+          "name": "الذكاء الاصطناعي (Gemini)",
+          "what": "النصوص واختيار الصور والردود وكل نص يكتبه الذكاء الاصطناعي. الباقة المجانية أثناء التجربة.",
+          "how": "Google AI Studio > Get API key (مجاني)."
+        },
+        "meta": {
+          "name": "فيسبوك وإنستجرام (تطبيق Meta)",
+          "what": "ربط صفحة المدرسة وإنستجرام، والنشر والتعليقات والرسائل والنتائج.",
+          "how": "Meta for Developers > تطبيقك > App settings > Basic: App ID وApp secret."
+        },
+        "googleSignIn": {
+          "name": "الدخول بحساب Google",
+          "what": "يدخل فريق المدرسة بحساب Google المدرسي.",
+          "how": "أنشئ OAuth client مجانيًا في Google Cloud، ثم الصق المعرّف والسر في مزود Google في Supabase."
+        },
+        "microsoftSignIn": {
+          "name": "الدخول بحساب Microsoft",
+          "what": "يدخل فريق المدرسة بحساب Microsoft 365 المدرسي.",
+          "how": "سجّل تطبيقًا مجانيًا في Microsoft Entra، ثم الصق المعرّف والسر في مزود Azure في Supabase."
+        },
+        "dropbox": {
+          "name": "اختيار الصور من Dropbox",
+          "what": "اختيار الصور من Dropbox في صفحة الرفع (لصق الروابط يعمل بدونه).",
+          "how": "Dropbox App Console > Create app > App key."
+        },
+        "googleDrive": {
+          "name": "اختيار الصور من Google Drive",
+          "what": "اختيار الصور من Google Drive في صفحة الرفع (لصق الروابط يعمل بدونه).",
+          "how": "Google Cloud > Credentials: OAuth client id ومفتاح API مع تشغيل Picker API."
+        },
+        "oneDrive": {
+          "name": "اختيار الصور من OneDrive",
+          "what": "اختيار الصور من OneDrive في صفحة الرفع (لصق الروابط يعمل بدونه).",
+          "how": "Microsoft Entra > App registrations > New registration: Application (client) ID."
+        },
+        "classroom": {
+          "name": "قوائم الفصول من Google Classroom",
+          "what": "جلب الطلاب والفصول مباشرة من Google Classroom (استيراد Excel يعمل بدونه).",
+          "how": "Google Cloud > Credentials: OAuth client مع تشغيل Classroom API."
+        },
+        "teams": {
+          "name": "قوائم الفصول من Microsoft Teams",
+          "what": "جلب الطلاب والفصول من Microsoft Teams / School Data Sync.",
+          "how": "Microsoft Entra > App registrations: client ID وclient secret مع صلاحية EduRoster.ReadBasic."
+        },
+        "support": {
+          "name": "واتساب الدعم",
+          "what": "زر الدعم عبر واتساب في المساعدة.",
+          "how": "رقم الدعم مع كود الدولة، مثل 201001234567."
+        },
+        "email": {
+          "name": "تنبيهات البريد (Resend)",
+          "what": "رسائل البريد للفريق. تنتظر إصدار البريد (القائمة اللاحقة L-40)؛ تنبيهات Slack وTeams تعمل بدونها.",
+          "how": "Resend > API Keys، وتوثيق نطاق الإرسال في Resend."
+        },
+        "whatsapp": {
+          "name": "رقم واتساب المدرسة للصور",
+          "what": "يرسل المعلمون الصور إلى رقم واتساب المدرسة. يحتاج توثيق النشاط التجاري من Meta أولًا.",
+          "how": "Meta Business > WhatsApp accounts: رمز دائم، وأي نص تحقق تختاره."
+        }
       }
     }
   }

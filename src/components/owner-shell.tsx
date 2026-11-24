@@ -4,11 +4,12 @@ import { Link } from "@/i18n/navigation";
 import { LanguageSwitcher } from "./language-switcher";
 import { SignOutButton } from "./sign-out-button";
 
-type Tab = "schools" | "new" | "plans" | "log";
+type Tab = "schools" | "new" | "plans" | "keys" | "log";
 const TABS: { key: Tab; href: string }[] = [
   { key: "schools", href: "/owner" },
   { key: "new", href: "/owner/new" },
   { key: "plans", href: "/owner/plans" },
+  { key: "keys", href: "/owner/keys" },
   { key: "log", href: "/owner/log" },
 ];
 

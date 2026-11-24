@@ -364,3 +364,9 @@ export async function recentPagePosts(pageId: string, token: string, limit = 100
     .filter((p) => p.message?.trim())
     .map((p) => ({ text: p.message!.trim(), at: p.created_time, score: (p.reactions?.summary.total_count ?? 0) + (p.comments?.summary.total_count ?? 0) * 2 + (p.shares?.count ?? 0) * 3 }));
 }
+
+// Owner > Keys and switches (release 0.17): do the app id and secret in
+// Vercel work? Meta answers with the app's name.
+export async function checkApp() {
+  return (await graph<{ id: string; name?: string }>("app", { access_token: `${metaAppId()}|${metaSecret()}` })).name ?? "";
+}
