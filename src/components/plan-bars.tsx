@@ -53,7 +53,7 @@ export async function BlockedScreen({ status, schoolName, locale }: { status: Pl
           <p className="text-sm text-muted">{t("plan.blocked.noContact")}</p>
         )}
         <p className="text-xs text-muted">{t("plan.blocked.safe")}</p>
-        <SignOutButton locale={locale} label={t("common.signOut")} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-background" />
+        <SignOutButton locale={locale} label={t("common.signOut")} className="rounded-control bg-foreground/[.07] hover:bg-foreground/[.11] px-4 py-2 text-sm font-semibold" />
       </div>
     </main>
   );

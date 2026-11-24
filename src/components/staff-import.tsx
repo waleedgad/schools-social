@@ -51,7 +51,7 @@ export function StaffImport({ locale }: { locale: string }) {
       {done !== null && <p className="text-sm text-good">{t("done", { count: done })}</p>}
       {rows && rows.length > 0 && done === null && (
         <div className="space-y-2">
-          <ul className="max-h-48 divide-y divide-border overflow-auto rounded-lg border border-border text-sm">
+          <ul className="max-h-48 divide-y divide-border overflow-auto rounded-control border border-border text-sm">
             {rows.slice(0, 50).map((r, i) => (
               <li key={i} className="flex justify-between gap-2 px-2 py-1">
                 <span className="truncate">{r.name || "—"}</span>

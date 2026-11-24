@@ -211,7 +211,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
           <FrameUploader locale={locale} schoolId={schoolId} />
           <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {(frames ?? []).map((f) => (
-              <li key={f.id} className="overflow-hidden rounded-lg border border-border">
+              <li key={f.id} className="overflow-hidden rounded-control border border-border">
                 <div className="bg-[repeating-conic-gradient(var(--color-grey-bg)_0_25%,transparent_0_50%)] bg-[length:16px_16px]">
                   {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
                   <img src={frameUrls.get(f.storage_path)} alt="" className="aspect-[4/5] w-full object-contain" />

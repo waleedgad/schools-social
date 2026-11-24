@@ -361,7 +361,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
             <p className="mb-3 text-sm text-muted">{t("more.connections.classListsHint")}</p>
             <div className="flex flex-wrap gap-2">
               {classListProviders().map((p) => (
-                <a key={p.key} href={p.ready ? `/api/class-lists/start?provider=${p.key}&locale=${locale}` : undefined} aria-disabled={!p.ready} className={`inline-flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold ${p.ready ? "hover:bg-background" : "pointer-events-none opacity-50"}`}>
+                <a key={p.key} href={p.ready ? `/api/class-lists/start?provider=${p.key}&locale=${locale}` : undefined} aria-disabled={!p.ready} className={`inline-flex items-center gap-1.5 rounded-control bg-foreground/[.07] px-3.5 py-2 text-sm font-semibold ${p.ready ? "hover:bg-foreground/[.11]" : "pointer-events-none opacity-50"}`}>
                   <Icon name="students" />
                   {t(`more.connections.from.${p.key}`)}
                 </a>

@@ -173,7 +173,7 @@ export default async function LibraryPage({
               <div className="flex flex-wrap items-center gap-2">
                 <Link
                   href={{ pathname: "/library", query: { event: selected, ...(byAi ? {} : { sort: "ai" }) } }}
-                  className="rounded-lg border border-border px-3 py-2 text-sm"
+                  className="rounded-control bg-foreground/[.07] hover:bg-foreground/[.11] px-3 py-2 text-sm"
                 >
                   {byAi ? t("library.sortNewest") : t("library.sortAi")}
                 </Link>
