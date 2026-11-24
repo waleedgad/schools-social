@@ -13,6 +13,11 @@ import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import type { Captions } from "@/lib/ai/types";
 
+// Why a post failed, in plain words (release 0.17); older posts have no reason.
+// Only real Facebook or Instagram addresses become links.
+const safeLink = (v: unknown) => (typeof v === "string" && /^https:\/\/(www\.)?(facebook|instagram)\.com\//.test(v) ? v : null);
+const REASONS: unknown[] = ["busy", "reconnect", "photo", "caption", "daily_limit", "duplicate", "check", "other"];
+
 export default async function PostPage({
   params,
   searchParams,
@@ -183,7 +188,40 @@ export default async function PostPage({
     >
       {notice}
       {status === "rejected" && post.review_note && <Notice tone="warn">{t("posts.changesAsked", { note: post.review_note })}</Notice>}
-      {status === "failed" && post.publish_error && <Notice>{t("posts.failedBecause", { error: post.publish_error })}</Notice>}
+      {status === "failed" && post.publish_error && (
+        <Notice>
+          {REASONS.includes(post.publish_reason) ? (
+            <>
+              <b className="block">{t(`posts.reason.${post.publish_reason}`)}</b>
+              <span className="text-xs opacity-80">{t("posts.metaSaid", { error: post.publish_error })}</span>
+              {post.publish_reason === "reconnect" && (
+                <a href={`/${locale}/accounts`} className="mt-1 block font-semibold underline">
+                  {t("posts.openAccounts")}
+                </a>
+              )}
+            </>
+          ) : (
+            t("posts.failedBecause", { error: post.publish_error })
+          )}
+        </Notice>
+      )}
+      {status === "scheduled" && post.retry_at && (
+        <Notice tone="warn">{t("posts.retrying", { time: new Date(post.retry_at).toLocaleTimeString(locale === "ar" ? "ar-EG" : "en-GB", { hour: "2-digit", minute: "2-digit", timeZone: membership.school.timezone }) })}</Notice>
+      )}
+      {status === "published" && (safeLink(post.fb_url) || safeLink(post.ig_url)) && (
+        <div className="flex flex-wrap gap-4 text-sm font-semibold">
+          {safeLink(post.fb_url) && (
+            <a href={safeLink(post.fb_url)!} target="_blank" rel="noopener noreferrer" className="text-accent-ink hover:underline">
+              {t("posts.viewOn.facebook")}
+            </a>
+          )}
+          {safeLink(post.ig_url) && (
+            <a href={safeLink(post.ig_url)!} target="_blank" rel="noopener noreferrer" className="text-accent-ink hover:underline">
+              {t("posts.viewOn.instagram")}
+            </a>
+          )}
+        </div>
+      )}
       <PostPresence schoolId={schoolId} postId={id} me={{ id: user.id, name: membership.fullName }} label={t("posts.presence")} />
       {at >= 0 && (
         <SwipeNav

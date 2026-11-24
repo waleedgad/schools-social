@@ -2,7 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notify } from "./alerts";
 import { readsRight } from "./captions";
-import { addComment, MetaError, publishStory, publishToFacebook, publishToInstagram } from "./meta";
+import { addComment, findFacebookPost, type IgSaved, MetaError, permalinkOf, publishStory, publishToFacebook, publishToInstagram } from "./meta";
+import { fitsInstagram, instagramProblems, nextRetry, type MetaReason } from "./meta-errors";
 import { stateWithServiceKey } from "./plan";
 import { isOwnPath } from "./paths";
 
@@ -19,6 +20,9 @@ type Post = {
   collaborators: string[];
   fb_post_id: string | null;
   ig_media_id: string | null;
+  ig_container_id: string | null;
+  attempts: number;
+  publish_reason: string | null;
 };
 
 export function captionText(p: Pick<Post, "caption_ar" | "caption_en" | "hashtags">) {
@@ -34,71 +38,121 @@ export function instagramText(p: Pick<Post, "caption_ar" | "caption_en" | "capti
 // Publishes one post that is already marked "publishing". Runs with the
 // server key. A platform that already worked is skipped on a retry.
 async function publishClaimed(admin: SupabaseClient, post: Post) {
-  const fail = async (message: string) => {
-    await admin.from("posts").update({ status: "failed", publish_error: message.slice(0, 500) }).eq("id", post.id);
-    await notify(post.school_id, "failed", "A post didn't go out · لم يُنشر منشور", message.slice(0, 300), `/posts/${post.id}`);
+  // reason (release 0.17): a short code the screens show in plain Arabic or
+  // English; message keeps Meta's own words.
+  const fail = async (message: string, reason: MetaReason | "check" = "other") => {
+    await admin.from("posts").update({ status: "failed", publish_error: message.slice(0, 500), publish_reason: reason, retry_at: null }).eq("id", post.id);
+    await notify(post.school_id, "failed", "A post didn't go out · لم يُنشر منشور", message.slice(0, 300), `/posts/${post.id}`, { key: `failed:${post.id}:${post.attempts}` });
   };
 
   const { data: rows } = await admin
     .from("post_photos")
-    .select("position, photo:photos(storage_path, edited_path, contains_opted_out, check_status)")
+    .select("position, photo:photos(storage_path, edited_path, contains_opted_out, check_status, width, height)")
     .eq("post_id", post.id)
     .order("position");
-  const photos = (rows ?? [])
-    .map((r) => r.photo as unknown as { storage_path: string; edited_path: string | null; contains_opted_out: boolean; check_status: string } | null)
-    .filter((p) => p !== null);
+  type Photo = { storage_path: string; edited_path: string | null; contains_opted_out: boolean; check_status: string; width: number | null; height: number | null };
+  const photos = (rows ?? []).map((r) => r.photo as unknown as Photo | null).filter((p) => p !== null);
 
-  if (!photos.length && post.platforms.includes("instagram")) return fail("Instagram posts need at least one photo.");
-  if (photos.some((p) => p.contains_opted_out)) return fail("A photo in this post is now marked not for posting.");
-  if (photos.some((p) => p.check_status === "waiting")) return fail("A photo hasn't been checked on the Mac yet.");
+  if (!photos.length && post.platforms.includes("instagram")) return fail("Instagram posts need at least one photo.", "check");
+  if (photos.some((p) => p.contains_opted_out)) return fail("A photo in this post is now marked not for posting.", "check");
+  if (photos.some((p) => p.check_status === "waiting")) return fail("A photo hasn't been checked on the Mac yet.", "check");
 
   const { data: meta } = await admin
     .from("meta_connections")
-    .select("page_id, page_token, ig_user_id, fb_paused, ig_paused")
+    .select("page_id, page_token, ig_user_id, fb_paused, ig_paused, needs_reconnect")
     .eq("school_id", post.school_id)
     .maybeSingle();
-  if (!meta?.page_id || !meta.page_token) return fail("Connect the school's Facebook Page in settings first.");
+  if (!meta?.page_id || !meta.page_token) return fail("Connect the school's Facebook Page in settings first.", "reconnect");
+  // Release 0.17: the key stopped working; nothing is tried until someone reconnects.
+  // (No alert per post: the school already got one "Reconnect Facebook".)
+  if (meta.needs_reconnect) {
+    await admin.from("posts").update({ status: "failed", publish_error: "Facebook signed the school out. Reconnect on the Accounts page, then try again.", publish_reason: "reconnect", retry_at: null }).eq("id", post.id);
+    return;
+  }
+
+  const toInstagram = post.platforms.includes("instagram") && !post.ig_media_id && !meta.ig_paused;
+  if (toInstagram) {
+    // The same rules the post screen checks, again just before posting (the
+    // post may have changed since it was approved).
+    const problems = instagramProblems(instagramText(post), photos.length);
+    if (problems.length) return fail(`Instagram would refuse this post: ${problems.join(", ")}.`, problems.some((x) => x === "no_photo" || x === "too_many_photos") ? "photo" : "caption");
+    // Photos edited on the website (Fix shape) are 4:5; the width and height
+    // saved are of the original, so only unedited photos are checked here.
+    if (photos.some((p) => !p.edited_path && !fitsInstagram(p.width ?? 0, p.height ?? 0))) return fail("A photo has a shape Instagram doesn't take. Use Fix shape on the post.", "photo");
+  }
 
   let urls: string[] = [];
   if (photos.length) {
     // S-21N-03: only the school's own files are signed with the server key.
-    if (photos.some((p) => !isOwnPath(post.school_id, p.edited_path ?? p.storage_path))) return fail("A photo in this post belongs to another school.");
+    if (photos.some((p) => !isOwnPath(post.school_id, p.edited_path ?? p.storage_path))) return fail("A photo in this post belongs to another school.", "check");
     const { data: signed } = await admin.storage
       .from("photos")
       .createSignedUrls(photos.map((p) => p.edited_path ?? p.storage_path), 60 * 60);
     urls = (signed ?? []).map((s) => s.signedUrl).filter(Boolean) as string[];
-    if (urls.length !== photos.length) return fail("Couldn't prepare the photo links.");
+    if (urls.length !== photos.length) return fail("Couldn't prepare the photo links.", "busy");
   }
 
   let fb = post.fb_post_id;
   let ig = post.ig_media_id;
   try {
     if (post.platforms.includes("facebook") && !fb && !meta.fb_paused) {
-      fb = await publishToFacebook(meta.page_id, meta.page_token, urls, captionText(post));
-      await admin.from("posts").update({ fb_post_id: fb }).eq("id", post.id);
-      if (post.first_comment?.trim()) await addComment(fb, meta.page_token, post.first_comment.trim()).catch(() => null);
+      const text = captionText(post);
+      // An earlier try that timed out may have posted after all (release 0.17).
+      if (post.attempts > 1 && post.publish_reason === "busy") fb = await findFacebookPost(meta.page_id, meta.page_token, text);
+      if (!fb) {
+        fb = await publishToFacebook(meta.page_id, meta.page_token, urls, text);
+        if (post.first_comment?.trim()) await addComment(fb, meta.page_token, post.first_comment.trim()).catch(() => null);
+      }
+      await admin.from("posts").update({ fb_post_id: fb, fb_url: await permalinkOf("facebook", fb, meta.page_token) }).eq("id", post.id);
     }
-    if (post.platforms.includes("instagram") && !ig && !meta.ig_paused) {
-      if (!meta.ig_user_id) throw new MetaError("No Instagram business account is linked to the Facebook Page.");
-      ig = await publishToInstagram(meta.ig_user_id, meta.page_token, urls, instagramText(post), post.collaborators);
-      await admin.from("posts").update({ ig_media_id: ig }).eq("id", post.id);
-      if (post.first_comment?.trim()) await addComment(ig, meta.page_token, post.first_comment.trim()).catch(() => null);
-      if (post.make_story && urls[0]) await publishStory(meta.ig_user_id, meta.page_token, urls[0]).catch(() => null);
+    if (toInstagram) {
+      if (!meta.ig_user_id) throw new MetaError("No Instagram business account is linked to the Facebook Page.", "reconnect");
+      const saved: IgSaved = {
+        container: post.ig_container_id,
+        onContainer: async (id) => void (await admin.from("posts").update({ ig_container_id: id }).eq("id", post.id)),
+      };
+      ig = await publishToInstagram(meta.ig_user_id, meta.page_token, urls, instagramText(post), post.collaborators, saved);
+      await admin.from("posts").update({ ig_media_id: ig, ig_url: await permalinkOf("instagram", ig, meta.page_token) }).eq("id", post.id);
+      // Only on the try that made the post (not when an earlier one is found).
+      const fresh = !saved.found;
+      if (fresh && post.first_comment?.trim()) await addComment(ig, meta.page_token, post.first_comment.trim()).catch(() => null);
+      if (fresh && post.make_story && urls[0]) await publishStory(meta.ig_user_id, meta.page_token, urls[0]).catch(() => null);
     }
   } catch (e) {
-    await admin.from("meta_connections").update({ last_error: String((e as Error).message).slice(0, 300) }).eq("school_id", post.school_id);
-    return fail(e instanceof MetaError ? e.message : "Publishing failed. Try again in a few minutes.");
+    const err = e instanceof MetaError ? e : new MetaError("Publishing failed. Try again in a few minutes.", "busy");
+    await admin.from("meta_connections").update({ last_error: err.message.slice(0, 300) }).eq("school_id", post.school_id);
+    if (err.reason === "reconnect") {
+      // Mark the account once; one alert for the school, not one per post.
+      const { data: marked } = await admin
+        .from("meta_connections")
+        .update({ needs_reconnect: true, reconnect_since: new Date().toISOString() })
+        .eq("school_id", post.school_id)
+        .eq("needs_reconnect", false)
+        .select("school_id");
+      if (marked?.length) {
+        await notify(post.school_id, "failed", "Reconnect Facebook · أعد ربط فيسبوك", "Facebook signed the school out, so posts can't go out. Open Accounts and press Reconnect.\nفيسبوك أخرج حساب المدرسة، لذلك لا تُنشر المنشورات. افتح الحسابات واضغط إعادة الربط.", "/accounts", { key: `reconnect:${Date.now()}` });
+      }
+      await admin.from("posts").update({ status: "failed", publish_error: err.message.slice(0, 500), publish_reason: "reconnect", retry_at: null }).eq("id", post.id);
+      return;
+    }
+    // Meta busy: back in line, tried again after 5, 15 and 45 minutes.
+    const retry = err.reason === "busy" ? nextRetry(post.attempts) : null;
+    if (retry) {
+      await admin.from("posts").update({ status: "scheduled", retry_at: retry.toISOString(), publish_error: err.message.slice(0, 500), publish_reason: "busy" }).eq("id", post.id);
+      return;
+    }
+    return fail(err.message, err.reason);
   }
 
   await admin
     .from("posts")
-    .update({ status: "published", published_at: new Date().toISOString(), publish_error: null })
+    .update({ status: "published", published_at: new Date().toISOString(), publish_error: null, publish_reason: null, retry_at: null })
     .eq("id", post.id);
   await admin.from("meta_connections").update({ last_error: null }).eq("school_id", post.school_id);
   await admin.from("audit_log").insert({ school_id: post.school_id, action: "post.published", target: post.id, details: { fb, ig } });
 }
 
-const COLUMNS = "id, school_id, caption_ar, caption_en, caption_ig, hashtags, first_comment, platforms, make_story, collaborators, fb_post_id, ig_media_id";
+const COLUMNS = "id, school_id, caption_ar, caption_en, caption_ig, hashtags, first_comment, platforms, make_story, collaborators, fb_post_id, ig_media_id, ig_container_id, attempts, publish_reason";
 
 // Takes the post only if it is still waiting, so two runs never post twice.
 async function claim(admin: SupabaseClient, id: string, from: "scheduled" | "failed") {
@@ -154,7 +208,8 @@ export async function publishDue(admin: SupabaseClient, limit = 5, budgetMs = 40
   const started = Date.now();
   let published = 0;
   while (Date.now() - started < budgetMs) {
-    let query = admin.from("posts").select("id").eq("status", "scheduled").lte("scheduled_at", now).order("scheduled_at").limit(limit);
+    // A post Meta was busy for waits for its retry time (release 0.17).
+    let query = admin.from("posts").select("id").eq("status", "scheduled").lte("scheduled_at", now).or(`retry_at.is.null,retry_at.lte.${now}`).order("scheduled_at").limit(limit);
     if (pausedIds.length) query = query.not("school_id", "in", `(${pausedIds.join(",")})`);
     const { data: due } = await query;
     if (!due?.length) break;

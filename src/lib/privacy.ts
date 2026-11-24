@@ -103,6 +103,9 @@ export async function checkPost(
     if (photos.length > LIMITS.instagram.photos) checks.push({ level: "warn", key: "igLimit", values: { count: LIMITS.instagram.photos } });
     const tags = (post.caption_ig || [post.caption_ar, post.caption_en, post.hashtags].join(" ")).match(/#[\p{L}\p{N}_]+/gu)?.length ?? 0;
     if (tags > LIMITS.instagram.hashtags) checks.push({ level: "block", key: "igHashtags", values: { count: LIMITS.instagram.hashtags } });
+    // Release 0.17: Instagram refuses a caption over 2,200 characters.
+    const igText = post.caption_ig?.trim() || [post.caption_ar, post.caption_en, post.hashtags].map((x) => x?.trim()).filter(Boolean).join("\n\n");
+    if ([...igText].length > LIMITS.instagram.caption) checks.push({ level: "block", key: "igCaption", values: { count: LIMITS.instagram.caption } });
   }
 
   const issues = photos.filter((p) => p.ai_issues.some((i) => i !== "sensitive")).length;
