@@ -152,6 +152,40 @@ export function avoidedIn(text: string, avoid: string[]) {
   });
 }
 
+// The words for children have one clear school word instead (Waleed, 17 Nov:
+// KG and every grade are "our students"), so text the AI writes outside the
+// caption editor (reply ideas, yearbook pages, Make a week ideas) gets the
+// school word swapped in rather than being thrown away. The school's own
+// banned words have no such swap: text with one is dropped by the caller.
+const AR_SWAPS: [RegExp, string][] = [
+  [/(^|[^\p{L}\p{M}])([وفبلك]{0,2})(ال|ل)?[أاإ]طفال(نا)?(?![\p{L}\p{M}])/gu, "$1$2$3طلاب$4"],
+  [/(^|[^\p{L}\p{M}])([وفبلك]{0,2})(ال|ل)?طفل(?![\p{L}\p{M}])/gu, "$1$2$3طالب"],
+  [/(^|[^\p{L}\p{M}])([وفبلك]{0,2})(?:صغارنا|براعمنا)(?![\p{L}\p{M}])/gu, "$1$2طلابنا"],
+];
+const EN_SWAPS: [RegExp, string][] = [
+  [/\blittle ones\b/gi, "students"],
+  [/\bchildren\b/gi, "students"],
+  [/\bkids\b/gi, "students"],
+  [/\bchild\b/gi, "student"],
+];
+
+export function swapAvoided(text: string) {
+  let s = text;
+  for (const [re, to] of AR_SWAPS) s = s.replace(re, to);
+  for (const [re, to] of EN_SWAPS) s = s.replace(re, (m) => (m[0] === m[0].toUpperCase() ? to[0].toUpperCase() + to.slice(1) : to));
+  return s;
+}
+
+// One short AI text written outside the caption editor, finished like a
+// caption: tidy punctuation for its language, the children words swapped,
+// and "bad" when a banned word is still in it.
+export function finishText(text: string, avoid: string[] = []) {
+  const raw = String(text ?? "");
+  const tidy = hasArabic(raw) && arabicShare(raw) >= 0.5 ? tidyArabic(raw) : tidyEnglish(raw);
+  const done = swapAvoided(tidy);
+  return { text: done, bad: avoidedIn(done, avoid).length > 0 };
+}
+
 // Facebook and Instagram decide which way each line reads from its first
 // letter. An Arabic line that begins with an English name ("KG2 …", "STEM …")
 // would be drawn left-to-right with its full stop on the wrong side, so an

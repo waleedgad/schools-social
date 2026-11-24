@@ -6,6 +6,7 @@ import { redirect } from "@/i18n/navigation";
 import { AiLimitError, getAi, type CaptionOptions, type Captions, type SchoolProfile, type Tone, TONES } from "@/lib/ai";
 import { findMentions, spread } from "@/lib/posting";
 import { generateFor, runIntent, schoolSlots } from "@/lib/post-core";
+import { schoolAvoid } from "@/lib/caption-learning";
 import { can } from "@/lib/roles";
 import { reusePost } from "@/lib/reuse";
 import { requireMembership } from "@/lib/session";
@@ -238,8 +239,7 @@ export async function aiTranslate(locale: string, text: string, to: "ar" | "en")
 export async function aiCheck(locale: string, text: string) {
   const { supabase, schoolId } = await curator({ locale });
   const { profile } = await aiContext(supabase, schoolId);
-  const { data: avoid } = await supabase.from("snippets").select("body").eq("school_id", schoolId).eq("kind", "avoid");
-  const words = [...(profile.avoidWords ?? "").split(","), ...(avoid ?? []).flatMap((a) => String(a.body).split(","))].map((w) => w.trim()).filter(Boolean);
+  const words = await schoolAvoid(supabase, schoolId, profile);
   try {
     return { check: await getAi().checkCaption(text.slice(0, 4400), profile, words) };
   } catch (e) {

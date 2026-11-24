@@ -1,7 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CaptionLanguages, Captions } from "./ai";
-import { learnFromPosts, type Learning, type PastPost } from "./captions";
+import type { SchoolProfile } from "./ai";
+import { ALWAYS_AVOID, avoidList, learnFromPosts, type Learning, type PastPost } from "./captions";
 
 // Reads the school's recent approved and published posts with their results
 // and works out what to tell the AI (lib/captions.ts does the thinking).
@@ -26,4 +27,11 @@ export async function loadLearning(supabase: SupabaseClient, schoolId: string, o
       metrics: (p.post_metrics ?? []) as PastPost["metrics"],
     }));
   return learnFromPosts(posts, o);
+}
+
+// Every word the school never wants in AI text: the always-avoided words for
+// children, the Brand page's "words to avoid" and the saved banned-word lists.
+export async function schoolAvoid(supabase: SupabaseClient, schoolId: string, profile?: SchoolProfile | null): Promise<string[]> {
+  const { data } = await supabase.from("snippets").select("body").eq("school_id", schoolId).eq("kind", "avoid");
+  return avoidList(ALWAYS_AVOID, profile?.avoidWords, ...(data ?? []).map((x) => x.body as string));
 }

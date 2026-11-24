@@ -1,5 +1,6 @@
 import "server-only";
 import { planWeek } from "./plan-week";
+import { schoolAvoid } from "./caption-learning";
 import { getAi, isAiConfigured, type SchoolProfile } from "@/lib/ai";
 import { thumbPath } from "@/lib/images";
 import type { PostCtx } from "@/lib/post-core";
@@ -129,11 +130,9 @@ export async function handlePosts(ctx: PostCtx, body: Body, locale: "ar" | "en")
     case "spell": {
       const text = String(body.text ?? "").slice(0, 4400);
       if (!text.trim()) return { score: 100, notes: [], spelling: [] };
-      const [{ data: school }, { data: avoid }] = await Promise.all([
-        supabase.from("schools").select("profile").eq("id", schoolId).single(),
-        supabase.from("snippets").select("body").eq("school_id", schoolId).eq("kind", "avoid"),
-      ]);
-      return getAi().checkCaption(text, (school?.profile ?? null) as SchoolProfile | null, (avoid ?? []).map((a) => a.body as string));
+      const { data: school } = await supabase.from("schools").select("profile").eq("id", schoolId).single();
+      const profile = (school?.profile ?? null) as SchoolProfile | null;
+      return getAi().checkCaption(text, profile, await schoolAvoid(supabase, schoolId, profile));
     }
 
     case "reviewLink": {

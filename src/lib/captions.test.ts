@@ -1,7 +1,7 @@
 // Run with: npm test
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { avoidedIn, avoidList, finishCaptions, hintText, learnFromPosts, mergeHashtags, pullHashtags, readsRight, tidyArabic, tidyEnglish, wordCount, type PastPost } from "./captions.ts";
+import { avoidedIn, avoidList, finishCaptions, finishText, swapAvoided, hintText, learnFromPosts, mergeHashtags, pullHashtags, readsRight, tidyArabic, tidyEnglish, wordCount, type PastPost } from "./captions.ts";
 
 const RLM = "‏";
 const LRM = "‎";
@@ -148,4 +148,15 @@ test("KG students are our students: the words for children are always avoided", 
   );
   assert.equal(out.length, 1);
   assert.match(out[0].en, /students/);
+});
+
+test("the words for children are swapped for the school word, with Arabic prefixes kept", () => {
+  assert.equal(swapAvoided("أطفالنا والأطفال وللأطفال وطفل وصغارنا وبراعمنا"), "طلابنا والطلاب وللطلاب وطالب وطلابنا وطلابنا");
+  assert.equal(swapAvoided("Children and kids, our little ones; a child"), "Students and students, our students; a student");
+  assert.equal(swapAvoided("kidney beans"), "kidney beans");
+});
+
+test("finishText tidies by language and flags a banned word", () => {
+  assert.deepEqual(finishText("شكرًا , أطفالنا", ["رخيص"]), { text: "شكرًا، طلابنا", bad: false });
+  assert.equal(finishText("A cheap deal", ["cheap"]).bad, true);
 });

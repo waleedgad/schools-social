@@ -94,10 +94,10 @@ export interface AiProvider {
   translate(text: string, to: "ar" | "en", profile?: SchoolProfile | null): Promise<string>;
   checkCaption(text: string, profile: SchoolProfile | null, avoid: string[]): Promise<CaptionCheck>;
   buildProfile(schoolName: string, source: string): Promise<ProfileDraft>;
-  planPosts(input: { schoolName: string; days: number; events: string[]; categories: string[]; profile: SchoolProfile | null }): Promise<PlannedPost[]>;
+  planPosts(input: { schoolName: string; days: number; events: string[]; categories: string[]; profile: SchoolProfile | null; avoid?: string[] }): Promise<PlannedPost[]>;
   describePhotos(photos: PhotoInput[]): Promise<PhotoDescription[]>;
-  suggestReplies(comment: string, postText: string, profile: SchoolProfile | null): Promise<string[]>;
-  bookTexts(input: { schoolName: string; year: string; book: string; pages: BookPageInput[]; profile: SchoolProfile | null }): Promise<BookPageText[]>;
+  suggestReplies(comment: string, postText: string, profile: SchoolProfile | null, avoid?: string[]): Promise<string[]>;
+  bookTexts(input: { schoolName: string; year: string; book: string; pages: BookPageInput[]; profile: SchoolProfile | null; avoid?: string[] }): Promise<BookPageText[]>;
 }
 
 export class AiLimitError extends Error {}

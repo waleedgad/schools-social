@@ -149,3 +149,71 @@ export function translatePrompt(text: string, to: "ar" | "en", profile?: SchoolP
     .filter(Boolean)
     .join("\n\n");
 }
+
+// ---- Everything else the AI writes for the school -------------------------
+// Reply ideas, yearbook pages, Make a week ideas and the caption check speak
+// for the same school, so they follow the same Arabic and English rules, the
+// school's voice and the same banned words as the captions.
+
+function avoidLine(avoid?: string[]) {
+  return avoid?.length ? `Words this school never uses (in any form): ${avoid.join("، ")}` : "";
+}
+
+export function replyPrompt(comment: string, postText: string, profile?: SchoolProfile | null, avoid?: string[]) {
+  return [
+    "Someone commented on the Facebook or Instagram post of a private school in Egypt. Suggest 3 short, polite replies from the school, in the language of the comment (Arabic for an Arabic comment, English for an English one).",
+    "Thank praise warmly. For questions about fees, admissions or complaints, invite them to message or call the school instead of answering publicly. Never name students, never promise anything. One or two sentences each.",
+    arabicRules(profile?.dialect),
+    ENGLISH_RULES,
+    voiceText(profile) && `The school's voice:\n${voiceText(profile)}`,
+    avoidLine(avoid),
+    `Post: ${postText.slice(0, 600)}`,
+    `Comment: ${comment.slice(0, 600)}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function bookPrompt(input: { schoolName: string; year: string; book: string; pages: { kind: string; title: string; date?: string | null }[]; profile?: SchoolProfile | null; avoid?: string[] }) {
+  return [
+    `Write page titles and one or two warm sentences for each page of "${input.book}", the yearbook of ${input.schoolName} (a private school in Egypt) for ${input.year}.`,
+    "Give each page an Arabic and an English title (short, at most 6 words) and an Arabic and an English text (at most 35 words). Never invent names of people. Keep it positive and suitable for students and parents.",
+    // A printed keepsake: Standard Arabic even when the school's posts are in light Egyptian.
+    arabicRules("msa"),
+    ENGLISH_RULES,
+    voiceText(input.profile) && `The school's voice:\n${voiceText(input.profile)}`,
+    avoidLine(input.avoid),
+    `Pages:\n${input.pages.map((p, i) => `${i}. ${p.kind}: ${p.title}${p.date ? ` (${p.date})` : ""}`).join("\n")}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function planPrompt(input: { schoolName: string; days: number; events: string[]; categories: string[]; profile?: SchoolProfile | null; avoid?: string[] }) {
+  return [
+    `Plan social media posts for ${input.schoolName}, a private school in Egypt, for the next ${input.days} days (day 0 is today).`,
+    "About one post a day on school days (Sunday to Thursday), fewer at weekends. Balance the categories, never more than two of the same in a row. Use the school's real events where they fit.",
+    "Each post: day number, a short title, a one-sentence idea of what to show and say, and its category (one of the list). Write titles and ideas in English. Say \"students\" for every grade, KG too, never \"kids\" or \"children\". No names of students.",
+    voiceText(input.profile) && `The school's voice:\n${voiceText(input.profile)}`,
+    avoidLine(input.avoid),
+    `Categories: ${input.categories.join(", ")}.`,
+    `Events: ${input.events.join(" | ") || "none listed"}.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function checkPrompt(text: string, profile?: SchoolProfile | null, avoid?: string[]) {
+  return [
+    "Check this caption from a private school's Facebook and Instagram page in Egypt.",
+    "1) Spelling and grammar mistakes in Arabic and English (wrong → right). 2) How well it matches the school's voice and the rules below, from 0 to 100. 3) Up to three short notes in English on how to make it fit better.",
+    "Mark down Arabic that reads like a translation, official-letter wording, Latin punctuation in Arabic, and any word for children (KG and every grade are طلابنا / our students).",
+    arabicRules(profile?.dialect),
+    ENGLISH_RULES,
+    voiceText(profile) && `The school's voice:\n${voiceText(profile)}`,
+    avoidLine(avoid) || "Words the school never uses: none.",
+    `Caption:\n${text}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}

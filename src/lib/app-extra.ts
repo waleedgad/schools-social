@@ -1,6 +1,7 @@
 import "server-only";
 import { getAi, type SchoolProfile } from "@/lib/ai";
 import { notify } from "@/lib/alerts";
+import { schoolAvoid } from "@/lib/caption-learning";
 import { handlePosts } from "@/lib/app-posts";
 import { listComments, replyToComment } from "@/lib/meta";
 import type { PostCtx } from "@/lib/post-core";
@@ -140,8 +141,9 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
     case "suggestReplies": {
       if (!can(membership.role, "writePosts", perms)) return { error: "role" };
       const { data: school } = await supabase.from("schools").select("profile").eq("id", schoolId).single();
+      const profile = (school?.profile ?? {}) as SchoolProfile;
       try {
-        return { replies: await getAi().suggestReplies(String(body.comment ?? "").slice(0, 1000), String(body.postText ?? "").slice(0, 1000), (school?.profile ?? {}) as SchoolProfile) };
+        return { replies: await getAi().suggestReplies(String(body.comment ?? "").slice(0, 1000), String(body.postText ?? "").slice(0, 1000), profile, await schoolAvoid(supabase, schoolId, profile)) };
       } catch {
         return { error: "ai" };
       }
@@ -374,8 +376,9 @@ export async function handleExtra(ctx: PostCtx, body: Body, locale: "ar" | "en")
       if (!comms) return { error: "role" };
       const pages = (Array.isArray(body.pages) ? (body.pages as { kind?: string; title?: string; date?: string }[]) : []).slice(0, 80).map((p) => ({ kind: String(p.kind ?? "page").slice(0, 30), title: String(p.title ?? "").slice(0, 120), date: p.date ? String(p.date).slice(0, 10) : null }));
       const { data: school } = await supabase.from("schools").select("name, profile").eq("id", schoolId).single();
+      const profile = (school?.profile ?? {}) as SchoolProfile;
       try {
-        return { texts: await getAi().bookTexts({ schoolName: school?.name ?? "", year: String(body.year ?? "").slice(0, 20), book: String(body.title ?? "Yearbook").slice(0, 120), pages, profile: (school?.profile ?? {}) as SchoolProfile }) };
+        return { texts: await getAi().bookTexts({ schoolName: school?.name ?? "", year: String(body.year ?? "").slice(0, 20), book: String(body.title ?? "Yearbook").slice(0, 120), pages, profile, avoid: await schoolAvoid(supabase, schoolId, profile) }) };
       } catch {
         return { error: "ai" };
       }

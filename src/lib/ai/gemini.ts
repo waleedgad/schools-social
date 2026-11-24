@@ -17,8 +17,8 @@ import {
   type SchoolProfile,
   type Topic,
 } from "./types.ts";
-import { captionPrompt, rewritePrompt, translatePrompt, voiceText } from "./prompts.ts";
-import { finishCaptions, tidyArabic, tidyEnglish } from "../captions.ts";
+import { bookPrompt, captionPrompt, checkPrompt, planPrompt, replyPrompt, rewritePrompt, translatePrompt, voiceText } from "./prompts.ts";
+import { ALWAYS_AVOID, avoidList, avoidedIn, finishCaptions, finishText, swapAvoided, tidyArabic, tidyEnglish } from "../captions.ts";
 
 export { voiceText };
 
@@ -160,25 +160,19 @@ export class GeminiProvider implements AiProvider {
   async rewrite(text: string, instruction: string, language: "ar" | "en", profile?: SchoolProfile | null): Promise<string> {
     const out = await this.generate<{ text: string }>([{ text: rewritePrompt(text, instruction, language, profile) }], { type: "OBJECT", properties: { text: STR }, required: ["text"] }, 0.6);
     const done = String(out.text ?? "");
-    return (language === "ar" ? tidyArabic(done) : tidyEnglish(done)).slice(0, 2200);
+    return swapAvoided(language === "ar" ? tidyArabic(done) : tidyEnglish(done)).slice(0, 2200);
   }
 
   async translate(text: string, to: "ar" | "en", profile?: SchoolProfile | null): Promise<string> {
     const out = await this.generate<{ text: string }>([{ text: translatePrompt(text, to, profile) }], { type: "OBJECT", properties: { text: STR }, required: ["text"] }, 0.4);
     const done = String(out.text ?? "");
-    return (to === "ar" ? tidyArabic(done) : tidyEnglish(done)).slice(0, 2200);
+    return swapAvoided(to === "ar" ? tidyArabic(done) : tidyEnglish(done)).slice(0, 2200);
   }
 
   async checkCaption(text: string, profile: SchoolProfile | null, avoid: string[]): Promise<CaptionCheck> {
+    const words = avoidList(ALWAYS_AVOID, ...avoid);
     const out = await this.generate<CaptionCheck>(
-      [
-        {
-          text:
-            "Check this school social media caption. 1) Spelling and grammar mistakes in Arabic and English (wrong → right). " +
-            "2) How well it matches the school's voice, from 0 to 100. 3) Up to three short notes in English on how to make it fit better. " +
-            `Words the school never uses: ${avoid.join(", ") || "none"}.\n${voiceText(profile)}\n\nCaption:\n${text}`,
-        },
-      ],
+      [{ text: checkPrompt(text, profile, words) }],
       {
         type: "OBJECT",
         properties: {
@@ -190,7 +184,11 @@ export class GeminiProvider implements AiProvider {
       },
       0.2,
     );
-    return { score: Math.max(0, Math.min(100, Math.round(out.score ?? 0))), notes: (out.notes ?? []).slice(0, 3), spelling: (out.spelling ?? []).slice(0, 10) };
+    // A banned word is found by the app itself, not left to the AI to notice.
+    const found = avoidedIn(text, words);
+    const notes = [...(found.length ? [`Uses a word the school avoids: ${found.join(", ")}`] : []), ...(out.notes ?? [])].slice(0, 3);
+    const score = Math.max(0, Math.min(100, Math.round(out.score ?? 0)));
+    return { score: found.length ? Math.min(score, 60) : score, notes, spelling: (out.spelling ?? []).slice(0, 10) };
   }
 
   async buildProfile(schoolName: string, source: string): Promise<ProfileDraft> {
@@ -222,63 +220,55 @@ export class GeminiProvider implements AiProvider {
     );
   }
 
-  async planPosts(input: { schoolName: string; days: number; events: string[]; categories: string[]; profile: SchoolProfile | null }): Promise<PlannedPost[]> {
+  async planPosts(input: { schoolName: string; days: number; events: string[]; categories: string[]; profile: SchoolProfile | null; avoid?: string[] }): Promise<PlannedPost[]> {
     const out = await this.generate<PlannedPost[]>(
-      [
-        {
-          text:
-            `Plan social media posts for ${input.schoolName}, a private school in Egypt, for the next ${input.days} days (day 0 is today). ` +
-            "About one post a day on school days (Sunday to Thursday), fewer at weekends. Balance the categories, never more than two of the same in a row. " +
-            "Use the school's real events where they fit. Each post: day number, a short title, a one-sentence idea of what to show and say, and its category (one of the list). " +
-            `Categories: ${input.categories.join(", ")}.\nEvents: ${input.events.join(" | ") || "none listed"}.\n${voiceText(input.profile)}`,
-        },
-      ],
+      [{ text: planPrompt({ ...input, avoid: avoidList(ALWAYS_AVOID, ...(input.avoid ?? [])) }) }],
       {
         type: "ARRAY",
         items: { type: "OBJECT", properties: { day: { type: "INTEGER" }, title: STR, idea: STR, category: STR }, required: ["day", "title", "idea", "category"] },
       },
       0.7,
     );
-    return out.filter((p) => p.day >= 0 && p.day < input.days).slice(0, input.days * 2);
+    return out
+      .filter((p) => p.day >= 0 && p.day < input.days)
+      .slice(0, input.days * 2)
+      .map((p) => ({ ...p, title: swapAvoided(String(p.title ?? "")), idea: swapAvoided(String(p.idea ?? "")) }));
   }
 
-  async suggestReplies(comment: string, postText: string, profile: SchoolProfile | null): Promise<string[]> {
+  async suggestReplies(comment: string, postText: string, profile: SchoolProfile | null, avoid: string[] = []): Promise<string[]> {
+    const words = avoidList(ALWAYS_AVOID, ...avoid);
     const out = await this.generate<{ replies: string[] }>(
-      [
-        {
-          text:
-            `Someone commented on a private school's social media post. Suggest 3 short, polite replies from the school, in the language of the comment. ` +
-            `Thank praise warmly; for questions about fees, admissions or complaints, invite them to message or call the school instead of answering publicly. Never name students. ` +
-            `${voiceText(profile)}\n\nPost: ${postText.slice(0, 600)}\n\nComment: ${comment.slice(0, 600)}`,
-        },
-      ],
+      [{ text: replyPrompt(comment, postText, profile, words) }],
       { type: "OBJECT", properties: { replies: { type: "ARRAY", items: STR } }, required: ["replies"] },
       0.7,
     );
-    return (out.replies ?? []).map((r) => String(r).slice(0, 500)).slice(0, 3);
+    // Reply ideas with a banned word are dropped; the words for children get "students".
+    return (out.replies ?? [])
+      .map((r) => finishText(String(r), words))
+      .filter((r) => r.text && !r.bad)
+      .map((r) => r.text.slice(0, 500))
+      .slice(0, 3);
   }
 
-  async bookTexts(input: { schoolName: string; year: string; book: string; pages: BookPageInput[]; profile: SchoolProfile | null }): Promise<BookPageText[]> {
+  async bookTexts(input: { schoolName: string; year: string; book: string; pages: BookPageInput[]; profile: SchoolProfile | null; avoid?: string[] }): Promise<BookPageText[]> {
     const list = input.pages.slice(0, 80);
+    const words = avoidList(ALWAYS_AVOID, ...(input.avoid ?? []));
     const out = await this.generate<(BookPageText & { index: number })[]>(
-      [
-        {
-          text:
-            `Write page titles and one or two warm sentences for each page of "${input.book}", a school yearbook of ${input.schoolName} (a private school in Egypt) for ${input.year}. ` +
-            "Give each page an Arabic and an English title (short, at most 6 words) and an Arabic and an English text (at most 35 words, Modern Standard Arabic). " +
-            "Never invent names of people. Keep it positive and suitable for students and parents. " +
-            `${voiceText(input.profile)}\n\nPages:\n${list.map((p, i) => `${i}. ${p.kind}: ${p.title}${p.date ? ` (${p.date})` : ""}`).join("\n")}`,
-        },
-      ],
+      [{ text: bookPrompt({ ...input, pages: list, avoid: words }) }],
       {
         type: "ARRAY",
         items: { type: "OBJECT", properties: { index: { type: "INTEGER" }, titleAr: STR, titleEn: STR, textAr: STR, textEn: STR }, required: ["index", "titleAr", "titleEn", "textAr", "textEn"] },
       },
       0.6,
     );
+    // A text with a banned word stays empty for the team to write.
+    const clean = (s: string | undefined, max: number) => {
+      const r = finishText(s ?? "", words);
+      return r.bad ? "" : r.text.slice(0, max);
+    };
     return list.map((_, i) => {
       const r = out.find((x) => x.index === i);
-      return { titleAr: (r?.titleAr ?? "").slice(0, 80), titleEn: (r?.titleEn ?? "").slice(0, 80), textAr: (r?.textAr ?? "").slice(0, 400), textEn: (r?.textEn ?? "").slice(0, 400) };
+      return { titleAr: clean(r?.titleAr, 80), titleEn: clean(r?.titleEn, 80), textAr: clean(r?.textAr, 400), textEn: clean(r?.textEn, 400) };
     });
   }
 

@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAi, type SchoolProfile } from "./ai";
+import { schoolAvoid } from "./caption-learning";
 
 // "Make a week of posts", shared by the website and the Mac app. The AI
 // plans ideas from upcoming events and the school's categories; then, in the
@@ -36,6 +37,7 @@ export async function planWeek(supabase: SupabaseClient, school: { id: string; n
     events: (events ?? []).map((e) => `${e.event_date}: ${e.title}`),
     categories: (categories ?? []).map((c) => c.name_en as string),
     profile: (row?.profile ?? {}) as SchoolProfile,
+    avoid: await schoolAvoid(supabase, school.id, (row?.profile ?? {}) as SchoolProfile),
   });
 
   const rules = (row?.no_post_days ?? {}) as { weekdays?: number[]; holidays?: boolean };
