@@ -1,0 +1,28 @@
+# Release set-up (L-28, helper 24 Nov 2026): release-please (Apache-2.0)
+# reads the commit messages since the last release and opens ONE pull request
+# that raises the version in desktop/package.json and writes the change notes
+# (desktop/CHANGELOG.md). Merging that pull request is still Waleed's OK, as
+# for every change to main. It does not build or publish the apps
+# (mac-release.yml and windows-release.yml still do that).
+# ON DEMAND ONLY for now: it only works once commit messages start with
+# "feat:", "fix:", "perf:" or "security:" (see docs/release-monitoring-setup.md).
+name: Release notes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+          # Tags and the GitHub release stay with the existing desktop-v* flow.
+          skip-github-release: true

@@ -1,0 +1,42 @@
+# Release set-up (L-27, helper 24 Nov 2026): every 30 minutes, check that the
+# live website answers. If a HEALTHCHECK_URL secret is set (a free
+# healthchecks.io check), each good run pings it, so a missed ping (site down,
+# or this check stopped) sends Waleed an email. Without the secret it only
+# shows a red run here. It never posts or changes anything.
+# Note: GitHub may delay scheduled runs by some minutes and pauses them after
+# 60 days without commits on the repo; the healthchecks.io email covers that.
+# The posting timer itself (Supabase pg_cron calling /api/cron/publish) needs
+# its own ping from the app (this check never calls it, because calling it
+# runs publishing): see docs/release-monitoring-setup.md.
+name: Health ping
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE: https://schoolsocialhub.seen-marketing.net
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+    steps:
+      - name: Website pages answer
+        run: |
+          set -e
+          for path in /en/login /ar/login; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 --retry 2 "$SITE$path")
+            echo "$path -> $code"
+            [ "$code" = "200" ] || { echo "::error::$path answered $code"; exit 1; }
+          done
+      - name: Tell healthchecks.io all is well
+        if: success() && env.HEALTHCHECK_URL != ''
+        run: curl -fsS --max-time 10 --retry 3 "$HEALTHCHECK_URL" > /dev/null
+      - name: Tell healthchecks.io it failed
+        if: failure() && env.HEALTHCHECK_URL != ''
+        run: curl -fsS --max-time 10 --retry 3 "$HEALTHCHECK_URL/fail" > /dev/null

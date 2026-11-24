@@ -1,0 +1,42 @@
+# Release set-up (L-25, helper 24 Nov 2026): Lighthouse, a free Google tool
+# (Apache-2.0), loads the built website's public pages like a phone and scores
+# speed, accessibility and best practice. Weekly and on demand; reports only
+# (never stops other work). Report kept as "lighthouse-report".
+# Signed-in pages are not covered yet (same limit as the ZAP scan, L-35).
+name: Lighthouse
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lighthouse-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx -y supabase@2.122.1 start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta
+      # Test database settings must be in place BEFORE the build.
+      - run: grep -v '^#' e2e/test-db.env >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Lighthouse (phone, public pages)
+        run: npx -y @lhci/cli@0.15.1 autorun --config=lighthouserc.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 30
