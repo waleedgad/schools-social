@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { aiCheck, aiRewrite, aiTranslate, addComment, createReviewLink, generateCaptions, postAction, restoreVersion, pickVariation, reuse, splitEnglish } from "@/lib/actions/posts";
 import { saveEdit } from "@/lib/actions/library";
@@ -142,6 +142,22 @@ function CaptionField({ label, value, onChange, dir, lang, other, disabled, loca
   );
 }
 
+// Facebook and Instagram choose each line's direction from its own first
+// letter, so an English line under an Arabic one reads left-to-right there;
+// the preview does the same (B-139).
+function Lines({ text, lead }: { text: string; lead?: ReactNode }) {
+  return (
+    <>
+      {text.split("\n").map((line, n) => (
+        <span key={n} dir="auto" className="block min-h-[1lh]">
+          {n === 0 && lead}
+          {line}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function Preview({ data, platform, caption, photos }: { data: ComposerData; platform: "facebook" | "instagram"; caption: string; photos: Photo[] }) {
   const t = useTranslations("composer");
   const [open, setOpen] = useState(false);
@@ -162,7 +178,7 @@ function Preview({ data, platform, caption, photos }: { data: ComposerData; plat
       </div>
       {platform === "facebook" && caption && (
         <p className="whitespace-pre-wrap px-3 pb-2 text-[13px]" dir="auto">
-          {shown}
+          <Lines text={shown} />
           {shown !== caption && (
             <button className="font-semibold text-muted" onClick={() => setOpen(true)}>
               … {t("preview.more")}
@@ -193,7 +209,7 @@ function Preview({ data, platform, caption, photos }: { data: ComposerData; plat
       )}
       {platform === "instagram" && (
         <p className="whitespace-pre-wrap p-3 text-[13px]" dir="auto">
-          <b>{name}</b> {shown}
+          <Lines text={shown} lead={<b>{name} </b>} />
           {shown !== caption && (
             <button className="text-muted" onClick={() => setOpen(true)}>
               … {t("preview.more")}

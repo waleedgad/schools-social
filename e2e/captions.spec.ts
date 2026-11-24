@@ -51,6 +51,12 @@ test("AI captions come back clean, in English and in Arabic", async ({ page }, i
     expect(saved.hashtags).toBe("#AlNourTest #SportsDay #يوم_رياضي");
     expect(saved.variations).toHaveLength(1);
 
+    // B-139: in the preview the English line reads left-to-right under the Arabic one, as on Facebook.
+    const englishLine = page.locator("span[dir=auto]", { hasText: "A great sports day for our students" }).first();
+    expect(await englishLine.evaluate((el) => getComputedStyle(el).direction)).toBe("ltr");
+    const arabicLine = page.locator("span[dir=auto]", { hasText: "طلابنا في يوم رياضي رائع" }).first();
+    expect(await arabicLine.evaluate((el) => getComputedStyle(el).direction)).toBe("rtl");
+
     // A student's name only warns: the warning shows and Approve is still there.
     await expect(page.getByText(w.name).first()).toBeVisible();
     await page.screenshot({ path: info.outputPath(`captions-${locale}.png`), fullPage: true, caret: "initial" });
