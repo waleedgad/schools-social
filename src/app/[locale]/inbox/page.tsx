@@ -84,7 +84,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
           <Pills
             items={(["comments", "messages"] as const).map((k) => ({ label: t(`inbox.views.${k}`), href: { pathname: "/inbox", query: { view: k } }, on: view === k }))}
           />
-          <details className="rounded-xl border border-border bg-surface p-3" data-testid="saved-replies">
+          <details className="card p-3" data-testid="saved-replies">
             <summary className="cursor-pointer text-sm font-semibold">{t("inbox.saved.title")} ({saved.length})</summary>
             <p className="mt-1 text-xs text-muted">{t("inbox.saved.hint")}</p>
             <ul className="mt-2 space-y-1.5">

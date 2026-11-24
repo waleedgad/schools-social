@@ -131,7 +131,7 @@ export function CloudImport({ onFiles, disabled }: { onFiles: (files: File[]) =>
 
   const off = disabled || busy;
   return (
-    <details className="rounded-xl border border-border p-3" data-testid="cloud-import">
+    <details className="card p-3" data-testid="cloud-import">
       <summary className="cursor-pointer text-sm font-semibold">{t("title")}</summary>
       <div className="mt-3 space-y-3">
         {(DROPBOX_KEY || (GOOGLE_CLIENT && GOOGLE_KEY) || MS_CLIENT) && (
@@ -162,7 +162,7 @@ export function CloudImport({ onFiles, disabled }: { onFiles: (files: File[]) =>
             dir="ltr"
             disabled={off}
             placeholder="https://drive.google.com/file/d/…  https://www.dropbox.com/s/…  https://1drv.ms/i/…"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            className="w-full rounded-control border border-border bg-surface-2 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
           />
           <span className="block text-xs text-muted">{t("linksHint")}</span>
         </label>

@@ -21,7 +21,7 @@ export function ReplyBox({ locale, platform, comment, text, postText, kind = "co
       {saved.length > 0 && (
         <div className="flex flex-wrap gap-1" aria-label={t("saved.title")}>
           {saved.map((r, i) => (
-            <button type="button" key={i} onClick={() => setValue(r.body)} title={r.body} className="rounded-full border border-border px-2 py-0.5 text-start text-[11px] text-muted hover:text-accent-ink" dir="auto">
+            <button type="button" key={i} onClick={() => setValue(r.body)} title={r.body} className="rounded-full bg-grey-bg px-2 py-0.5 text-start text-[11px] hover:bg-accent-bg" dir="auto">
               {r.title}
             </button>
           ))}
