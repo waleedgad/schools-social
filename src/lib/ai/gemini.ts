@@ -22,7 +22,8 @@ import { ALWAYS_AVOID, avoidList, avoidedIn, finishCaptions, finishText, swapAvo
 
 export { voiceText };
 
-const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+// Robot tests point this at a stand-in (e2e/fake-meta.mjs), so they never reach Google.
+const ENDPOINT = (process.env.GEMINI_URL ?? "").trim() || "https://generativelanguage.googleapis.com/v1beta/models";
 
 type Part = { text: string } | { inline_data: { mime_type: string; data: string } };
 

@@ -27,5 +27,12 @@ export default defineConfig({
       reuseExistingServer: false,
       env: { META_GRAPH_URL: "http://127.0.0.1:3998", RESEND_URL: "http://127.0.0.1:3998/resend", RESEND_API_KEY: "test-key", DIGEST_ANY_DAY: "1" },
     },
+    // The same website with an AI key, talking to a stand-in for Gemini (only e2e/captions.spec.ts uses it).
+    {
+      command: "npx next start -p 3124",
+      url: "http://localhost:3124/en/login",
+      reuseExistingServer: false,
+      env: { META_GRAPH_URL: "http://127.0.0.1:3998", RESEND_URL: "http://127.0.0.1:3998/resend", RESEND_API_KEY: "test-key", GEMINI_API_KEY: "test-key", GEMINI_URL: "http://127.0.0.1:3998/gemini/models" },
+    },
   ],
 });

@@ -75,6 +75,27 @@ createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
 
+  // A stand-in for Gemini (release 0.16): the caption robot test starts a
+  // second website with GEMINI_URL pointing here. The answers are messy on
+  // purpose (Latin commas in Arabic, repeated hashtags, a word for children,
+  // a banned word, a student's name) so the test proves the website cleans them.
+  if (url.pathname.startsWith("/gemini/") && req.method === "POST") {
+    const prompt = JSON.parse(body).contents?.[0]?.parts?.[0]?.text ?? "";
+    calls.push({ path: url.pathname, prompt, at: new Date().toISOString() });
+    let answer = {};
+    if (prompt.includes("caption option")) {
+      answer = [
+        { ar: "أطفالنا في يوم رياضي رائع , عرض cheap", en: "Our children loved sports day", hashtags: "#SportsDay", ig: "", altAr: "", altEn: "" },
+        { ar: "طلابنا في يوم رياضي رائع , شكرًا لكل من شارك #يوم_رياضي", en: "A great sports day for our students. Well done, Omar Hassan! #SportsDay", hashtags: "#SportsDay #SportsDay", ig: "", altAr: "", altEn: "" },
+      ];
+    } else if (prompt.includes("Check this caption")) {
+      answer = { score: 92, notes: ["Warm and clear."], spelling: [] };
+    } else if (prompt.includes("polite replies")) {
+      answer = { replies: ["شكرًا لكم , أطفالنا فخورون", "Thank you! Our kids loved it", "A cheap reply"] };
+    }
+    return json(res, 200, { candidates: [{ content: { parts: [{ text: JSON.stringify(answer) }] } }] });
+  }
+
   const params = Object.fromEntries(req.method === "POST" ? new URLSearchParams(body) : url.searchParams);
   const parts = url.pathname.split("/").filter(Boolean);
   // A version first, like /v23.0/..., is allowed and ignored.
