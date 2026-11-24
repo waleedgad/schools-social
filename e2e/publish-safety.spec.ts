@@ -166,6 +166,12 @@ test("signed out of Facebook: Reconnect, one alert, nothing more tried", async (
   await page.goto(`/ar/accounts`);
   await expect(page.getByRole("alert").filter({ hasText: "أعد ربط فيسبوك" })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("accounts-reconnect-ar.png"), fullPage: true });
+  // Phone size too (the person who gets the alert is often on a phone).
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.screenshot({ path: test.info().outputPath("accounts-reconnect-ar-phone.png"), fullPage: true });
+  await page.goto(`/en/posts/${first}`);
+  await page.screenshot({ path: test.info().outputPath("post-reconnect-en-phone.png"), fullPage: false });
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   // Meta takes the key again (the person reconnected); Check connection clears the red.
   await fail(request, null);
@@ -191,6 +197,9 @@ test("Check connection says what works and what needs a Reconnect", async ({ pag
   await page.goto("/ar/accounts");
   await expect(page.getByRole("list", { name: "فحص الربط" }).getByRole("listitem").filter({ hasText: "الرسائل الخاصة" })).toContainText("يحتاج إعادة ربط");
   await page.screenshot({ path: test.info().outputPath("accounts-check-ar.png"), fullPage: true });
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.screenshot({ path: test.info().outputPath("accounts-check-ar-phone.png"), fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   // The key no longer works at all.
   await request.post(`${META}/__token`, { data: { is_valid: false, scopes: [] } });
