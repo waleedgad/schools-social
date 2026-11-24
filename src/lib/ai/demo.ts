@@ -11,7 +11,8 @@ import type {
   PlannedPost,
   ProfileDraft,
   SchoolProfile,
-} from "./types";
+} from "./types.ts";
+import { finishCaptions } from "../captions.ts";
 
 // Used when no AI key is set, so every screen can still be tried out.
 // Scores come from file size (busier, sharper photos compress less), which
@@ -35,23 +36,25 @@ export class DemoProvider implements AiProvider {
     const event = req.eventTitle ?? "يوم مميز";
     const eventEn = req.eventTitle ?? "a special day";
     const tag = `#${req.schoolName.replace(/\s+/g, "")}`;
-    const hashtags = req.options?.hashtags === false ? "" : [req.hashtags, tag].filter(Boolean).join(" ");
     const emoji = req.options?.emoji === false ? "" : " ✨";
+    const who = req.className ? [` مع ${req.className}`, ` with ${req.className}`] : ["", ""];
     const openers = [
-      ["لحظات جميلة من", "Lovely moments from"],
-      ["يوم رائع في", "A wonderful day of"],
-      ["فخورون بطلابنا في", "So proud of our students at"],
-      ["ذكريات رائعة من", "Great memories from"],
-      ["شكراً لكل من شارك في", "Thank you to everyone who joined"],
+      [`لحظات جميلة من ${event}${who[0]} في ${req.schoolName}. فخورون بطلابنا وبكل ما يتعلمونه${emoji}`, `Lovely moments from ${eventEn}${who[1]} at ${req.schoolName}. Proud of our students and everything they are learning${emoji}`],
+      [`يوم رائع قضاه طلابنا في ${event}${who[0]}، تعلّموا فيه وشاركوا بحماس${emoji}`, `A wonderful day for our students at ${eventEn}${who[1]}: they learned, joined in and enjoyed every part${emoji}`],
+      [`شكرًا لكل من شارك في ${event}${who[0]}، ولأولياء الأمور على دعمهم الدائم${emoji}`, `Thank you to everyone who took part in ${eventEn}${who[1]}, and to our parents for their support${emoji}`],
+      [`ذكريات نعتز بها من ${event}${who[0]} في ${req.schoolName}${emoji}`, `Memories to keep from ${eventEn}${who[1]} at ${req.schoolName}${emoji}`],
+      [`طلابنا في ${event}${who[0]}: اجتهاد وتعاون نفخر به${emoji}`, `Our students at ${eventEn}${who[1]}: effort and teamwork we are proud of${emoji}`],
     ];
-    return openers.slice(0, req.options?.count ?? 3).map(([ar, en]) => ({
-      ar: req.languages === "en" ? "" : `${ar} ${event}${req.className ? ` مع ${req.className}` : ""} في ${req.schoolName}. فخورون بكل ما يتعلمونه${emoji}`,
-      en: req.languages === "ar" ? "" : `${en} ${eventEn}${req.className ? ` with ${req.className}` : ""} at ${req.schoolName}. Proud of everything they are learning${emoji}`,
-      hashtags,
-      ig: req.options?.splitInstagram ? `${en} ${eventEn}${emoji} ${hashtags}`.trim() : "",
+    const versions = openers.slice(0, req.options?.count ?? 3).map(([ar, en]) => ({
+      ar,
+      en,
+      hashtags: tag,
+      ig: req.options?.splitInstagram ? en : "",
       altAr: `طلاب يشاركون في ${event}.`,
       altEn: `Students taking part in ${eventEn}.`,
     }));
+    // Sample captions go through the same finishing as real ones.
+    return finishCaptions(versions, { languages: req.languages, fixedHashtags: req.hashtags, hashtags: req.options?.hashtags, emoji: req.options?.emoji === false ? false : undefined, avoid: req.avoid });
   }
 
   async rewrite(text: string, instruction: string): Promise<string> {

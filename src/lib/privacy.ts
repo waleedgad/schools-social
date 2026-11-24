@@ -73,7 +73,8 @@ export async function checkPost(
   const sensitive = photos.filter((p) => p.ai_issues.includes("sensitive")).length;
   if (sensitive && !post.sensitive) checks.push({ level: "block", key: "aiSensitive", values: { count: sensitive } });
 
-  // A student's full name in the caption is a privacy leak.
+  // A student's full name in the caption: a warning for the reviewer, not a
+  // stop (Waleed, 17 Nov 2026: some posts name a student on purpose, such as a winner).
   const caption = normalise([post.caption_ar, post.caption_en, post.caption_ig, post.hashtags, post.first_comment].join(" "));
   const { data: students } = await supabase
     .from("students")
@@ -86,7 +87,7 @@ export async function checkPost(
       return name.includes(" ") && caption.includes(name);
     }),
   );
-  if (named.length) checks.push({ level: "block", key: "studentName", values: { names: named.map((s) => s.full_name).join("، ") } });
+  if (named.length) checks.push({ level: "warn", key: "studentName", values: { names: named.map((s) => s.full_name).join("، ") } });
 
   if (className) {
     const inClass = (students ?? []).filter((s) => s.class_name === className && s.consent_social !== "yes").length;

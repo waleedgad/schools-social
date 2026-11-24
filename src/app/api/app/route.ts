@@ -157,11 +157,10 @@ async function handle(ctx: PostCtx, body: Body) {
     case "rewrite": {
       const text = String(body.text ?? "").slice(0, 2200);
       const ai = getAi();
-      if (body.to === "ar" || body.to === "en") {
-        const { data: school } = await supabase.from("schools").select("profile").eq("id", schoolId).single();
-        return { text: await ai.translate(text, body.to, (school?.profile ?? {}) as SchoolProfile) };
-      }
-      return { text: await ai.rewrite(text, String(body.instruction ?? "").slice(0, 300), body.language === "en" ? "en" : "ar") };
+      const { data: school } = await supabase.from("schools").select("profile").eq("id", schoolId).single();
+      const profile = (school?.profile ?? {}) as SchoolProfile;
+      if (body.to === "ar" || body.to === "en") return { text: await ai.translate(text, body.to, profile) };
+      return { text: await ai.rewrite(text, String(body.instruction ?? "").slice(0, 300), body.language === "en" ? "en" : "ar", profile) };
     }
 
     case "create": {

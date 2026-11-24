@@ -16,7 +16,11 @@ import {
   type ProfileDraft,
   type SchoolProfile,
   type Topic,
-} from "./types";
+} from "./types.ts";
+import { captionPrompt, rewritePrompt, translatePrompt, voiceText } from "./prompts.ts";
+import { finishCaptions, tidyArabic, tidyEnglish } from "../captions.ts";
+
+export { voiceText };
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -28,50 +32,75 @@ function image(jpeg: Uint8Array): Part {
 
 const STR = { type: "STRING" };
 
-// The school's voice, as instructions every caption follows.
-export function voiceText(profile: SchoolProfile | null | undefined, brandVoice?: string | null) {
-  if (!profile && !brandVoice) return "";
-  const p = profile ?? {};
-  return [
-    brandVoice && `How the school sounds: ${brandVoice}`,
-    p.tone && `Tone: ${p.tone}`,
-    p.audience && `Audience: ${p.audience}`,
-    p.dialect && `Arabic style: ${p.dialect === "egyptian" ? "friendly Egyptian Arabic" : "clear Modern Standard Arabic"}`,
-    p.emoji && `Emojis: ${{ none: "none", few: "at most two", many: "several are fine" }[p.emoji]}`,
-    p.useWords && `Words and values the school likes to use: ${p.useWords}`,
-    p.avoidWords && `Never use these words: ${p.avoidWords}`,
-    p.signoff && `End with the school's sign-off: ${p.signoff}`,
-    p.motto && `Motto: ${p.motto}`,
-    p.learnt && `Learnt from the school's own edits and best posts: ${p.learnt}`,
-    p.examples?.length && `Examples of captions the school liked:\n- ${p.examples.slice(0, 5).join("\n- ")}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+class RetryError extends Error {
+  limit: boolean;
+  constructor(message: string, limit = false) {
+    super(message);
+    this.limit = limit;
+  }
 }
 
 export class GeminiProvider implements AiProvider {
   name = "gemini";
 
-  constructor(
-    private apiKey: string,
-    private model: string,
-  ) {}
+  private apiKey: string;
+  private model: string;
+  private fallback: string;
+  private waitMs: number;
 
+  constructor(apiKey: string, model: string, fallback = "gemini-2.5-flash-lite", waitMs = 1500) {
+    this.apiKey = apiKey;
+    this.model = model;
+    this.fallback = fallback;
+    this.waitMs = waitMs;
+  }
+
+  // One request. The free tier answers "too many requests" or "busy" often,
+  // so each model gets a second try after a short wait, and then a lighter
+  // model is tried before the writer is told to wait.
   private async generate<T>(parts: Part[], schema: object, temperature: number): Promise<T> {
-    const res = await fetch(`${ENDPOINT}/${this.model}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": this.apiKey },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: { temperature, responseMimeType: "application/json", responseSchema: schema },
-      }),
-      signal: AbortSignal.timeout(55_000),
-    });
-    if (res.status === 429) throw new AiLimitError("Gemini rate limit");
+    const models = [...new Set([this.model, this.fallback].filter(Boolean))];
+    let last: Error = new Error("Gemini: no answer");
+    for (const model of models) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt) await new Promise((r) => setTimeout(r, this.waitMs));
+        try {
+          return await this.ask<T>(model, parts, schema, temperature);
+        } catch (e) {
+          last = e as Error;
+          if (!(e instanceof RetryError)) throw e;
+        }
+      }
+    }
+    throw last instanceof RetryError && last.limit ? new AiLimitError("Gemini rate limit") : new Error(last.message);
+  }
+
+  private async ask<T>(model: string, parts: Part[], schema: object, temperature: number): Promise<T> {
+    let res: Response;
+    try {
+      res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": this.apiKey },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts }],
+          generationConfig: { temperature, responseMimeType: "application/json", responseSchema: schema },
+        }),
+        signal: AbortSignal.timeout(25_000),
+      });
+    } catch (e) {
+      throw new RetryError(`Gemini unreachable: ${(e as Error).message}`);
+    }
+    if (res.status === 429) throw new RetryError("Gemini rate limit", true);
+    if (res.status >= 500) throw new RetryError(`Gemini ${res.status}`);
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
     const body = await res.json();
     const text = body?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-    return JSON.parse(text) as T;
+    // An empty or cut-off answer (a safety block, or the model ran out of room) is worth one more try.
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new RetryError(`Gemini gave no usable answer (${body?.candidates?.[0]?.finishReason ?? body?.promptFeedback?.blockReason ?? "empty"})`);
+    }
   }
 
   async rankPhotos(photos: PhotoInput[], context: string): Promise<PhotoVerdict[]> {
@@ -113,70 +142,31 @@ export class GeminiProvider implements AiProvider {
   async writeCaptions(req: CaptionRequest): Promise<Captions[]> {
     const o = req.options ?? {};
     const count = Math.min(5, Math.max(1, o.count ?? 3));
-    const facts = [
-      `School: ${req.schoolName}`,
-      req.eventTitle && `Event: ${req.eventTitle}`,
-      req.eventDate && `Date: ${req.eventDate}`,
-      req.className && `Class or grade: ${req.className}`,
-      req.categoryName && `Post category: ${req.categoryName}`,
-      req.notes.length > 0 && `Notes from staff: ${req.notes.join(" | ")}`,
-      req.hashtags && `Hashtags the school always uses: ${req.hashtags}`,
-      o.prompt && `What this post should say: ${o.prompt}`,
-    ].filter(Boolean);
-    const languages = { ar: "Arabic only (leave en empty)", en: "English only (leave ar empty)", ar_en: "both Arabic and English" }[req.languages];
-    const parts: Part[] = [
-      {
-        text:
-          `Write ${count} different caption options for a private school in Egypt, for its Facebook page and Instagram. ` +
-          `Write each in ${languages}. Arabic is warm and suitable for parents; the English is natural, not a word-for-word translation. ` +
-          `${o.words ? `About ${o.words} words each.` : "Two to four short sentences."} ` +
-          `${o.tone ? `Tone: ${o.tone}.` : ""} ` +
-          `${o.emoji === false ? "No emojis." : "At most two emojis."} ` +
-          "Celebrate the students' effort and learning. Describe the activity, never name or describe an individual student, never guess names, never mention anything you can't see or read in the facts. " +
-          `${o.hashtags === false ? "Return an empty hashtags line." : "Return 3 to 6 hashtags (including the school's own) in one line."} ` +
-          `${o.splitInstagram ? "Also write 'ig': a shorter Instagram version (one or two lines, in the main language) that ends with the hashtags." : "Leave 'ig' empty."} ` +
-          "Also write alt text for blind users describing the first photo, one sentence each in Arabic (altAr) and English (altEn), no names.\n\n" +
-          [voiceText(req.profile, req.brandVoice), ...facts].filter(Boolean).join("\n"),
-      },
-      ...req.photos.slice(0, 4).map(image),
-    ];
+    const parts: Part[] = [{ text: captionPrompt(req) }, ...req.photos.slice(0, 4).map(image)];
     const schema = {
       type: "ARRAY",
       items: { type: "OBJECT", properties: { ar: STR, en: STR, hashtags: STR, ig: STR, altAr: STR, altEn: STR }, required: ["ar", "en", "hashtags", "ig", "altAr", "altEn"] },
     };
     const out = await this.generate<Captions[]>(parts, schema, 0.8);
-    return out.slice(0, count).map((c) => ({
-      ar: req.languages === "en" ? "" : String(c.ar ?? "").slice(0, 2000),
-      en: req.languages === "ar" ? "" : String(c.en ?? "").slice(0, 2000),
-      hashtags: String(c.hashtags ?? "").slice(0, 300),
-      ig: String(c.ig ?? "").slice(0, 2000),
-      altAr: String(c.altAr ?? "").slice(0, 400),
-      altEn: String(c.altEn ?? "").slice(0, 400),
-    }));
+    return finishCaptions(Array.isArray(out) ? out.slice(0, count) : [], {
+      languages: req.languages,
+      fixedHashtags: req.hashtags,
+      hashtags: o.hashtags,
+      emoji: o.emoji === false || req.profile?.emoji === "none" ? false : undefined,
+      avoid: req.avoid,
+    });
   }
 
-  async rewrite(text: string, instruction: string, language: "ar" | "en"): Promise<string> {
-    const out = await this.generate<{ text: string }>(
-      [{ text: `Rewrite this school social media caption (${language === "ar" ? "Arabic" : "English"}). Instruction: ${instruction}. Keep it in the same language, keep any hashtags, never add student names.\n\n${text}` }],
-      { type: "OBJECT", properties: { text: STR }, required: ["text"] },
-      0.6,
-    );
-    return String(out.text ?? "").slice(0, 2200);
+  async rewrite(text: string, instruction: string, language: "ar" | "en", profile?: SchoolProfile | null): Promise<string> {
+    const out = await this.generate<{ text: string }>([{ text: rewritePrompt(text, instruction, language, profile) }], { type: "OBJECT", properties: { text: STR }, required: ["text"] }, 0.6);
+    const done = String(out.text ?? "");
+    return (language === "ar" ? tidyArabic(done) : tidyEnglish(done)).slice(0, 2200);
   }
 
   async translate(text: string, to: "ar" | "en", profile?: SchoolProfile | null): Promise<string> {
-    const out = await this.generate<{ text: string }>(
-      [
-        {
-          text:
-            `Write the ${to === "ar" ? "Arabic" : "English"} version of this school caption. Natural, not word for word, same meaning and length, no hashtags. ` +
-            `${voiceText(profile)}\n\n${text}`,
-        },
-      ],
-      { type: "OBJECT", properties: { text: STR }, required: ["text"] },
-      0.4,
-    );
-    return String(out.text ?? "").slice(0, 2200);
+    const out = await this.generate<{ text: string }>([{ text: translatePrompt(text, to, profile) }], { type: "OBJECT", properties: { text: STR }, required: ["text"] }, 0.4);
+    const done = String(out.text ?? "");
+    return (to === "ar" ? tidyArabic(done) : tidyEnglish(done)).slice(0, 2200);
   }
 
   async checkCaption(text: string, profile: SchoolProfile | null, avoid: string[]): Promise<CaptionCheck> {

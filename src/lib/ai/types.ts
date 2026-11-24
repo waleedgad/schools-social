@@ -65,6 +65,12 @@ export type CaptionRequest = {
   notes: string[];
   photos: Uint8Array[];
   options?: CaptionOptions;
+  // Words the school never uses (the voice profile's and the saved list).
+  avoid?: string[];
+  // The school's saved hashtag sets, for the AI to pick the one that fits.
+  hashtagSets?: { title: string; tags: string }[];
+  // What the school's own results and edits teach (see lib/captions.ts).
+  learning?: { best: string[]; hints: string[] } | null;
 };
 export type Captions = { ar: string; en: string; hashtags: string; ig?: string; altAr?: string; altEn?: string };
 
@@ -84,7 +90,7 @@ export interface AiProvider {
   name: string;
   rankPhotos(photos: PhotoInput[], context: string): Promise<PhotoVerdict[]>;
   writeCaptions(request: CaptionRequest): Promise<Captions[]>;
-  rewrite(text: string, instruction: string, language: "ar" | "en"): Promise<string>;
+  rewrite(text: string, instruction: string, language: "ar" | "en", profile?: SchoolProfile | null): Promise<string>;
   translate(text: string, to: "ar" | "en", profile?: SchoolProfile | null): Promise<string>;
   checkCaption(text: string, profile: SchoolProfile | null, avoid: string[]): Promise<CaptionCheck>;
   buildProfile(schoolName: string, source: string): Promise<ProfileDraft>;

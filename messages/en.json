@@ -306,7 +306,7 @@
       "optedOut": "{count, plural, one {# photo is} other {# photos are}} marked not for posting. Remove them.",
       "blurred": "{count, plural, one {# photo has} other {# photos have}} faces blurred (people who can't appear). Check they look right.",
       "aiSensitive": "AI thinks {count, plural, one {# photo is} other {# photos are}} sensitive. Remove them or tick \"Sensitive post\" so the principal checks.",
-      "studentName": "The caption names a student ({names}). Remove the name.",
+      "studentName": "The caption names a student ({names}). Check the school is happy to name them before it goes out.",
       "classConsent": "{count} students in {className} have no consent. Check no one of them appears in the photos.",
       "igRatio": "{count, plural, one {# photo has} other {# photos have}} a shape Instagram won't accept. Edit it to square or portrait.",
       "igTen": "Instagram shows only the first 10 photos.",
@@ -1000,7 +1000,20 @@
     "sourceHint": "Your website's About page, a brochure or a few past posts. The AI drafts the voice and suggests categories.",
     "draft": "Draft my brand voice",
     "learnt": "What the AI learnt",
-    "learntHint": "The last {count} approved captions are used as examples of your voice."
+    "learntHint": "The last {count} approved captions are used as examples of your voice.",
+    "learntResults": "From your posts: {measured} with results, {edited} drafts the team edited.",
+    "learntNone": "Nothing clear yet. The AI starts giving tips after about 8 posts with results or 4 drafts the team changed.",
+    "learntBest": "Captions people liked most (the AI learns from them, never copies):",
+    "hints": {
+      "short_wins": "Your shorter captions get the most response. The AI aims for about {words} words.",
+      "long_wins": "Your fuller captions get the most response. The AI aims for about {words} words.",
+      "team_shortens": "Your team usually shortens the AI's drafts. It now writes about {words} words.",
+      "team_lengthens": "Your team usually adds detail to the AI's drafts. It now writes about {words} words with more detail.",
+      "emoji_wins": "Captions with an emoji do better with your parents. The AI uses one or two.",
+      "emoji_loses": "Captions without emojis do better with your parents. The AI uses none.",
+      "team_drops_emoji": "Your team removes the emojis from the AI's drafts. The AI uses none.",
+      "question_wins": "Captions that ask parents a question get more response. One option ends with a simple question."
+    }
   },
   "today": {
     "morning": "Good morning, {name}",
