@@ -16,7 +16,7 @@ import type { Captions } from "@/lib/ai/types";
 // Why a post failed, in plain words (release 0.17); older posts have no reason.
 // Only real Facebook or Instagram addresses become links.
 const safeLink = (v: unknown) => (typeof v === "string" && /^https:\/\/(www\.)?(facebook|instagram)\.com\//.test(v) ? v : null);
-const REASONS: unknown[] = ["busy", "reconnect", "photo", "caption", "daily_limit", "duplicate", "check", "other"];
+const REASONS: unknown[] = ["busy", "reconnect", "connect", "photo", "caption", "daily_limit", "duplicate", "check", "other"];
 
 export default async function PostPage({
   params,
@@ -193,8 +193,8 @@ export default async function PostPage({
           {REASONS.includes(post.publish_reason) ? (
             <>
               <b className="block">{t(`posts.reason.${post.publish_reason}`)}</b>
-              <span className="text-xs opacity-80">{t("posts.metaSaid", { error: post.publish_error })}</span>
-              {post.publish_reason === "reconnect" && (
+              <span className="text-xs opacity-80">{t(post.publish_reason === "check" || post.publish_reason === "connect" ? "posts.details" : "posts.metaSaid", { error: post.publish_error })}</span>
+              {(post.publish_reason === "reconnect" || post.publish_reason === "connect") && (
                 <a href={`/${locale}/accounts`} className="mt-1 block font-semibold underline">
                   {t("posts.openAccounts")}
                 </a>

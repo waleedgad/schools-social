@@ -40,7 +40,7 @@ export function instagramText(p: Pick<Post, "caption_ar" | "caption_en" | "capti
 async function publishClaimed(admin: SupabaseClient, post: Post) {
   // reason (release 0.17): a short code the screens show in plain Arabic or
   // English; message keeps Meta's own words.
-  const fail = async (message: string, reason: MetaReason | "check" = "other") => {
+  const fail = async (message: string, reason: MetaReason | "check" | "connect" = "other") => {
     await admin.from("posts").update({ status: "failed", publish_error: message.slice(0, 500), publish_reason: reason, retry_at: null }).eq("id", post.id);
     await notify(post.school_id, "failed", "A post didn't go out · لم يُنشر منشور", message.slice(0, 300), `/posts/${post.id}`, { key: `failed:${post.id}:${post.attempts}` });
   };
@@ -62,7 +62,7 @@ async function publishClaimed(admin: SupabaseClient, post: Post) {
     .select("page_id, page_token, ig_user_id, fb_paused, ig_paused, needs_reconnect")
     .eq("school_id", post.school_id)
     .maybeSingle();
-  if (!meta?.page_id || !meta.page_token) return fail("Connect the school's Facebook Page in settings first.", "reconnect");
+  if (!meta?.page_id || !meta.page_token) return fail("Connect the school's Facebook Page in settings first.", "connect");
   // Release 0.17: the key stopped working; nothing is tried until someone reconnects.
   // (No alert per post: the school already got one "Reconnect Facebook".)
   if (meta.needs_reconnect) {

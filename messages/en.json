@@ -343,7 +343,8 @@
       "daily_limit": "Instagram's limit of posts in one day was reached. It can go out tomorrow.",
       "duplicate": "Facebook says the same text was just posted. Check the Page before trying again.",
       "check": "The post changed after it was approved and no longer passes the checks. Open it, fix what's shown, then try again.",
-      "other": "Facebook or Instagram refused the post."
+      "other": "Facebook or Instagram refused the post.",
+      "connect": "Facebook isn't connected yet, so the post couldn't go out. Connect it on the Accounts page, then try again."
     },
     "metaSaid": "What Meta said: {error}",
     "openAccounts": "Open Accounts",
@@ -351,7 +352,8 @@
     "viewOn": {
       "facebook": "View on Facebook",
       "instagram": "View on Instagram"
-    }
+    },
+    "details": "Details: {error}"
   },
   "calendar": {
     "title": "Calendar",
