@@ -346,14 +346,14 @@
       "other": "Facebook or Instagram refused the post.",
       "connect": "Facebook isn't connected yet, so the post couldn't go out. Connect it on the Accounts page, then try again."
     },
-    "metaSaid": "What Meta said: {error}",
     "openAccounts": "Open Accounts",
     "retrying": "Facebook or Instagram was busy. It will be tried again by itself at {time}.",
     "viewOn": {
       "facebook": "View on Facebook",
       "instagram": "View on Instagram"
     },
-    "details": "Details: {error}"
+    "metaSaidLabel": "What Meta said:",
+    "detailsLabel": "Details:"
   },
   "calendar": {
     "title": "Calendar",

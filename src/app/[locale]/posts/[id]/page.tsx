@@ -193,7 +193,9 @@ export default async function PostPage({
           {REASONS.includes(post.publish_reason) ? (
             <>
               <b className="block">{t(`posts.reason.${post.publish_reason}`)}</b>
-              <span className="text-xs opacity-80">{t(post.publish_reason === "check" || post.publish_reason === "connect" ? "posts.details" : "posts.metaSaid", { error: post.publish_error })}</span>
+              <span className="text-xs opacity-80">
+                {t(post.publish_reason === "check" || post.publish_reason === "connect" ? "posts.detailsLabel" : "posts.metaSaidLabel")} <bdi dir="auto">{post.publish_error}</bdi>
+              </span>
               {(post.publish_reason === "reconnect" || post.publish_reason === "connect") && (
                 <a href={`/${locale}/accounts`} className="mt-1 block font-semibold underline">
                   {t("posts.openAccounts")}
