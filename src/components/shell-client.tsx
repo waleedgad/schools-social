@@ -57,7 +57,7 @@ export function CommandPalette({ commands, placeholder, label }: { commands: Com
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mx-0.5 mb-1.5 flex items-center gap-2 rounded-lg bg-background px-2 py-1.5 text-start text-xs text-muted"
+        className="mx-0.5 mb-1.5 flex items-center gap-2 rounded-control bg-foreground/[.06] px-2 py-1.5 text-start text-xs text-muted"
       >
         <Icon name="search" size={14} />
         <span className="grow">{label}</span>
@@ -262,7 +262,7 @@ export function WorkspaceSwitcher({ current, workspaces, label }: { current: str
         name="school"
         defaultValue={current}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
+        className="w-full rounded-control border border-border bg-background px-2 py-1.5 text-xs"
       >
         {workspaces.map((w) => (
           <option key={w.id} value={w.id}>

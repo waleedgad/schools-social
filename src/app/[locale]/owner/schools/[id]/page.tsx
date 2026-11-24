@@ -83,7 +83,7 @@ export default async function OwnerSchoolPage({
       {sp.created && <Notice tone="good">{t("owner.school.created")}</Notice>}
 
       {st && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-4" data-testid="owner-school-state">
+        <div className="flex flex-wrap items-center gap-3 card p-4" data-testid="owner-school-state">
           <Chip tone={tone[st.state]}>{t(`plan.states.${st.state}`)}</Chip>
           {st.forced && <Chip tone="violet">{t("owner.school.forced")}</Chip>}
           <span className="text-sm">{t("owner.school.paidUntil", { date: date(st.paid_until) })}</span>
@@ -215,7 +215,7 @@ export default async function OwnerSchoolPage({
                   <input type="hidden" name="locale" value={locale} />
                   <input type="hidden" name="school" value={school.id} />
                   <input type="hidden" name="computer" value={c.id} />
-                  <input name="reason" placeholder={t("owner.reason")} aria-label={t("owner.reason")} maxLength={300} className="w-full rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs" />
+                  <input name="reason" placeholder={t("owner.reason")} aria-label={t("owner.reason")} maxLength={300} className="w-full rounded-control border border-border bg-surface-2 px-2 py-1 text-xs" />
                   <Button variant="danger" className="shrink-0 py-1 text-xs">
                     {t("owner.school.removeComputer")}
                   </Button>

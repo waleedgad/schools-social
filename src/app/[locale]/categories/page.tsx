@@ -145,7 +145,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
               {[6, 0, 1, 2, 3, 4, 5].map((d) => {
                 const list = (slots ?? []).filter((s) => s.weekday === d);
                 return (
-                  <div key={d} className="rounded-lg border border-border p-2">
+                  <div key={d} className="rounded-control bg-foreground/[.04] p-2">
                     <b className="text-xs">{day(d)}</b>
                     {!list.length && <p className="text-[11px] text-faint">—</p>}
                     <ul className="mt-1 space-y-1">
@@ -211,7 +211,7 @@ export default async function CategoriesPage({ params, searchParams }: { params:
           <FrameUploader locale={locale} schoolId={schoolId} />
           <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {(frames ?? []).map((f) => (
-              <li key={f.id} className="overflow-hidden rounded-lg border border-border">
+              <li key={f.id} className="overflow-hidden rounded-control border border-border">
                 <div className="bg-[repeating-conic-gradient(var(--color-grey-bg)_0_25%,transparent_0_50%)] bg-[length:16px_16px]">
                   {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}
                   <img src={frameUrls.get(f.storage_path)} alt="" className="aspect-[4/5] w-full object-contain" />

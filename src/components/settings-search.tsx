@@ -25,7 +25,7 @@ export function SettingsSearch({ placeholder, empty }: { placeholder: string; em
           });
           setNone(shown === 0);
         }}
-        className="mb-2 w-full rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm"
+        className="mb-2 w-full rounded-control border border-border bg-surface-2 px-3 py-1.5 text-sm"
       />
       {none && <p className="px-2 py-1 text-xs text-muted">{empty}</p>}
     </>

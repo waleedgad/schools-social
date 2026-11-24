@@ -2012,7 +2012,7 @@ app.whenReady().then(async () => {
     set: (key: keyof Settings, value: never) => {
       if (!SETTABLE.includes(key)) throw new Error("bad-setting");
       settings.set({ [key]: value } as Partial<Settings>);
-      if (key === "openAtLogin") app.setLoginItemSettings({ openAtLogin: !!value, openAsHidden: true });
+      if (key === "openAtLogin") app.setLoginItemSettings({ openAtLogin: !!value, args: ["--hidden"] });
       if (key === "language") createMenu();
       if (key === "theme") syncTheme();
       if (key === "faces" && value) engine?.queueFaceScan();
@@ -2288,12 +2288,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  app.setLoginItemSettings({ openAtLogin: settings.get().openAtLogin, openAsHidden: true });
+  app.setLoginItemSettings({ openAtLogin: settings.get().openAtLogin, args: ["--hidden"] });
   if (!settings.get().supabaseUrl) await connect(settings.get().server || DEFAULT_SERVER).catch(() => {});
   createMenu();
   createWindow();
   createTray();
-  if (process.argv.includes("--hidden") || app.getLoginItemSettings().wasOpenedAsHidden) win?.hide();
+  if (process.argv.includes("--hidden")) win?.hide();
   await restart();
   startAura();
   setTimeout(() => void checkLicence(), 3000);

@@ -64,7 +64,7 @@ export default async function InvitePage({
                 </Link>
                 <Link
                   href={{ pathname: "/login", query: { next: here } }}
-                  className="rounded-lg border border-border px-4 py-2 text-sm font-semibold"
+                  className="rounded-control bg-foreground/[.07] hover:bg-foreground/[.11] px-4 py-2 text-sm font-semibold"
                 >
                   {t("common.signIn")}
                 </Link>

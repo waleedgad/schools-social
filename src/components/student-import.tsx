@@ -16,7 +16,7 @@ export function StudentImport({ locale }: { locale: string }) {
     try {
       const rows = file.name.toLowerCase().endsWith(".csv")
         ? parseCsv(await file.text())
-        : ((await (await import("read-excel-file")).default(file)) as unknown[][]);
+        : ((await (await import("read-excel-file/browser")).readSheet(file)) as unknown[][]);
       const parsed = rowsToStudents(rows);
       setStudents(parsed);
       if (!parsed.length) setError(true);

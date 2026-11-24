@@ -55,7 +55,7 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
               <form action={answerReview} className="space-y-3 border-t border-border pt-4">
                 <input type="hidden" name="locale" value={locale} />
                 <input type="hidden" name="token" value={token} />
-                <textarea name="comment" rows={3} maxLength={1000} placeholder={t("comment")} className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
+                <textarea name="comment" rows={3} maxLength={1000} placeholder={t("comment")} className="w-full rounded-control border border-border bg-surface-2 px-3 py-2 text-sm" />
                 <div className="grid grid-cols-2 gap-2">
                   <Button name="answer" value="changes" variant="quiet">{t("changes")}</Button>
                   <Button name="answer" value="approved" variant="good" icon="check">{t("approve")}</Button>

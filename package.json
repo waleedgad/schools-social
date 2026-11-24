@@ -13,11 +13,11 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
-    "next": "15.5.28",
+    "next": "^15.5.29",
     "next-intl": "^4.14.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "read-excel-file": "^5.8.8",
+    "read-excel-file": "^9.3.17",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
@@ -29,7 +29,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.5.28",
+    "eslint-config-next": "^15.5.29",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

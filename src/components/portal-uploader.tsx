@@ -74,7 +74,7 @@ export function PortalUploader({ token }: { token: string }) {
           onChange={(e) => setNote(e.target.value)}
           maxLength={200}
           disabled={busy}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2"
+          className="w-full rounded-control border border-border bg-background px-3 py-2"
         />
       </label>
       <label

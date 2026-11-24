@@ -33,6 +33,17 @@ for (const [app, { file, dark }] of Object.entries(apps)) {
       if (write) parts[mode] = parts[mode].replace(re, `$1${value}`);
     }
   }
+  // Shapes: card and control corners (one value each) and the soft card shadow (light and dark).
+  for (const [name, value] of Object.entries(tokens.shape)) {
+    const m = css.match(new RegExp(`--${name}:\\s*([^;]+);`));
+    if (!m) problems.push(`${app}: --${name} missing`);
+    else if (m[1].trim() !== value) problems.push(`${app}: --${name} is ${m[1].trim()}, should be ${value}`);
+  }
+  for (const mode of ["light", "dark"]) {
+    const m = parts[mode].match(/--soft:\s*([^;]+);/);
+    if (!m) problems.push(`${app} ${mode}: --soft missing`);
+    else if (m[1].trim() !== tokens.shadow[mode]) problems.push(`${app} ${mode}: --soft is ${m[1].trim()}, should be ${tokens.shadow[mode]}`);
+  }
   if (write) writeFileSync(full, parts.light + parts.dark);
 }
 
@@ -58,4 +69,4 @@ if (left.length) {
   console.error(left.join("\n"));
   process.exit(1);
 }
-console.log("Website and Mac app use the same colours, all readable.");
+console.log("Website and Mac app use the same colours and shapes, all readable.");

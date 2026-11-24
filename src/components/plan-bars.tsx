@@ -39,7 +39,7 @@ export async function BlockedScreen({ status, schoolName, locale }: { status: Pl
   const t = await getTranslations();
   return (
     <main data-testid="blocked" className="grid min-h-dvh place-items-center bg-background px-4">
-      <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 text-center">
+      <div className="w-full max-w-md space-y-4 card p-6 text-center">
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-danger-bg text-danger">
           <Icon name="warning" />
         </span>
@@ -53,7 +53,7 @@ export async function BlockedScreen({ status, schoolName, locale }: { status: Pl
           <p className="text-sm text-muted">{t("plan.blocked.noContact")}</p>
         )}
         <p className="text-xs text-muted">{t("plan.blocked.safe")}</p>
-        <SignOutButton locale={locale} label={t("common.signOut")} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-background" />
+        <SignOutButton locale={locale} label={t("common.signOut")} className="rounded-control bg-foreground/[.07] hover:bg-foreground/[.11] px-4 py-2 text-sm font-semibold" />
       </div>
     </main>
   );

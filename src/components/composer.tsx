@@ -76,7 +76,7 @@ export type ComposerData = {
   newLink: string | null;
 };
 
-const area = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20";
+const area = "w-full rounded-control border border-border bg-surface-2 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20";
 const PROMPT_KEYS = ["recap", "achievement", "welcome", "occasion", "thanks", "learning", "sports", "trip", "reminder", "exams", "results", "graduation", "admissions"] as const;
 const REWRITES = ["shorter", "longer", "warmer", "formal", "emoji", "fixSpelling"] as const;
 
@@ -152,7 +152,7 @@ function Preview({ data, platform, caption, photos }: { data: ComposerData; plat
   const name = platform === "facebook" ? data.pageName : data.igName;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface text-sm shadow-sm">
+    <div className="overflow-hidden card text-sm">
       <div className="flex items-center gap-2 p-3">
         <span className="grid size-8 place-items-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">{data.schoolName.slice(0, 2)}</span>
         <div className="leading-tight">
@@ -745,7 +745,7 @@ export function Composer({ data }: { data: ComposerData }) {
                 <div className="space-y-2 border-t border-border pt-3">
                   <b className="text-xs">{t("ai.versions")}</b>
                   {p.variations.map((v, n) => (
-                    <form key={n} action={pickVariation} className="rounded-lg border border-border p-2 text-xs">
+                    <form key={n} action={pickVariation} className="rounded-control bg-foreground/[.04] p-2 text-xs">
                       {hidden}
                       <input type="hidden" name="index" value={n} />
                       <p className="line-clamp-4 whitespace-pre-wrap" dir="auto">
@@ -830,7 +830,7 @@ export function Composer({ data }: { data: ComposerData }) {
             <ul className="space-y-2">
               {!data.versions.length && <p className="text-xs text-muted">{t("noVersions")}</p>}
               {data.versions.map((v, n) => (
-                <li key={v.id} className="rounded-lg border border-border p-2 text-xs">
+                <li key={v.id} className="rounded-control bg-foreground/[.04] p-2 text-xs">
                   <span className="text-faint"><LocalTime iso={v.at} lang={data.locale === "ar" ? "ar-EG" : "en-GB"} options={SHORT} /></span>
                   <p className="line-clamp-3" dir="auto">
                     {v.text}

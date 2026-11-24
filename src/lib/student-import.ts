@@ -12,7 +12,7 @@ const HEADERS: Record<keyof StudentInput, string[]> = {
   full_name: ["name", "student", "student name", "full name", "الاسم", "اسم الطالب", "الطالب"],
   class_name: ["class", "grade", "section", "الفصل", "الصف", "الفصل الدراسي"],
   parent_phone: ["phone", "parent phone", "mobile", "هاتف", "الهاتف", "هاتف ولي الأمر", "موبايل"],
-  consent_social: ["consent", "photo consent", "social media", "الموافقة", "موافقة", "موافقة النشر"],
+  consent_social: ["consent", "photo consent", "social media", "can appear in posts", "الموافقة", "موافقة", "موافقة النشر"],
 };
 
 const YES = ["yes", "y", "true", "1", "نعم", "موافق", "موافقة"];
@@ -32,7 +32,8 @@ export function parseConsent(value: unknown): StudentInput["consent_social"] {
 export function rowsToStudents(rows: unknown[][]): StudentInput[] {
   if (rows.length < 2) return [];
   const header = rows[0].map(normalize);
-  const column = (key: keyof StudentInput) => header.findIndex((h) => HEADERS[key].includes(h));
+  // "Name (English)" counts as "name" (B-136: school-system exports add the language in brackets).
+  const column = (key: keyof StudentInput) => header.findIndex((h) => HEADERS[key].includes(h) || HEADERS[key].includes(h.replace(/\s*\(.*\)\s*$/, "")));
   const nameCol = column("full_name") >= 0 ? column("full_name") : 0;
   const classCol = column("class_name");
   const phoneCol = column("parent_phone");

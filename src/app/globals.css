@@ -26,6 +26,10 @@
   --violet-bg: #f0eaff;
   --grey-bg: #eef0f3;
   --shadow: 0 10px 30px rgba(20, 25, 35, 0.14);
+  --soft: 0 1px 2px rgba(20, 25, 35, .05), 0 4px 14px rgba(20, 25, 35, .05);
+  --side: #eef0f3;
+  --r: 14px;
+  --rc: 9px;
   color-scheme: light;
 }
 
@@ -52,6 +56,8 @@
     --violet-bg: #2a2348;
     --grey-bg: #2a2e35;
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --soft: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .2);
+    --side: #1b1d22;
     color-scheme: dark;
   }
 }
@@ -78,6 +84,8 @@
   --violet-bg: #2a2348;
   --grey-bg: #2a2e35;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --soft: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .2);
+  --side: #1b1d22;
   color-scheme: dark;
 }
 
@@ -150,6 +158,10 @@
   --font-sans: var(--font-inter), var(--font-plex), system-ui, sans-serif;
   --font-arabic: var(--font-plex), var(--font-inter), system-ui, sans-serif;
   --shadow-pop: var(--shadow);
+  --shadow-soft: var(--soft);
+  --color-side: var(--side);
+  --radius-card: var(--r);
+  --radius-control: var(--rc);
 }
 
 body {
@@ -228,3 +240,23 @@ kbd {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* The computer's own "reduce motion" setting stops every movement, not only
+   the page fade (WCAG 2.3.3): spinners keep turning slowly, nothing slides. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* One card look for the website and the Mac app (design/tokens.json "shape"):
+   no outline, 14px corners, a soft shadow. High contrast adds a clear line. */
+@utility card {
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--soft);
+}
+:root[data-contrast="high"] .card { box-shadow: 0 0 0 1px var(--border); }

@@ -139,7 +139,7 @@ export default async function LibraryPage({
                 <h2 className="text-sm font-semibold">{t("portal.links")}</h2>
                 <p className="text-xs text-muted">{t("portal.linksHint")}</p>
                 {(links ?? []).map((l) => (
-                  <div key={l.id} className="space-y-1 rounded-lg border border-border p-2 text-xs">
+                  <div key={l.id} className="space-y-1 rounded-control bg-foreground/[.04] p-2 text-xs">
                     <p className="font-semibold">{l.label}</p>
                     <p className="text-muted">
                       {t("portal.linkStats", { count: l.upload_count, date: l.expires_at.slice(0, 10) })}
@@ -173,7 +173,7 @@ export default async function LibraryPage({
               <div className="flex flex-wrap items-center gap-2">
                 <Link
                   href={{ pathname: "/library", query: { event: selected, ...(byAi ? {} : { sort: "ai" }) } }}
-                  className="rounded-lg border border-border px-3 py-2 text-sm"
+                  className="rounded-control bg-foreground/[.07] hover:bg-foreground/[.11] px-3 py-2 text-sm"
                 >
                   {byAi ? t("library.sortNewest") : t("library.sortAi")}
                 </Link>
@@ -203,7 +203,7 @@ export default async function LibraryPage({
             {!photos?.length && <p className="text-muted">{t("library.empty")}</p>}
 
             {!!photos?.length && (
-              <form id="new-post" action={createPost} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 text-sm">
+              <form id="new-post" action={createPost} className="flex flex-wrap items-center gap-3 card p-3 text-sm">
                 <input type="hidden" name="locale" value={locale} />
                 {current && <input type="hidden" name="event" value={current.id} />}
                 <span className="text-muted">{t("library.selectHint")}</span>
@@ -213,7 +213,7 @@ export default async function LibraryPage({
 
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {(photos ?? []).map((p) => (
-                <li key={p.id} className="overflow-hidden rounded-xl border border-border bg-surface">
+                <li key={p.id} className="overflow-hidden card">
                   <div className="relative">
                     <a href={url.get(shown(p))} target="_blank" rel="noreferrer" className="block">
                       {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs change hourly */}

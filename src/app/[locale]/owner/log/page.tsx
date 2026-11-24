@@ -29,7 +29,7 @@ export default async function OwnerLogPage({ params }: { params: Promise<{ local
       {!rows.length ? (
         <Empty icon="activity" title={t("owner.log.empty")} />
       ) : (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-surface text-sm" data-testid="owner-log">
+        <ul className="divide-y divide-border card text-sm" data-testid="owner-log">
           {rows.map((r) => (
             <li key={r.id} className="space-y-0.5 px-4 py-2.5">
               <div className="flex flex-wrap gap-x-2">

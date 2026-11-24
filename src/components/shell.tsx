@@ -121,7 +121,7 @@ export async function AppShell({
     <div className="flex min-h-dvh">
       <aside
         id="side"
-        className="fixed inset-y-0 z-40 hidden w-60 shrink-0 flex-col gap-0.5 overflow-y-auto border-e border-border bg-surface/95 px-2.5 pb-3 pt-4 backdrop-blur-xl data-[open=true]:flex md:sticky md:top-0 md:flex md:h-dvh"
+        className="fixed inset-y-0 z-40 hidden w-60 shrink-0 flex-col gap-0.5 overflow-y-auto border-e border-border bg-side px-2.5 pb-3 pt-4 data-[open=true]:flex md:sticky md:top-0 md:flex md:h-dvh"
       >
         <div className="flex items-center gap-2.5 px-1.5 pb-3">
           <span className="grid size-8 place-items-center rounded-lg bg-accent text-xs font-bold text-accent-foreground">{initials}</span>
@@ -137,16 +137,16 @@ export async function AppShell({
           if (!items.length) return null;
           return (
             <nav key={s} className="flex flex-col gap-0.5">
-              {s !== "main" && <div className="px-2 pb-1 pt-3 text-[10px] font-bold uppercase tracking-widest text-faint">{t(`nav.sections.${s}`)}</div>}
+              {s !== "main" && <div className="px-2 pb-1 pt-3 text-[11px] font-semibold text-faint">{t(`nav.sections.${s}`)}</div>}
               {items.map((i) => (
                 <Link
                   key={i.key}
                   href={i.href}
                   className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition ${
-                    active === i.key ? "bg-accent-bg font-semibold text-accent-ink" : "hover:bg-background"
+                    active === i.key ? "bg-foreground/10 font-semibold" : "hover:bg-foreground/[.06]"
                   }`}
                 >
-                  <Icon name={i.icon} className={active === i.key ? "text-accent-ink" : "text-faint"} />
+                  <Icon name={i.icon} className="text-accent" />
                   <span className="grow">{t(`nav.${i.key}`)}</span>
                   {badge[i.key] ? (
                     <span className="rounded-full bg-warn-bg px-1.5 text-[11px] font-semibold text-warn">{badge[i.key]}</span>
@@ -164,12 +164,12 @@ export async function AppShell({
             </Link>
           )}
           {seesPlan(membership.role) && (
-            <Link href="/plan" className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-background ${active === "plan" ? "bg-accent-bg text-accent-ink" : ""}`}>
+            <Link href="/plan" className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-foreground/[.06] ${active === "plan" ? "bg-foreground/10 font-semibold" : ""}`}>
               <Icon name="chart" className="text-faint" />
               {t("nav.plan")}
             </Link>
           )}
-          <Link href="/help" className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-background ${active === "help" ? "bg-accent-bg text-accent-ink" : ""}`}>
+          <Link href="/help" className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-foreground/[.06] ${active === "help" ? "bg-foreground/10 font-semibold" : ""}`}>
             <Icon name="help" className="text-faint" />
             {t("nav.help")}
           </Link>
@@ -194,7 +194,7 @@ export async function AppShell({
             <button className="font-semibold underline">{t("more.viewAs.back")}</button>
           </form>
         )}
-        <header className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface/85 px-4 py-2 backdrop-blur-xl md:px-6">
+        <header className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-background/85 px-4 py-2 backdrop-blur-xl md:px-6">
           <MobileNavToggle label={t("shell.menu")} />
           <div className="min-w-0 grow leading-tight">
             <h1 className="truncate text-base font-bold md:text-lg">{title}</h1>

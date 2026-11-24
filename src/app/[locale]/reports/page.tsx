@@ -51,7 +51,7 @@ export default async function ReportsPage({ params, searchParams }: { params: Pr
                 <p className="whitespace-pre-wrap text-sm">{r.body as string}</p>
                 {r.screenshot && (
                   // eslint-disable-next-line @next/next/no-img-element -- a data URL sent with the report
-                  <img src={r.screenshot as string} alt={t("reports.screenshot")} className="max-h-72 rounded-lg border border-border" />
+                  <img src={r.screenshot as string} alt={t("reports.screenshot")} className="max-h-72 rounded-control border border-border" />
                 )}
                 {admin && r.log && (
                   <details className="text-xs">

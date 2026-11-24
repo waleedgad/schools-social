@@ -220,7 +220,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
           <ButtonLink href={{ pathname: "/calendar", query: prev }} variant="ghost" className="!px-2">‹</ButtonLink>
           <ButtonLink href={{ pathname: "/calendar", query: { view } }} variant="quiet" className="!px-2.5 !py-1.5 text-xs">{t("calendar.today")}</ButtonLink>
           <ButtonLink href={{ pathname: "/calendar", query: next }} variant="ghost" className="!px-2">›</ButtonLink>
-          <div className="ms-1 flex rounded-lg border border-border bg-surface p-0.5">
+          <div className="ms-1 flex rounded-control border border-border bg-surface p-0.5">
             {(["day", "week", "month", "list", "overview"] as const).map((v) => (
               <ButtonLink key={v} href={{ pathname: "/calendar", query: { view: v } }} variant={view === v ? "primary" : "ghost"} className="!px-2.5 !py-1 text-xs">
                 {t(`calendar.views.${v}`)}
@@ -281,7 +281,7 @@ export default async function CalendarPage({ params, searchParams }: { params: P
             const evs = inM.reduce((a, d) => a + d.events.length, 0);
             const month = `${label}-${String(m + 1).padStart(2, "0")}`;
             return (
-              <Link key={m} href={{ pathname: "/calendar", query: { view: "month", month } }} className="rounded-xl border border-border bg-surface p-3 hover:border-accent">
+              <Link key={m} href={{ pathname: "/calendar", query: { view: "month", month } }} className="card p-3 transition hover:shadow-pop">
                 <div className="flex items-baseline justify-between">
                   <b>{fmt({ month: "long" }, new Date(Date.UTC(2026, m, 1)))}</b>
                   <span className="text-xs text-muted">{t("more.calendar.posts", { count: list.length })}</span>

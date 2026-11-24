@@ -4,7 +4,7 @@ import { Icon, type IconName } from "./icons";
 
 export function Card({ children, className = "", title, action }: { children: ReactNode; className?: string; title?: ReactNode; action?: ReactNode }) {
   return (
-    <section className={`rounded-xl border border-border bg-surface p-5 ${className}`}>
+    <section className={`card p-5 ${className}`}>
       {(title || action) && (
         <div className="mb-3 flex items-center justify-between gap-3">
           {title && <h2 className="font-bold">{title}</h2>}
@@ -17,7 +17,7 @@ export function Card({ children, className = "", title, action }: { children: Re
 }
 
 const inputClass =
-  "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20";
+  "w-full rounded-control border border-border bg-surface px-3 py-2 outline-none transition focus:border-accent focus:ring-3 focus:ring-accent-bg";
 
 export function Field({ label, hint, ...input }: { label: string; hint?: string } & ComponentProps<"input">) {
   return (
@@ -55,7 +55,7 @@ export function Toggle({ label, hint, ...input }: { label: ReactNode; hint?: Rea
   return (
     <label className="flex cursor-pointer items-start gap-3">
       <input type="checkbox" {...input} className="peer sr-only" />
-      <span className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-grey-bg transition peer-checked:bg-accent after:absolute after:start-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4 rtl:peer-checked:after:-translate-x-4" />
+      <span className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full bg-grey-bg transition peer-checked:bg-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent after:absolute after:start-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4 rtl:peer-checked:after:-translate-x-4" />
       <span className="text-sm">
         {label}
         {hint && <span className="block text-xs text-muted">{hint}</span>}
@@ -65,11 +65,11 @@ export function Toggle({ label, hint, ...input }: { label: ReactNode; hint?: Rea
 }
 
 const BUTTON = {
-  primary: "bg-accent text-accent-foreground shadow-sm hover:opacity-90",
-  quiet: "border border-border bg-surface hover:bg-background",
-  ghost: "hover:bg-background",
+  primary: "bg-accent text-accent-foreground shadow-sm hover:brightness-105",
+  quiet: "bg-foreground/[.07] hover:bg-foreground/[.11]",
+  ghost: "hover:bg-foreground/[.07]",
   danger: "text-danger hover:bg-danger-bg",
-  good: "bg-good text-white hover:opacity-90",
+  good: "bg-good text-white hover:brightness-105",
 };
 
 export function Button({
@@ -82,7 +82,7 @@ export function Button({
   return (
     <button
       {...button}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition disabled:opacity-50 ${BUTTON[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-control px-3.5 py-2 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 ${BUTTON[variant]} ${className}`}
     >
       {icon && <Icon name={icon} />}
       {children}
@@ -107,7 +107,7 @@ export function ButtonLink({
   label?: string;
 }) {
   return (
-    <Link href={href} aria-label={label} title={label} className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${BUTTON[variant]} ${className}`}>
+    <Link href={href} aria-label={label} title={label} className={`inline-flex items-center justify-center gap-1.5 rounded-control px-3.5 py-2 text-sm font-semibold transition active:scale-[.98] ${BUTTON[variant]} ${className}`}>
       {icon && <Icon name={icon} />}
       {children}
     </Link>
@@ -122,7 +122,7 @@ const TONES = {
 };
 
 export function Notice({ children, tone = "danger" }: { children: ReactNode; tone?: keyof typeof TONES }) {
-  return <div className={`rounded-lg border px-3 py-2 text-sm ${TONES[tone]}`}>{children}</div>;
+  return <div className={`rounded-control border px-3 py-2 text-sm ${TONES[tone]}`}>{children}</div>;
 }
 
 const CHIP = {
@@ -142,7 +142,7 @@ export function Chip({ children, tone = "grey", className = "" }: { children: Re
 
 export function Empty({ icon = "sparkle", title, body, action }: { icon?: IconName; title: string; body?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-10 text-center">
+    <div className="flex flex-col items-center gap-2 rounded-[var(--r)] border border-dashed border-border px-6 py-10 text-center">
       <span className="grid size-11 place-items-center rounded-full bg-accent-bg text-accent-ink">
         <Icon name={icon} size={20} />
       </span>
@@ -155,7 +155,7 @@ export function Empty({ icon = "sparkle", title, body, action }: { icon?: IconNa
 
 export function Stat({ label, value, change, hint }: { label: string; value: ReactNode; change?: number | null; hint?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <div className="text-xs font-semibold text-muted">{label}</div>
       <div className="mt-1 text-2xl font-bold">{value}</div>
       {typeof change === "number" && (
@@ -175,8 +175,8 @@ export function Pills({ items }: { items: { label: ReactNode; href: ComponentPro
         <Link
           key={n}
           href={i.href}
-          className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-            i.on ? "border-accent bg-accent-bg text-accent-ink" : "border-border bg-surface hover:bg-background"
+          className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+            i.on ? "bg-accent-bg text-accent-ink" : "bg-foreground/[.06] hover:bg-foreground/[.1]"
           }`}
         >
           {i.label}

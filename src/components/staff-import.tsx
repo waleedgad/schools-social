@@ -26,7 +26,7 @@ export function StaffImport({ locale }: { locale: string }) {
     setError(false);
     setDone(null);
     try {
-      const table = file.name.toLowerCase().endsWith(".csv") ? parseCsv(await file.text()) : ((await (await import("read-excel-file")).default(file)) as unknown[][]);
+      const table = file.name.toLowerCase().endsWith(".csv") ? parseCsv(await file.text()) : ((await (await import("read-excel-file/browser")).readSheet(file)) as unknown[][]);
       const head = (table[0] ?? []).map((c) => String(c ?? "").trim().toLowerCase());
       const at = (k: keyof StaffRow) => head.findIndex((h) => COLS[k].includes(h));
       const idx = { name: at("name"), email: at("email"), phone: at("phone"), role: at("role"), classes: at("classes") };
@@ -51,7 +51,7 @@ export function StaffImport({ locale }: { locale: string }) {
       {done !== null && <p className="text-sm text-good">{t("done", { count: done })}</p>}
       {rows && rows.length > 0 && done === null && (
         <div className="space-y-2">
-          <ul className="max-h-48 divide-y divide-border overflow-auto rounded-lg border border-border text-sm">
+          <ul className="max-h-48 divide-y divide-border overflow-auto rounded-control border border-border text-sm">
             {rows.slice(0, 50).map((r, i) => (
               <li key={i} className="flex justify-between gap-2 px-2 py-1">
                 <span className="truncate">{r.name || "—"}</span>

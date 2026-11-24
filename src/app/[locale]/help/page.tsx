@@ -23,7 +23,7 @@ export default async function HelpPage({ params, searchParams }: { params: Promi
     <AppShell locale={locale} membership={membership} workspaces={workspaces} active="help" title={t("help.title")} subtitle={t("help.subtitle")}>
       {sp.reported && <Notice tone="good">{t("help.reported")}</Notice>}
       <form className="flex gap-2">
-        <input name="q" defaultValue={sp.q} placeholder={t("help.search")} className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
+        <input name="q" defaultValue={sp.q} placeholder={t("help.search")} className="w-full rounded-control border border-border bg-surface-2 px-3 py-2 text-sm" />
         <Button variant="quiet" icon="search">{t("help.searchButton")}</Button>
       </form>
       <Card title={t("help.yourRole", { role: t(`roles.${membership.role}`) })}>
@@ -31,7 +31,7 @@ export default async function HelpPage({ params, searchParams }: { params: Promi
       </Card>
       <div className="grid gap-3 md:grid-cols-2">
         {guides.map((g) => (
-          <details key={g} className="rounded-xl border border-border bg-surface p-4 open:shadow-sm">
+          <details key={g} className="card p-4">
             <summary className="cursor-pointer font-semibold">{t(`help.guides.${g}.title`)}</summary>
             <p className="mt-2 whitespace-pre-line text-sm text-muted">{t(`help.guides.${g}.body`)}</p>
           </details>

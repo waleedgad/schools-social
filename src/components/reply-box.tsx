@@ -37,7 +37,7 @@ export function ReplyBox({ locale, platform, comment, text, postText, kind = "co
         </div>
       )}
       <div className="flex gap-1.5">
-        <input name="message" value={value} onChange={(e) => setValue(e.target.value)} required maxLength={1000} placeholder={t("replyPlaceholder")} dir="auto" className="min-w-0 grow rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm" />
+        <input name="message" value={value} onChange={(e) => setValue(e.target.value)} required maxLength={1000} placeholder={t("replyPlaceholder")} dir="auto" className="min-w-0 grow rounded-control border border-border bg-surface-2 px-2 py-1.5 text-sm" />
         <Button
           type="button"
           variant="quiet"

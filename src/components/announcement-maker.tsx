@@ -94,7 +94,7 @@ export function AnnouncementMaker({ locale, schoolId, userId, schoolName, catego
     }
   }
 
-  const field = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm";
+  const field = "w-full rounded-control border border-border bg-surface px-3 py-2 text-sm";
   const set = (k: keyof Text) => (e: { target: { value: string } }) => setText((x) => ({ ...x, [k]: e.target.value }));
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
