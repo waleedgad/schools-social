@@ -99,9 +99,9 @@ export default async function BookPage({ params, searchParams }: { params: Promi
               )}
             </div>
             <div className="flex items-center justify-between gap-2">
-              <ButtonLink href={{ pathname: `/books/${id}`, query: { page: String(Math.max(1, n - 1)) } }} variant="quiet" className={n <= 1 ? "pointer-events-none opacity-40" : ""}>‹</ButtonLink>
+              <ButtonLink href={{ pathname: `/books/${id}`, query: { page: String(Math.max(1, n - 1)) } }} variant="quiet" className={n <= 1 ? "pointer-events-none opacity-40" : ""}><span className="inline-block rtl:rotate-180">‹</span></ButtonLink>
               <span className="text-sm">{t("books.pageOf", { n, total: pages.length })}{page?.title ? ` · ${page.title}` : ""}</span>
-              <ButtonLink href={{ pathname: `/books/${id}`, query: { page: String(Math.min(pages.length, n + 1)) } }} variant="quiet" className={n >= pages.length ? "pointer-events-none opacity-40" : ""}>›</ButtonLink>
+              <ButtonLink href={{ pathname: `/books/${id}`, query: { page: String(Math.min(pages.length, n + 1)) } }} variant="quiet" className={n >= pages.length ? "pointer-events-none opacity-40" : ""}><span className="inline-block rtl:rotate-180">›</span></ButtonLink>
             </div>
             {page && (
               <div className="flex flex-wrap items-center justify-center gap-2" data-testid="page-approval">
