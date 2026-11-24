@@ -90,6 +90,10 @@ createServer(async (req, res) => {
   // second website with GEMINI_URL pointing here. The answers are messy on
   // purpose (Latin commas in Arabic, repeated hashtags, a word for children,
   // a banned word, a student's name) so the test proves the website cleans them.
+  // Owner > Keys and switches: "Test" lists the models (release 0.17).
+  if (url.pathname === "/gemini/models" && req.method === "GET") {
+    return req.headers["x-goog-api-key"] ? json(res, 200, { models: [{ name: "models/gemini-2.5-flash" }] }) : json(res, 403, { error: { message: "API key missing" } });
+  }
   if (url.pathname.startsWith("/gemini/") && req.method === "POST") {
     const prompt = JSON.parse(body).contents?.[0]?.parts?.[0]?.text ?? "";
     calls.push({ path: url.pathname, prompt, at: new Date().toISOString() });

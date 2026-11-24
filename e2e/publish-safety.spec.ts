@@ -21,6 +21,8 @@ const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.
 
 async function setup(page: import("@playwright/test").Page, tag: string) {
   const db = admin();
+  // Screenshots without the page's fade-in.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const email = await newSchool(page, tag);
   const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
   const userId = users.users.find((u) => u.email === email)!.id;
