@@ -68,7 +68,7 @@ test("a student quote from the website lands under that student's name in the bo
   await expect(picker.locator("option", { hasText: "Omar Hassan" })).toHaveCount(1);
   await expect(picker.locator("option", { hasText: "Sara Ali" })).toHaveCount(0);
   await picker.selectOption({ label: "Omar Hassan" });
-  await page.getByLabel(w.body, { exact: true }).fill("I will miss our science lab.");
+  await page.locator("textarea[name=body]").fill("I will miss our science lab.");
   await page.getByRole("button", { name: w.add }).click();
   await expect(page).toHaveURL(/saved=text/);
   await expect(page.locator("li", { hasText: "I will miss our science lab." }).getByText("Omar Hassan")).toBeVisible();
@@ -83,7 +83,7 @@ test("a student quote from the website lands under that student's name in the bo
     el.appendChild(o);
     (el as HTMLSelectElement).value = code;
   }, sara);
-  await page.getByLabel(w.body, { exact: true }).fill("Not my class");
+  await page.locator("textarea[name=body]").fill("Not my class");
   await page.getByRole("button", { name: w.add }).click();
   await expect(page).toHaveURL(/saved=noStudent/);
 
@@ -93,7 +93,7 @@ test("a student quote from the website lands under that student's name in the bo
   await page.goto(`/ar/books/${bookId}?tab=texts`);
   await page.getByLabel(a.kind).selectOption({ label: a.quote });
   await page.getByLabel(a.student).selectOption({ label: "سارة علي" });
-  await page.getByLabel(a.body, { exact: true }).fill("سأشتاق إلى أصدقائي");
+  await page.locator("textarea[name=body]").fill("سأشتاق إلى أصدقائي");
   await page.getByRole("button", { name: a.add }).click();
   await expect(page).toHaveURL(/saved=text/);
   await expect(page.locator("li", { hasText: "سأشتاق إلى أصدقائي" }).getByText("سارة علي")).toBeVisible();
