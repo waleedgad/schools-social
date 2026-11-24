@@ -7,7 +7,7 @@ import { redirect } from "@/i18n/navigation";
 import { isComms } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
-import { classScope, staffClient } from "@/lib/team";
+import { classScope, classStudents, staffClient } from "@/lib/team";
 
 // Teachers' answers and team reminders. Teachers answer only for their own
 // classes; the database functions check that again.
@@ -109,10 +109,17 @@ export async function addBookText(formData: FormData) {
   const book = str(formData, "book", 60);
   const kind = ["teacher", "principal", "quote", "other"].includes(str(formData, "kind", 20)) ? str(formData, "kind", 20) : "other";
   const body = str(formData, "body", 1500);
+  // A student quote is for one student the writer can see (a teacher: only
+  // their own classes), so the Mac places it under that name (B-138). Other
+  // kinds of text are never tied to a student.
+  const code = kind === "quote" ? str(formData, "student", 40) : "";
+  const scope = code ? await classScope(supabase, membership.school.id, user.id, membership.role) : null;
+  const student = code && scope ? (await classStudents(supabase, membership.school.id, scope, locale)).find((s) => s.code === code) : undefined;
+  if (code && !student) redirect({ href: { pathname: `/books/${book}`, query: { tab: "texts", saved: "noStudent" } }, locale });
   if (body)
     await supabase.from("book_texts").insert({
       book_id: book, school_id: membership.school.id, kind, body, user_id: user.id, author_name: membership.fullName,
-      class_name: str(formData, "class", 60) || null, student_code: str(formData, "student", 40) || null,
+      class_name: student?.className ?? (str(formData, "class", 60) || null), student_code: student?.code ?? null,
     });
   redirect({ href: { pathname: `/books/${book}`, query: { tab: "texts", saved: "text" } }, locale });
 }

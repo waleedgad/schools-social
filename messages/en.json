@@ -1424,7 +1424,8 @@
       },
       "saved": {
         "names": "Names saved. The Mac fixes the spelling in the class list.",
-        "text": "Text added. The Mac puts it in the book."
+        "text": "Text added. The Mac puts it in the book.",
+        "noStudent": "Pick a student from your classes for a student quote. The text was not added."
       },
       "noPicture": "No picture for this page.",
       "pageOf": "Page {n} of {total}",
@@ -1457,6 +1458,8 @@
         "other": "Other text"
       },
       "forClass": "For class",
+      "forStudent": "For student (student quotes only)",
+      "forStudentHint": "Pick the student this quote is for, so the Mac puts it under their name in the book (up to 140 characters show there).",
       "textBody": "Text",
       "textHint": "Arabic or English. Up to 1,500 characters.",
       "addTextButton": "Add the text",

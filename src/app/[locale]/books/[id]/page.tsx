@@ -51,7 +51,11 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   for (const c of comments ?? []) if (!c.done) openByPage.set(c.page as number, (openByPage.get(c.page as number) ?? 0) + 1);
 
   // Name check: students of the teacher's classes who are in this book.
-  const students = tab === "names" ? await classStudents(supabase, schoolId, scope.all && book.class_name ? { all: false, classes: [book.class_name as string] } : scope, locale) : [];
+  // The texts tab needs them too: a student quote is for one student (B-138).
+  const students = tab === "names" || tab === "texts" ? await classStudents(supabase, schoolId, scope.all && book.class_name ? { all: false, classes: [book.class_name as string] } : scope, locale) : [];
+  const studentName = new Map(students.map((s) => [s.code, s.name]));
+  const byClass = new Map<string, typeof students>();
+  for (const s of students) byClass.set(s.className ?? "—", [...(byClass.get(s.className ?? "—") ?? []), s]);
   const onPages = new Map<string, number[]>();
   for (const p of pages) for (const s of p.students ?? []) onPages.set(s, [...(onPages.get(s) ?? []), p.n]);
   const mine = students.filter((s) => onPages.has(s.code) || (book.class_name ? s.className === book.class_name : false));
@@ -84,7 +88,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
         )
       }
     >
-      {sp.saved && <Notice tone="good">{t(`books.saved.${sp.saved}`)}</Notice>}
+      {(sp.saved === "names" || sp.saved === "text" || sp.saved === "noStudent") && <Notice tone={sp.saved === "noStudent" ? "danger" : "good"}>{t(`books.saved.${sp.saved}`)}</Notice>}
       <Pills items={tabs.map(([k, l]) => ({ label: l, href: { pathname: `/books/${id}`, query: { tab: k } }, on: tab === k }))} />
 
       {tab === "pages" && (
@@ -211,6 +215,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
                   <div className="mb-1 flex items-center gap-2 text-xs text-muted">
                     <Chip tone="accent">{t(`books.textKind.${x.kind}`)}</Chip>
                     {x.class_name && <span>{x.class_name as string}</span>}
+                    {x.student_code && <b className="text-foreground">{studentName.get(x.student_code as string) ?? (x.student_code as string)}</b>}
                     <span className="grow">{(x.author_name as string) ?? ""}</span>
                     {(comms || x.user_id === user.id) && (
                       <form action={removeBookText}>
@@ -236,6 +241,16 @@ export default async function BookPage({ params, searchParams }: { params: Promi
                 <Select label={t("books.forClass")} name="class" defaultValue={(book.class_name as string) ?? scope.classes[0] ?? ""}>
                   <option value="">—</option>
                   {[...new Set([...(book.class_name ? [book.class_name as string] : []), ...scope.classes])].map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
+              )}
+              {students.length > 0 && (
+                <Select label={t("books.forStudent")} name="student" defaultValue="" hint={t("books.forStudentHint")}>
+                  <option value="">—</option>
+                  {[...byClass].map(([c, list]) => (
+                    <optgroup key={c} label={c}>
+                      {list.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+                    </optgroup>
+                  ))}
                 </Select>
               )}
               <TextArea label={t("books.textBody")} name="body" rows={6} maxLength={1500} required hint={t("books.textHint")} />
