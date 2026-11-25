@@ -49,7 +49,7 @@ jobs:
           for i in $(seq 60); do curl -sf -o /dev/null http://localhost:3123/en/login && break; sleep 1; done
           WEB_URL=http://localhost:3123 xvfb-run -a npx playwright test e2e/web-sync.spec.ts e2e/web-replace.spec.ts e2e/nothing-hangs.spec.ts e2e/teacher-check.spec.ts e2e/error-reports.spec.ts e2e/book-review.spec.ts e2e/post-pictures.spec.ts e2e/make-week.spec.ts e2e/calendar.spec.ts
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: website-test-report
           path: |
@@ -84,14 +84,14 @@ jobs:
       - if: runner.os != 'Linux'
         run: npm run test:e2e
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-test-report-${{ matrix.os }}
           path: desktop/e2e-report
           if-no-files-found: ignore
       # Every tab in English and Arabic as this computer draws it (kept 14 days).
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-screens-${{ matrix.os }}
           path: desktop/test-results/**/*-*.png
@@ -140,14 +140,14 @@ jobs:
       - run: npx electron-builder ${{ matrix.testbuild }} --publish never -c.extraMetadata.hubTestBuild=true -c.directories.output=release-test
       - run: PACKAGED_APP="$PWD/${{ matrix.exe }}" PACKAGED_TEST_APP="$PWD/${{ matrix.testexe }}" npx playwright test e2e/packaged.spec.ts
       - if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mac-app-apple-silicon
           path: desktop/release/*.zip
           retention-days: 14
       # A Windows test build (installer), kept 14 days.
       - if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-installer
           path: desktop/release/*.exe
