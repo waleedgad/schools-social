@@ -118,6 +118,10 @@ if (!listFile) {
 const parsed = parseRows(await readSheet(path.join(ROOT, listFile)));
 const people = new Map(); // id -> { id, names, className, gender, kind }
 for (const s of parsed.students) people.set(s.id, { id: s.id, names: [s.name_en, s.name_ar].filter(Boolean), className: s.class_name, gender: s.gender, kind: "student" });
+if (!people.size) {
+  console.error(`The class list ${listFile} has no students the app can read (it needs a name column, and a class column).`);
+  process.exit(2);
+}
 const lookup = new Map();
 for (const p of people.values()) for (const k of [p.id, ...p.names]) lookup.set(norm(k), p.id);
 
