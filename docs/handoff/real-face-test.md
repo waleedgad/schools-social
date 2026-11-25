@@ -39,6 +39,14 @@ website code changed, so it can't clash with 0.17.
   counted as wrong. Fixed: only the main face of a "not in list" photo counts,
   and the headline is now "of the faces it could see clearly" (as the bench
   measures) with the all-photos number under it. Dry run now 25 photos/person.
+- 25 Nov 03:19 UTC, dry run 45535108848 (1,734 photos, 32 min): of clearly
+  seen faces, named by itself 68.7% / 83.3% / 86.8% with 1 / 3 / 5 confirmed
+  faces, 0 students named wrong (bench on cleaned photos: 88 / 90%). All
+  photos: 60.4% (3). 2 of 73 "not in list" main faces were named (11C-09,
+  11C-19). Unchecked (the photos can't be seen from here); likely Commons
+  photos filed under the wrong person, as with MBR/MBS on 6 Nov. If real
+  school "not in list" photos get named, look at check.html first.
+  Harness DONE; waiting for Waleed's folder.
 
 ## Next
 
