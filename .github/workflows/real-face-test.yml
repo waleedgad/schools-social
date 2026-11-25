@@ -56,7 +56,7 @@ jobs:
           [ -s "$f" ] || curl -sSfL -o "$f" https://huggingface.co/fal/AuraFace-v1/resolve/main/glintr100.onnx
           ln -sf "$f" bench/real-faces/.models/auraface_glintr100.onnx
       - name: Lay them out like a school's test folder
-        run: node bench/real-faces/make-stand-in.mjs ~/face-bench-photos ~/school-test 15
+        run: node bench/real-faces/make-stand-in.mjs ~/face-bench-photos ~/school-test 25
       - name: Run the one-command face test
         run: |
           mkdir -p ~/real-face-cache ~/school-test/face-test-results/private
