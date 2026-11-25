@@ -11,7 +11,7 @@ import { autoUpdater } from "electron-updater";
 import { canSelfUpdate, macSigner } from "./core/self-update";
 import { busy, watchStalls } from "./core/busy";
 import { backupLibrary, checkpointInBackground, closeDbFully, encryptLibrary, isPlainLibrary, keyOfDb, LibraryLockedError, openDb, sealCopy, tx, type Db } from "./core/db";
-import { allowed, appState, CHECK_EVERY_MS, fromServer, keyOf, LicenceStore, merge, type AppState, type Licence } from "./core/licence";
+import { allowed, appState, CHECK_EVERY_MS, fromServer, isTestBuild, keyOf, LicenceStore, merge, testLicence, type AppState, type Licence } from "./core/licence";
 import { badPhotos, emptyFolders, exactCopies, folderSize, nearIdentical, oldRejected, otherSizes, protectedIds, removeEmptyFolders } from "./core/cleanup";
 import { Engine, importPhotos, listFiles } from "./core/engine";
 import { likelihood, SHOW_FROM, SURE } from "./core/faces";
@@ -1904,7 +1904,17 @@ app.whenReady().then(async () => {
   setTermDates(settings.get().terms);
   licence = licenceOn() ? licenceStore().read() : null;
   // Robot test of the installed app only: a licence given to it at start.
-  if (licenceOn() && process.env.HUB_TEST && process.env.HUB_TEST_LICENCE && !licence) licence = JSON.parse(process.env.HUB_TEST_LICENCE) as Licence;
+  // A school's app (not a robot-test build) ignores it (L-36).
+  if (licenceOn() && !licence) {
+    let pkg = "";
+    try {
+      pkg = readFileSync(path.join(app.getAppPath(), "package.json"), "utf8");
+    } catch {
+      /* no package.json: not a test build */
+    }
+    licence = testLicence(process.env, { packaged: app.isPackaged, testBuild: isTestBuild(pkg) });
+    if (process.env.HUB_TEST_LICENCE && !licence) log("test licence ignored: not a robot-test build");
+  }
   try {
     backupBeforeUpdate();
   } catch (e) {

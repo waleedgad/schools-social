@@ -7,12 +7,20 @@ import sharp from "sharp";
 // Build check: the real, packaged app (what a school installs) starts, reads
 // photos with its image engine and runs its face engine. Only runs when
 // PACKAGED_APP points at the built program (the "package" job on GitHub).
+// L-36: that school build ignores a made-up licence, so the photo and face
+// check runs on a robot-test build of the same code (PACKAGED_TEST_APP,
+// made with -c.extraMetadata.hubTestBuild=true and never given to a school).
 const exe = process.env.PACKAGED_APP;
+const testExe = process.env.PACKAGED_TEST_APP;
 test.skip(!exe, "only on a packaged build");
+
+const madeUpLicence = () =>
+  JSON.stringify({ schoolId: "00000000-0000-0000-0000-000000000001", state: "active", key: Buffer.alloc(32, 7).toString("base64"), checkedAt: new Date().toISOString(), validUntil: new Date(Date.now() + 86400_000).toISOString(), paidUntil: null, readOnlyLeft: 0, daysLeft: 30, forced: false, plan: null, contact: "" });
 
 type Hub = { hub: { call: (f: string, ...a: unknown[]) => Promise<{ ok: boolean; value: unknown }> } };
 
 test("the packaged app starts, reads photos and finds faces", async () => {
+  test.skip(!testExe, "needs the robot-test build (PACKAGED_TEST_APP)");
   test.setTimeout(240_000);
   const base = mkdtempSync(path.join(tmpdir(), "hub-pkg-"));
   const ev = path.join(base, "Photos", "2025-2026", "Term 1", "2025-10-12 Sports day");
@@ -24,13 +32,13 @@ test("the packaged app starts, reads photos and finds faces", async () => {
   const userData = mkdtempSync(path.join(tmpdir(), "hub-test-"));
   writeFileSync(path.join(userData, "settings.json"), JSON.stringify({ language: "en", setupDone: true, tourDone: true, wizard: true, library: path.join(base, "Photos"), faces: true, faceVision: false }));
   const app = await _electron.launch({
-    executablePath: exe!,
+    executablePath: testExe!,
     args: [`--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
     // The installed app needs a school's licence (0.13): a test one here.
     env: {
       ...process.env,
       HUB_TEST: "1",
-      HUB_TEST_LICENCE: JSON.stringify({ schoolId: "00000000-0000-0000-0000-000000000001", state: "active", key: Buffer.alloc(32, 7).toString("base64"), checkedAt: new Date().toISOString(), validUntil: new Date(Date.now() + 86400_000).toISOString(), paidUntil: null, readOnlyLeft: 0, daysLeft: 30, forced: false, plan: null, contact: "" }),
+      HUB_TEST_LICENCE: madeUpLicence(),
     },
   });
   const win = await app.firstWindow();
@@ -53,6 +61,28 @@ test("the packaged app starts, reads photos and finds faces", async () => {
   await win.screenshot({ path: test.info().outputPath("packaged.png") });
   await app.close();
   expect(errors).toEqual([]);
+});
+
+// L-36: the app a school gets ignores a made-up licence and asks to sign in.
+test("the school's packaged app ignores a made-up licence", async () => {
+  test.setTimeout(120_000);
+  const userData = mkdtempSync(path.join(tmpdir(), "hub-test-"));
+  writeFileSync(path.join(userData, "settings.json"), JSON.stringify({ language: "en", setupDone: true, tourDone: true, wizard: true }));
+  const app = await _electron.launch({
+    executablePath: exe!,
+    args: [`--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+    env: { ...process.env, HUB_TEST: "1", HUB_TEST_LICENCE: madeUpLicence() },
+  });
+  const win = await app.firstWindow();
+  expect(await app.evaluate(({ app }) => app.isPackaged)).toBe(true);
+  await expect(win.getByTestId("licence-gate")).toBeVisible({ timeout: 60_000 });
+  await expect(win.locator("#side")).toBeHidden();
+  const st = (await win.evaluate(() => (window as unknown as Hub).hub.call("state"))).value as { licence: { state: string } };
+  expect(st.licence.state).toBe("none");
+  const photos = await win.evaluate(() => (window as unknown as Hub).hub.call("photos", {}));
+  expect(photos).toMatchObject({ ok: false, error: "locked" });
+  await win.screenshot({ path: test.info().outputPath("school-build-sign-in.png") });
+  await app.close();
 });
 
 // Security review (17 Nov): the hardening switches are really in the program.

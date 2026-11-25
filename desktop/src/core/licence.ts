@@ -36,6 +36,30 @@ export function appState(lic: Licence | null, now = Date.now()): { state: AppSta
   return { state: lic.state, offline: false, reason: lic.state === "read_only" ? "read-only" : null };
 }
 
+// Robot tests start the app with a made-up licence (HUB_TEST_LICENCE).
+// L-36: an installed app only takes it when it is a robot-test build
+// ("hubTestBuild" in its package.json, set only by GitHub's checks, never
+// in an app given to a school). A school's app ignores it and asks to sign in.
+export function testLicence(env: Record<string, string | undefined>, build: { packaged: boolean; testBuild: boolean }): Licence | null {
+  if (!env.HUB_TEST || !env.HUB_TEST_LICENCE) return null;
+  if (build.packaged && !build.testBuild) return null;
+  try {
+    const lic = JSON.parse(env.HUB_TEST_LICENCE) as Licence;
+    return lic && typeof lic.schoolId === "string" && typeof lic.validUntil === "string" ? lic : null;
+  } catch {
+    return null;
+  }
+}
+
+// True only in a robot-test build: its package.json says so.
+export function isTestBuild(packageJson: string) {
+  try {
+    return (JSON.parse(packageJson) as { hubTestBuild?: unknown }).hubTestBuild === true;
+  } catch {
+    return false;
+  }
+}
+
 export const keyOf = (lic: Licence | null) => (lic?.key ? Buffer.from(lic.key, "base64") : null);
 
 // The server's answer as the app keeps it.

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { encryptLibrary, isPlainLibrary, openDb, opensWith, backupLibrary, LibraryLockedError } from "./db";
-import { allowed, appState, fromServer, keyOf, LicenceStore, merge, type Licence } from "./licence";
+import { allowed, appState, fromServer, isTestBuild, keyOf, LicenceStore, merge, testLicence, type Licence } from "./licence";
 
 const key = Buffer.alloc(32, 9);
 const answer = (over: Record<string, unknown> = {}) => ({
@@ -120,4 +120,26 @@ test("encrypted library: the backup before an update is encrypted too", () => {
   const c = openDb(target, key);
   assert.equal((c.prepare("select count(*) n from students").get() as { n: number }).n, 1);
   c.close();
+});
+
+test("L-36: a school's installed app ignores the robot-test licence", () => {
+  const env = { HUB_TEST: "1", HUB_TEST_LICENCE: JSON.stringify(lic()) };
+  // Not installed (developer run, robot tests): taken.
+  assert.equal(testLicence(env, { packaged: false, testBuild: false })?.schoolId, "school-1");
+  // Installed robot-test build made by GitHub's checks: taken.
+  assert.equal(testLicence(env, { packaged: true, testBuild: true })?.schoolId, "school-1");
+  // Installed app a school gets: ignored, so it asks to sign in.
+  assert.equal(testLicence(env, { packaged: true, testBuild: false }), null);
+  // Needs both switches, and a real licence shape.
+  assert.equal(testLicence({ HUB_TEST_LICENCE: env.HUB_TEST_LICENCE }, { packaged: false, testBuild: false }), null);
+  assert.equal(testLicence({ HUB_TEST: "1" }, { packaged: false, testBuild: false }), null);
+  assert.equal(testLicence({ HUB_TEST: "1", HUB_TEST_LICENCE: "not json" }, { packaged: false, testBuild: false }), null);
+  assert.equal(testLicence({ HUB_TEST: "1", HUB_TEST_LICENCE: "{}" }, { packaged: false, testBuild: false }), null);
+  // The switch is only "true" itself, never a string or anything else.
+  assert.equal(isTestBuild(JSON.stringify({ name: "x", hubTestBuild: true })), true);
+  assert.equal(isTestBuild(JSON.stringify({ name: "x", hubTestBuild: "true" })), false);
+  assert.equal(isTestBuild(JSON.stringify({ name: "x" })), false);
+  assert.equal(isTestBuild(""), false);
+  // The real package.json (the one a school's app is built from) has no switch.
+  assert.equal(isTestBuild(readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8")), false);
 });

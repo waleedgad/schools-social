@@ -39,8 +39,14 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           spctl --assess --type execute --verbose "$APP"
           xcrun stapler validate "$APP"
+      # L-36: the school's app ignores a made-up licence, so the photo and
+      # face check runs on a robot-test copy of the same code (not uploaded).
+      - name: Robot-test copy (never given to a school)
+        run: |
+          unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+          CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dir --arm64 --publish never -c.extraMetadata.hubTestBuild=true -c.directories.output=release-test -c.mac.notarize=false
       - name: The built app starts, reads photos and finds faces
-        run: PACKAGED_APP="$PWD/release/mac-arm64/School Social Hub Library.app/Contents/MacOS/School Social Hub Library" npx playwright test e2e/packaged.spec.ts
+        run: PACKAGED_APP="$PWD/release/mac-arm64/School Social Hub Library.app/Contents/MacOS/School Social Hub Library" PACKAGED_TEST_APP="$PWD/release-test/mac-arm64/School Social Hub Library.app/Contents/MacOS/School Social Hub Library" npx playwright test e2e/packaged.spec.ts
       - uses: actions/upload-artifact@v4
         with:
           name: mac-release

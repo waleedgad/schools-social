@@ -71,8 +71,13 @@ jobs:
             Write-Output "$f : $($s.Status) $($s.SignerCertificate.Subject)"
             if ($s.Status -ne "Valid") { throw "not signed: $f" }
           }
+      # L-36: the school's app ignores a made-up licence, so the photo and
+      # face check runs on a robot-test copy of the same code (not uploaded).
+      - name: Robot-test copy (never given to a school)
+        shell: bash
+        run: CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win dir --publish never -c.extraMetadata.hubTestBuild=true -c.directories.output=release-test
       - name: The built app starts, reads photos and finds faces
-        run: PACKAGED_APP="$PWD/release/win-unpacked/School Social Hub Library.exe" npx playwright test e2e/packaged.spec.ts
+        run: PACKAGED_APP="$PWD/release/win-unpacked/School Social Hub Library.exe" PACKAGED_TEST_APP="$PWD/release-test/win-unpacked/School Social Hub Library.exe" npx playwright test e2e/packaged.spec.ts
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release

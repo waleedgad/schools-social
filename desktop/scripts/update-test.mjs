@@ -47,7 +47,7 @@ const oldDir = path.join(root, "release-old");
 const newDir = path.join(root, "release-new");
 rmSync(oldDir, { recursive: true, force: true });
 rmSync(newDir, { recursive: true, force: true });
-sh("npx", ["electron-builder", "--win", "nsis", "--publish", "never", `-c.directories.output=release-old`]);
+sh("npx", ["electron-builder", "--win", "nsis", "--publish", "never", "-c.extraMetadata.hubTestBuild=true", `-c.directories.output=release-old`]);
 try {
   writeFileSync(pkgFile, JSON.stringify({ ...pkg, version: next }, null, 2) + "\n");
   // Same settings, but published to the local test server instead of GitHub.
@@ -55,7 +55,7 @@ try {
   const testYml = yml.replace(/^publish:[\s\S]*?(?=^\S|(?![\s\S]))/m, `publish:\n  provider: generic\n  url: ${feed}\n`);
   if (!testYml.includes("provider: generic")) fail("couldn't point the test build at the test server");
   writeFileSync(path.join(root, "electron-builder.update-test.yml"), testYml);
-  sh("npx", ["electron-builder", "--config", "electron-builder.update-test.yml", "--win", "nsis", "--publish", "never", `-c.directories.output=release-new`]);
+  sh("npx", ["electron-builder", "--config", "electron-builder.update-test.yml", "--win", "nsis", "--publish", "never", "-c.extraMetadata.hubTestBuild=true", `-c.directories.output=release-new`]);
 } finally {
   writeFileSync(pkgFile, pkgText);
   rmSync(path.join(root, "electron-builder.update-test.yml"), { force: true });
@@ -96,7 +96,8 @@ writeFileSync(path.join(userData, "settings.json"), JSON.stringify({ language: "
 const logFile = path.join(userData, "app.log");
 const logText = () => (existsSync(logFile) ? readFileSync(logFile, "utf8") : "");
 
-// The installed app needs a school's licence (0.13): a test one, whose key
+// The installed app needs a school's licence (0.13): a test one (taken only
+// because both builds above are robot-test builds, L-36), whose key
 // also opens the encrypted library below.
 const testKey = Buffer.alloc(32, 9);
 const licenceEnv = {
