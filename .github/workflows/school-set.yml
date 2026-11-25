@@ -78,7 +78,7 @@ jobs:
         run: |
           gh release view test-set-v1 >/dev/null 2>&1 || gh release create test-set-v1 --draft --title "Test school set" --notes "Realistic test school drive built by the Test school set workflow. Not for schools: test data only. Photos: public domain NASA astronaut photos from Wikimedia Commons (see CREDITS.md inside)." --target "$GITHUB_SHA"
           gh release upload test-set-v1 ~/school-set.zip ~/school-set/manifest.json --clobber
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: school-set-report
           path: |
@@ -86,7 +86,7 @@ jobs:
             ~/school-set/manifest.json
             ~/school-set/README.md
           retention-days: 30
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: school-set-zip
           path: ~/school-set.zip
@@ -129,7 +129,7 @@ jobs:
       - name: Run the app on the school drive (Mac, Windows)
         if: runner.os != 'Linux'
         run: SCHOOL_SET="$RUNNER_TEMP/school-set" npx playwright test e2e/school-set.spec.ts --trace off
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: school-set-app-${{ matrix.os }}
