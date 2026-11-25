@@ -176,7 +176,8 @@ test("random input: filing groups keep every photo exactly once, each in the rig
 // The Faces tab searches with its own copy of the rules (in the window).
 // It must always give the same answer as the rest of the app.
 test("random input: the Faces search and the People search always agree", () => {
-  const ui = readFileSync(path.join(__dirname, "..", "..", "src", "renderer", "ui.js"), "utf8");
+  // Windows checkouts may end lines with \r\n.
+  const ui = readFileSync(path.join(__dirname, "..", "..", "src", "renderer", "ui.js"), "utf8").replace(/\r\n/g, "\n");
   const start = ui.indexOf("function nameKey(s) {");
   const end = ui.indexOf("\n}\n", start) + 2;
   assert.ok(start >= 0 && end > start, "nameKey not found in ui.js");
