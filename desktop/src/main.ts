@@ -1057,6 +1057,8 @@ function consentChanged(before: Map<string, number>, pushWeb = true) {
 }
 
 // The website blocks a post with a photo of a student who can't appear.
+// Web copies with a blur change asked for and not yet done: photo id -> boxes (B-141).
+const blurAsked = new Map<number, string>();
 function syncOptedOut(photoIds: number[]) {
   const sb = client();
   if (!sb || !settings.get().userId || !photoIds.length) return;
@@ -1072,9 +1074,10 @@ function syncOptedOut(photoIds: number[]) {
   // With "blur faces of people who can't appear" on, the web copy gets those
   // faces blurred and the photo can be used; otherwise it is blocked.
   const blur = settings.get().blurNoPost !== false;
-  const flags = rows.filter((r) => !blur || r.missing || !(r.opted || r.web_blur));
+  const blurred = (r: { id: number; web_blur: string | null }) => !!r.web_blur || blurAsked.has(r.id);
+  const flags = rows.filter((r) => !blur || r.missing || !(r.opted || blurred(r)));
   if (flags.length) setOptedOut(sb, flags.map((r) => ({ remoteId: r.remote_id, optedOut: !!r.opted }))).catch((e) => (lastMessage = String(e)));
-  for (const r of rows.filter((r) => blur && !r.missing && (r.opted || r.web_blur))) {
+  for (const r of rows.filter((r) => blur && !r.missing && (r.opted || blurred(r)))) {
     const boxes = r.opted
       ? all<{ x: number; y: number; w: number; h: number }>(
           `select f.x, f.y, f.w, f.h from faces f where f.photo_id = ? and f.w > 0 and ${noPostFace("f")}`,
@@ -1082,10 +1085,19 @@ function syncOptedOut(photoIds: number[]) {
         ).map((b) => [b.x, b.y, b.w, b.h] as [number, number, number, number])
       : [];
     const key = JSON.stringify(boxes.map((b) => b.map((v) => +v.toFixed(3))));
-    if ((r.web_blur ?? "[]") === key) continue;
+    // Compared with the last change asked for, not only the last one done:
+    // "can appear" switched off again while the plain copy was still being
+    // sent used to be skipped, so the web copy stayed unblurred (B-141).
+    if ((blurAsked.get(r.id) ?? r.web_blur ?? "[]") === key) continue;
+    blurAsked.set(r.id, key);
+    const done = () => {
+      if (blurAsked.get(r.id) === key) blurAsked.delete(r.id);
+    };
     exclusive(() => reblurWebCopy(sb, r.remote_id, r.path, boxes))
       .then(() => db.prepare("update photos set web_blur = ? where id = ?").run(boxes.length ? key : null, r.id))
+      .then(done)
       .catch((e) => {
+        done();
         log(`blur ${r.id}: ${e}`);
         setOptedOut(sb, [{ remoteId: r.remote_id, optedOut: !!r.opted }]).catch(() => {});
       });

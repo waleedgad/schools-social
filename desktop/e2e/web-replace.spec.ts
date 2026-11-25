@@ -108,6 +108,16 @@ test("web copies: blurred for students who can't appear, replaced when the photo
     await call("setCanPost", "NO1", true);
     await expect.poll(boxes, { timeout: 60_000 }).toBe(0);
 
+    // ---------- B-141: switched quickly, the last choice always wins ----------
+    await call("setCanPost", "NO1", false);
+    await call("setCanPost", "NO1", true);
+    await call("setCanPost", "NO1", false);
+    await expect.poll(boxes, { timeout: 60_000, message: "B-141: off, on, off quickly ends blurred" }).toBe(1);
+    await call("setCanPost", "NO1", true);
+    await call("setCanPost", "NO1", false);
+    await call("setCanPost", "NO1", true);
+    await expect.poll(boxes, { timeout: 60_000, message: "B-141: on, off, on quickly ends plain" }).toBe(0);
+
     // ---------- B-89: the photo is retouched in another app ----------
     const before = (await web())[0];
     writeFileSync(file, await picture(160, 700));
