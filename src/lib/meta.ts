@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac } from "node:crypto";
+import { reasonOf, type MetaReason } from "./meta-errors";
 import { LIMITS } from "./posting";
 
 // Facebook Pages and Instagram publishing through the Meta Graph API.
@@ -34,7 +35,14 @@ export const metaAppId = () => (process.env.META_APP_ID ?? "").trim();
 const metaSecret = () => (process.env.META_APP_SECRET ?? "").trim();
 export const isMetaConfigured = () => metaAppId().length > 0 && metaSecret().length > 0;
 
-export class MetaError extends Error {}
+// reason: what it means for the school (release 0.17); "other" when unknown.
+export class MetaError extends Error {
+  reason: MetaReason;
+  constructor(message: string, reason: MetaReason = "other") {
+    super(message);
+    this.reason = reason;
+  }
+}
 
 // Ids that come from a screen (a comment to answer or hide) must be plain
 // Graph ids ("123_456": letters, digits and _ only). Anything else could aim the school's page key at
@@ -47,16 +55,24 @@ async function graph<T>(path: string, params: Record<string, string>, method: "G
   if (!SAFE_PATH.test(path)) throw new MetaError("bad Graph address");
   // Proof that the call comes from this app's server, so a page key that
   // leaked can't be used elsewhere once "Require app secret" is on in Meta.
-  const proof = params.access_token && metaSecret() ? { appsecret_proof: createHmac("sha256", metaSecret()).update(params.access_token).digest("hex") } : ({} as Record<string, string>);
+  // (An app token "id|secret" needs no proof.)
+  const proof = params.access_token && metaSecret() && !params.access_token.includes("|") ? { appsecret_proof: createHmac("sha256", metaSecret()).update(params.access_token).digest("hex") } : ({} as Record<string, string>);
   const body = new URLSearchParams({ ...params, ...proof });
+  // A timeout or a dropped line is "Meta is busy": the post is tried again later.
   const res = await fetch(method === "GET" ? `${GRAPH}/${path}?${body}` : `${GRAPH}/${path}`, {
     method,
     body: method === "POST" ? body : undefined,
     signal: AbortSignal.timeout(30_000),
+  }).catch((e: Error) => {
+    throw new MetaError(`Meta didn't answer (${e.name === "TimeoutError" ? "timeout" : "network"})`, "busy");
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) {
-    throw new MetaError(json.error?.error_user_msg || json.error?.message || `Meta request failed (${res.status})`);
+    const e = json.error ?? {};
+    const message: string = e.error_user_msg || e.message || `Meta request failed (${res.status})`;
+    // The fake Meta and some old answers only carry the code in the text: "(#36003) ...".
+    const code = typeof e.code === "number" ? e.code : Number(/\(#(\d+)\)/.exec(message)?.[1] ?? 0) || undefined;
+    throw new MetaError(message, reasonOf({ code, subcode: e.error_subcode, transient: e.is_transient, status: res.status, message }));
   }
   return json as T;
 }
@@ -137,7 +153,39 @@ async function waitUntilReady(containerId: string, token: string) {
   throw new MetaError("Instagram took too long to process the photos");
 }
 
-export async function publishToInstagram(igUserId: string, token: string, imageUrls: string[], caption: string, collaborators: string[] = []) {
+export type IgSaved = {
+  // The container made on an earlier try (posts.ig_container_id).
+  container?: string | null;
+  // Called with the container id before it is published, so it is saved.
+  onContainer?: (id: string) => Promise<void>;
+  // Set when the post an earlier try made was found (nothing new posted).
+  found?: boolean;
+};
+
+// The school's recent Instagram media with the same caption: the post an
+// earlier try already published when its answer got lost.
+async function findInstagramPost(igUserId: string, token: string, caption: string) {
+  const r = await graph<{ data: { id: string; caption?: string }[] }>(`${igUserId}/media`, { fields: "id,caption,timestamp", limit: "10", access_token: token });
+  return r.data.find((m) => (m.caption ?? "").trim() === caption.trim())?.id ?? null;
+}
+
+export async function publishToInstagram(igUserId: string, token: string, imageUrls: string[], caption: string, collaborators: string[] = [], saved: IgSaved = {}) {
+  // Release 0.17: a container from an earlier try. Published already (the
+  // answer got lost): find that post, never post again. Ready: publish it.
+  if (saved.container && isGraphId(saved.container)) {
+    const r = await graph<{ status_code?: string }>(saved.container, { fields: "status_code", access_token: token }).catch(() => null);
+    if (r?.status_code === "PUBLISHED") {
+      const found = await findInstagramPost(igUserId, token, caption);
+      if (found) {
+        saved.found = true;
+        return found;
+      }
+      throw new MetaError("Instagram already has this post, but it couldn't be found. Check Instagram before trying again.", "other");
+    }
+    if (r?.status_code === "FINISHED") {
+      return (await graph<{ id: string }>(`${igUserId}/media_publish`, { creation_id: saved.container, access_token: token }, "POST")).id;
+    }
+  }
   const urls = imageUrls.slice(0, LIMITS.instagram.photos);
   const extra: Record<string, string> = collaborators.length ? { collaborators: JSON.stringify(collaborators.slice(0, 3)) } : {};
   let container: string;
@@ -159,8 +207,36 @@ export async function publishToInstagram(igUserId: string, token: string, imageU
     ).id;
   }
   await waitUntilReady(container, token);
+  await saved.onContainer?.(container);
   const r = await graph<{ id: string }>(`${igUserId}/media_publish`, { creation_id: container, access_token: token }, "POST");
   return r.id;
+}
+
+// The Page's recent posts with the same text: the post an earlier try made
+// when Meta's answer got lost (release 0.17).
+export async function findFacebookPost(pageId: string, token: string, message: string) {
+  const r = await graph<{ data: { id: string; message?: string }[] }>(`${pageId}/posts`, { fields: "id,message,created_time", limit: "10", access_token: token }).catch(() => null);
+  return r?.data.find((p) => (p.message ?? "").trim() === message.trim())?.id ?? null;
+}
+
+// The real address of a published post ("View on Facebook / Instagram").
+export async function permalinkOf(platform: "facebook" | "instagram", objectId: string, token: string) {
+  if (!isGraphId(objectId)) return null;
+  const field = platform === "facebook" ? "permalink_url" : "permalink";
+  const r = await graph<Record<string, string>>(objectId, { fields: field, access_token: token }).catch(() => null);
+  const link = r?.[field];
+  if (link && /^https:\/\/(www\.)?(facebook|instagram)\.com\//.test(link)) return link;
+  return platform === "facebook" ? `https://www.facebook.com/${objectId}` : null;
+}
+
+// Check connection (release 0.17): is the school's key still good, and
+// which permissions did the person give? Asks Meta with the app's own key.
+export async function checkToken(pageToken: string) {
+  const r = await graph<{ data: { is_valid: boolean; scopes?: string[]; expires_at?: number; error?: { message: string } } }>("debug_token", {
+    input_token: pageToken,
+    access_token: `${metaAppId()}|${metaSecret()}`,
+  });
+  return { valid: !!r.data.is_valid, scopes: r.data.scopes ?? [], expiresAt: r.data.expires_at ? new Date(r.data.expires_at * 1000).toISOString() : null };
 }
 
 // The cover photo as an Instagram story too.
@@ -287,4 +363,10 @@ export async function recentPagePosts(pageId: string, token: string, limit = 100
   return r.data
     .filter((p) => p.message?.trim())
     .map((p) => ({ text: p.message!.trim(), at: p.created_time, score: (p.reactions?.summary.total_count ?? 0) + (p.comments?.summary.total_count ?? 0) * 2 + (p.shares?.count ?? 0) * 3 }));
+}
+
+// Owner > Keys and switches (release 0.17): do the app id and secret in
+// Vercel work? Meta answers with the app's name.
+export async function checkApp() {
+  return (await graph<{ id: string; name?: string }>("app", { access_token: `${metaAppId()}|${metaSecret()}` })).name ?? "";
 }

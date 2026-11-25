@@ -1,4 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { signInProviders } from "@/lib/auth-providers";
 import { AppHeader, PageBody } from "@/components/app-header";
 import { Button, Card, Field, Notice } from "@/components/ui";
 import { Link } from "@/i18n/navigation";
@@ -16,7 +17,8 @@ export default async function LoginPage({
   setRequestLocale(locale);
   const { error, next, sent, to } = await searchParams;
   // Which extra ways to sign in this school's set-up has switched on.
-  const providers = [process.env.AUTH_GOOGLE === "on" && "google", process.env.AUTH_MICROSOFT === "on" && "azure"].filter(Boolean) as string[];
+  // Switched on in Supabase = the button shows (release 0.17).
+  const providers: string[] = await signInProviders();
   const phoneCodes = process.env.AUTH_PHONE === "on";
   const t = await getTranslations();
   const nextPath = safeNext(next, "/today");

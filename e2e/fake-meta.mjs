@@ -9,8 +9,15 @@ const comments = new Map(); // object id -> [{ id, platform, text, author, at, h
 const calls = [];
 const convos = new Map(); // page id + platform -> [{ id, withId, withName, messages: [{ text, fromPage, at }] }]
 const emails = []; // what the website sent by email
-const containers = new Set(); // Instagram media waiting to be published
-let failRule = null; // { path, message }: the next calls whose path contains it are refused
+const containers = new Map(); // Instagram media waiting to be published: id -> { owner, caption }
+const publishedContainers = new Set(); // containers already published (status PUBLISHED)
+const igMedia = new Map(); // Instagram user -> [{ id, caption }] newest first
+const fbPosts = new Map(); // Page -> [{ id, message }] newest first
+// Check connection (release 0.17): what debug_token answers. Tests change it with POST /__token.
+let tokenInfo = { is_valid: true, scopes: null };
+// { path, message, code, subcode, status, times, drop }: calls whose path contains `path` are
+// refused (`times` of them, or all); with drop the work is done but the answer is lost (500).
+let failRule = null;
 let n = 0;
 const newId = (kind) => `${kind}_${Date.now()}_${++n}`;
 
@@ -74,11 +81,19 @@ createServer(async (req, res) => {
     failRule = body ? JSON.parse(body) : null;
     return json(res, 200, { ok: true });
   }
+  if (url.pathname === "/__token") {
+    tokenInfo = body ? JSON.parse(body) : { is_valid: true, scopes: null };
+    return json(res, 200, { ok: true });
+  }
 
   // A stand-in for Gemini (release 0.16): the caption robot test starts a
   // second website with GEMINI_URL pointing here. The answers are messy on
   // purpose (Latin commas in Arabic, repeated hashtags, a word for children,
   // a banned word, a student's name) so the test proves the website cleans them.
+  // Owner > Keys and switches: "Test" lists the models (release 0.17).
+  if (url.pathname === "/gemini/models" && req.method === "GET") {
+    return req.headers["x-goog-api-key"] ? json(res, 200, { models: [{ name: "models/gemini-2.5-flash" }] }) : json(res, 403, { error: { message: "API key missing" } });
+  }
   if (url.pathname.startsWith("/gemini/") && req.method === "POST") {
     const prompt = JSON.parse(body).contents?.[0]?.parts?.[0]?.text ?? "";
     calls.push({ path: url.pathname, prompt, at: new Date().toISOString() });
@@ -137,24 +152,54 @@ createServer(async (req, res) => {
     }
     return json(res, 400, { error: { message: "(#100) No matching user found" } });
   }
-  if (failRule && path.includes(failRule.path)) return json(res, 400, { error: { message: failRule.message } });
+  // Check connection: Meta's answer about the school's key.
+  if (req.method === "GET" && id === "debug_token") {
+    const all = ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "instagram_basic", "instagram_content_publish", "pages_manage_engagement", "pages_read_user_content", "read_insights", "instagram_manage_comments", "instagram_manage_insights", "pages_messaging", "instagram_manage_messages"];
+    return json(res, 200, { data: { is_valid: tokenInfo.is_valid, scopes: tokenInfo.scopes ?? all, expires_at: 0 } });
+  }
+  let dropAnswer = false;
+  if (failRule && path.includes(failRule.path) && failRule.times !== 0) {
+    if (typeof failRule.times === "number") failRule.times--;
+    if (failRule.drop) dropAnswer = true;
+    else return json(res, failRule.status ?? 400, { error: { message: failRule.message, code: failRule.code, error_subcode: failRule.subcode, is_transient: failRule.transient } });
+  }
+  const answer = (status, body) => (dropAnswer ? json(res, 500, { error: { message: "An unexpected error has occurred. Please retry your request later.", code: 2, is_transient: true } }) : json(res, status, body));
+
+  // Lists the website reads to find a post an earlier try made, and post addresses.
+  if (req.method === "GET" && edge === "posts") return json(res, 200, { data: fbPosts.get(id) ?? [] });
+  if (req.method === "GET" && edge === "media") return json(res, 200, { data: igMedia.get(id) ?? [] });
+  if (req.method === "GET" && !edge && params.fields === "permalink_url") return json(res, 200, { id, permalink_url: `https://www.facebook.com/fake/posts/${id}` });
+  if (req.method === "GET" && !edge && params.fields === "permalink") return json(res, 200, { id, permalink: `https://www.instagram.com/p/${id}/` });
 
   // Publishing: Facebook photos and posts, Instagram media and stories.
   if (req.method === "POST" && (edge === "photos" || edge === "media")) {
     const link = params.url ?? params.image_url;
     if (link && !(await fetchImage(link))) return json(res, 400, { error: { message: "(#100) The photo link could not be downloaded" } });
-    if (edge === "photos") return json(res, 200, params.published === "false" ? { id: newId("photo") } : { id: newId("photo"), post_id: newId("fbpost") });
+    if (edge === "photos") {
+      if (params.published === "false") return answer(200, { id: newId("photo") });
+      const post = newId("fbpost");
+      fbPosts.set(id, [{ id: post, message: params.message ?? "", created_time: new Date().toISOString() }, ...(fbPosts.get(id) ?? [])]);
+      return answer(200, { id: newId("photo"), post_id: post });
+    }
     const id2 = newId("container");
-    containers.add(id2);
-    return json(res, 200, { id: id2 });
+    containers.set(id2, { owner: id, caption: params.caption ?? "" });
+    return answer(200, { id: id2 });
   }
-  if (req.method === "POST" && edge === "feed") return json(res, 200, { id: newId("fbpost") });
+  if (req.method === "POST" && edge === "feed") {
+    const post = newId("fbpost");
+    fbPosts.set(id, [{ id: post, message: params.message ?? "", created_time: new Date().toISOString() }, ...(fbPosts.get(id) ?? [])]);
+    return answer(200, { id: post });
+  }
   if (req.method === "POST" && edge === "media_publish") {
-    if (!containers.has(params.creation_id)) return json(res, 400, { error: { message: "(#9007) Media not found" } });
+    const c = containers.get(params.creation_id);
+    if (!c) return json(res, 400, { error: { message: "(#9007) Media not found" } });
     containers.delete(params.creation_id);
-    return json(res, 200, { id: newId("igmedia") });
+    publishedContainers.add(params.creation_id);
+    const media = newId("igmedia");
+    igMedia.set(id, [{ id: media, caption: c.caption, timestamp: new Date().toISOString() }, ...(igMedia.get(id) ?? [])]);
+    return answer(200, { id: media });
   }
-  if (req.method === "GET" && !edge && params.fields === "status_code") return json(res, 200, { status_code: containers.has(id) ? "FINISHED" : "ERROR" });
+  if (req.method === "GET" && !edge && params.fields === "status_code") return json(res, 200, { status_code: containers.has(id) ? "FINISHED" : publishedContainers.has(id) ? "PUBLISHED" : "ERROR" });
   if (req.method === "POST" && edge === "comments" && !find(id)) return json(res, 200, { id: newId("comment") });
 
   const c = find(id);

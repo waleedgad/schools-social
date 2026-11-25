@@ -73,7 +73,9 @@ test("schedule, lose the Facebook connection, pause and retry", async ({ page, r
   expect((await cron()).status()).toBe(200);
   expect((await status(post)).attempts).toBe(1);
   await page.goto(`/en/posts/${post}`);
-  await expect(page.locator("main")).toContainText("Publishing failed: Connect the school's Facebook Page");
+  // Release 0.17: the reason in plain words, the details underneath.
+  await expect(page.locator("main")).toContainText("Facebook isn't connected yet");
+  await expect(page.locator("main")).toContainText("Details: Connect the school's Facebook Page");
 
   // 4. Paused: a queued post waits untouched, and Retry is off.
   await connect();

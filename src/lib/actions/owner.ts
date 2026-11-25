@@ -160,3 +160,26 @@ export async function ownerSaveSettings(formData: FormData) {
   revalidatePath(`/${locale}/owner`, "layout");
   redirect({ href: { pathname: "/owner/plans", query: error ? { error: "settings" } : { saved: "settings" } }, locale });
 }
+
+// Owner > Keys and switches (release 0.17): ask Gemini or Meta whether the
+// key in Vercel works. Nothing is saved; the answer is shown once.
+export async function testKey(formData: FormData) {
+  const { locale } = await ctx(formData);
+  const which = str(formData, "key", 20);
+  let result = "fail";
+  try {
+    if (which === "gemini") {
+      const key = (process.env.GEMINI_API_KEY ?? "").trim();
+      const endpoint = (process.env.GEMINI_URL ?? "").trim() || "https://generativelanguage.googleapis.com/v1beta/models";
+      // Listing the models uses none of the free daily allowance.
+      const res = key ? await fetch(`${endpoint}?pageSize=1`, { headers: { "x-goog-api-key": key }, signal: AbortSignal.timeout(8000) }) : null;
+      result = res?.ok ? "ok" : "fail";
+    } else if (which === "meta") {
+      const { checkApp, isMetaConfigured } = await import("@/lib/meta");
+      result = isMetaConfigured() && (await checkApp()) !== null ? "ok" : "fail";
+    }
+  } catch {
+    result = "fail";
+  }
+  redirect({ href: { pathname: "/owner/keys", query: { test: which === "meta" ? "meta" : "gemini", result } }, locale });
+}

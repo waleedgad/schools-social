@@ -4,7 +4,8 @@ import { AppShell } from "@/components/shell";
 import { Button, Card, Chip, Field, Notice, Select } from "@/components/ui";
 import { redirect } from "@/i18n/navigation";
 import { setAccountPaused, setPause } from "@/lib/actions/brand";
-import { choosePage, disconnectMeta } from "@/lib/actions/settings";
+import { checkConnection, choosePage, disconnectMeta } from "@/lib/actions/settings";
+import { abilities } from "@/lib/meta-errors";
 import { isPaused } from "@/lib/posting";
 import { can } from "@/lib/roles";
 import { requireMembership } from "@/lib/session";
@@ -20,11 +21,15 @@ type MetaStatus = {
   fb_paused: boolean;
   ig_paused: boolean;
   token_expires_at: string | null;
+  needs_reconnect?: boolean;
+  reconnect_since?: string | null;
+  permissions?: string[] | null;
+  checked_at?: string | null;
 };
 
 // Accounts home: which Page and Instagram the school posts to, their health,
 // and the pause buttons (all posting, or one account).
-export default async function AccountsPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ meta?: string; saved?: string }> }) {
+export default async function AccountsPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ meta?: string; saved?: string; check?: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const { membership, workspaces } = await requireMembership(locale);
@@ -36,10 +41,11 @@ export default async function AccountsPage({ params, searchParams }: { params: P
   const schoolId = membership.school.id;
   const isAdmin = can(membership.role, "manageSettings", perms);
 
-  const [{ data: metaRows }, { data: school }, { count: queued }] = await Promise.all([
+  const [{ data: metaRows }, { data: school }, { count: queued }, { count: waitingReconnect }] = await Promise.all([
     supabase.rpc("meta_status", { p_school: schoolId }),
     supabase.from("schools").select("posting_paused_until, pause_reason").eq("id", schoolId).single(),
     supabase.from("posts").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "scheduled"),
+    supabase.from("posts").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "failed").eq("publish_reason", "reconnect"),
   ]);
   const meta = (metaRows as MetaStatus[] | null)?.[0];
   const paused = school ? isPaused(school) : false;
@@ -48,8 +54,8 @@ export default async function AccountsPage({ params, searchParams }: { params: P
 
   const accounts = meta?.page_id
     ? [
-        { platform: "facebook" as const, name: meta.page_name ?? "", paused: meta.fb_paused, ok: true },
-        { platform: "instagram" as const, name: meta.ig_username ? `@${meta.ig_username}` : t("settings.noInstagram"), paused: meta.ig_paused, ok: !!meta.ig_username },
+        { platform: "facebook" as const, name: meta.page_name ?? "", paused: meta.fb_paused, ok: !meta.needs_reconnect },
+        { platform: "instagram" as const, name: meta.ig_username ? `@${meta.ig_username}` : t("settings.noInstagram"), paused: meta.ig_paused, ok: !!meta.ig_username && !meta.needs_reconnect },
       ]
     : [];
 
@@ -57,6 +63,20 @@ export default async function AccountsPage({ params, searchParams }: { params: P
     <AppShell locale={locale} membership={membership} workspaces={workspaces} active="accounts" title={t("accounts.title")} subtitle={t("accounts.subtitle")}>
       {sp.meta && <Notice tone={sp.meta === "connected" ? "good" : "danger"}>{t(`settings.metaResult.${sp.meta}`)}</Notice>}
       {sp.saved && <Notice tone="good">{t("settings.saved")}</Notice>}
+      {sp.check && <Notice tone={sp.check === "checked" ? "good" : "danger"}>{t(`accounts.check.result.${sp.check === "signedOut" || sp.check === "checkFailed" ? sp.check : "checked"}`)}</Notice>}
+      {meta?.needs_reconnect && (
+        <div role="alert" className="space-y-2 rounded-card border border-danger/40 bg-danger-bg p-4 text-sm">
+          <b className="block text-base text-danger">{t("accounts.reconnect.title")}</b>
+          <p>{t("accounts.reconnect.body", { count: waitingReconnect ?? 0 })}</p>
+          {isAdmin ? (
+            <a href={`/api/meta/connect?locale=${locale}`} className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground">
+              <Icon name="facebook" /> {t("accounts.reconnect.button")}
+            </a>
+          ) : (
+            <p>{t("accounts.askAdmin")}</p>
+          )}
+        </div>
+      )}
 
       <Card title={t("accounts.pauseAll")}>
         {paused ? (
@@ -109,7 +129,7 @@ export default async function AccountsPage({ params, searchParams }: { params: P
                   </span>
                   <div className="min-w-0 grow">
                     <b className="block truncate text-sm">{a.name}</b>
-                    <Chip tone={!a.ok ? "danger" : a.paused ? "warn" : "good"}>{!a.ok ? t("accounts.notLinked") : a.paused ? t("accounts.paused") : t("accounts.healthy")}</Chip>
+                    <Chip tone={!a.ok ? "danger" : a.paused ? "warn" : "good"}>{meta.needs_reconnect ? t("accounts.signedOut") : !a.ok ? t("accounts.notLinked") : a.paused ? t("accounts.paused") : t("accounts.healthy")}</Chip>
                   </div>
                   {a.ok && (
                     <form action={setAccountPaused}>
@@ -156,6 +176,29 @@ export default async function AccountsPage({ params, searchParams }: { params: P
           </div>
         )}
       </Card>
+
+      {meta?.page_id && (
+        <Card title={t("accounts.check.title")}>
+          <p className="mb-3 text-sm text-muted">{t("accounts.check.hint")}</p>
+          {meta.checked_at && meta.permissions && (
+            <ul className="mb-3 grid gap-2 sm:grid-cols-2" aria-label={t("accounts.check.title")}>
+              {abilities(meta.permissions).map((a) => (
+                <li key={a.key} className="flex items-start gap-2 rounded-control bg-foreground/[.04] p-2.5 text-sm">
+                  <Chip tone={a.ok ? "good" : "warn"}>{a.ok ? t("accounts.check.works") : t("accounts.check.needsReconnect")}</Chip>
+                  <span>{t(`accounts.check.ability.${a.key}`)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {meta.checked_at && <p className="mb-3 text-xs text-muted">{t("accounts.check.lastChecked", { date: until(meta.checked_at) })}</p>}
+          {isAdmin && (
+            <form action={checkConnection}>
+              {hidden}
+              <Button variant="quiet" icon="check">{t("accounts.check.button")}</Button>
+            </form>
+          )}
+        </Card>
+      )}
     </AppShell>
   );
 }

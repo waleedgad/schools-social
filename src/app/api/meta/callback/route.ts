@@ -27,8 +27,10 @@ export async function GET(request: NextRequest) {
   try {
     const pages = await pagesFromCode(code, new URL("/api/meta/callback", request.url).toString());
     if (!pages.length) return done("nopages");
-    const first = pages.find((p) => p.ig_user_id) ?? pages[0];
     const db = createAdminClient();
+    // Reconnect (release 0.17) keeps the Page the school chose before, when it is still there.
+    const { data: before } = await db.from("meta_connections").select("page_id").eq("school_id", membership.school.id).maybeSingle();
+    const first = pages.find((p) => p.id === before?.page_id) ?? pages.find((p) => p.ig_user_id) ?? pages[0];
     if ((await stateWithServiceKey(db, membership.school.id)) !== "active") return done("error");
     await db.from("meta_connections").upsert({
       school_id: membership.school.id,
@@ -41,6 +43,10 @@ export async function GET(request: NextRequest) {
       connected_by: user.id,
       connected_at: new Date().toISOString(),
       last_error: null,
+      needs_reconnect: false,
+      reconnect_since: null,
+      permissions: null,
+      checked_at: null,
     });
     await db.from("audit_log").insert({ school_id: membership.school.id, user_id: user.id, action: "meta.connected", target: first.name });
     return done("connected");
