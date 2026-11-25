@@ -31,7 +31,14 @@ website code changed, so it can't clash with 0.17.
 
 - 25 Nov 01:15 UTC: local smoke test passes (made-up set from the astronaut
   picture, SFace only, broken file, unmatched folder, ID-named folder).
-  First GitHub dry run 45524409952 running.
+  First GitHub dry run 45524409952 (25 Nov, 1,050 photos read in 28 min with
+  AuraFace): works end to end. Numbers low (52.9% of all student photos,
+  0 wrong) because the stand-in photos are NOT cleaned: 530 of 900 crowded
+  (left out), 40 no face found, ~40 unusable. 7 "not in list" faces named:
+  all faces of those photos were counted, so list people in the background
+  counted as wrong. Fixed: only the main face of a "not in list" photo counts,
+  and the headline is now "of the faces it could see clearly" (as the bench
+  measures) with the all-photos number under it. Dry run now 25 photos/person.
 
 ## Next
 

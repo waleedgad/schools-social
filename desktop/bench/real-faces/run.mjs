@@ -232,16 +232,18 @@ const readMinutes = (Date.now() - t0) / 60000;
 
 // The student's face in their own photo: the biggest face, when it is
 // clearly the main one (a group shot where two faces are about as big is
-// left out: we can't tell which one is the student).
+// left out: we can't tell which one is the student). The same for photos
+// of people not on the list: only their main face counts (a background face
+// in a parent's photo may well be a student).
 const unclear = [];
 for (const p of photos) {
   p.id = photos.indexOf(p);
-  if (p.kind !== "student") continue;
+  if (p.kind === "class") continue;
   const order = p.faces.map((f, i) => [i, f.box[2] * f.box[3] * (p.width ?? 1) * (p.height ?? 1)]).sort((a, b) => b[1] - a[1]);
   if (!order.length) p.truthFace = -1;
   else if (order[1] && order[1][1] * 1.8 > order[0][1]) {
     p.truthFace = null;
-    unclear.push(p);
+    if (p.kind === "student") unclear.push(p);
   } else p.truthFace = order[0][0];
 }
 
@@ -310,21 +312,24 @@ function simulate(k, scope) {
     if (!added) break;
   }
   // ---- score
-  const t = { k, scope, tests: 0, right: 0, wrong: 0, sugRight: 0, sugWrong: 0, missed: 0, why: {}, strangers: 0, strangerNamed: 0, strangerSuggested: 0, classFaces: 0, classNamed: 0, classSuggested: 0, perClass: {}, perStudent: {}, wrongList: [], missList: [], strangerList: [], classList: [] };
+  const t = { k, scope, tests: 0, clear: 0, clearRight: 0, right: 0, wrong: 0, sugRight: 0, sugWrong: 0, missed: 0, why: {}, strangers: 0, strangerNamed: 0, strangerSuggested: 0, classFaces: 0, classNamed: 0, classSuggested: 0, perClass: {}, perStudent: {}, wrongList: [], missList: [], strangerList: [], classList: [] };
   const bump = (o, key) => (o[key] = (o[key] ?? 0) + 1);
   for (const p of tests) {
     const done = names.get(p.id) ?? new Map();
     const lm = last.get(p.id);
     if (p.kind === "student") {
       const cls = p.className ?? (people.get(p.owner).kind === "staff" ? "Staff" : "?");
-      const pc = (t.perClass[cls] ??= { tests: 0, right: 0, wrong: 0, sugRight: 0, missed: 0 });
+      const pc = (t.perClass[cls] ??= { tests: 0, clear: 0, clearRight: 0, right: 0, wrong: 0, sugRight: 0, missed: 0 });
       const ps = (t.perStudent[p.owner] ??= { tests: 0, right: 0, wrong: 0, missed: 0 });
       t.tests++, pc.tests++, ps.tests++;
       const fi = p.truthFace;
       const face = fi >= 0 ? p.faces[fi] : null;
       const got = fi >= 0 ? done.get(fi) : undefined;
+      // "clear": the app found the face and could use it
+      if (face?.usable && !p.error) t.clear++, pc.clear++;
       if (got === p.owner) {
         t.right++, pc.right++, ps.right++;
+        t.clearRight++, pc.clearRight++;
         continue;
       }
       if (got) {
@@ -360,7 +365,7 @@ function simulate(k, scope) {
       t.missList.push({ p, fi, truth: p.owner, why, guess: m?.studentId ?? null, score: m?.score ?? null });
     } else if (p.kind === "stranger") {
       p.faces.forEach((f, i) => {
-        if (!f.usable) return;
+        if (!f.usable || i !== p.truthFace) return;
         t.strangers++;
         const got = done.get(i);
         if (got) t.strangerNamed++, t.strangerList.push({ p, fi: i, named: got });
@@ -431,7 +436,8 @@ function report(withNames) {
   L.push(`Run ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC · recogniser: ${recogniser === "both" ? "AuraFace + SFace (as the app)" : "SFace only — AuraFace missing, NOT what the app uses"} · photos read in ${readMinutes.toFixed(0)} min`, "");
   L.push(`## The answer`, "");
   L.push(`With **${MAIN_K} confirmed faces** per student (what staff give in the first days), matching each photo against its class like the app does:`, "");
-  L.push(`- **Named by the app itself: ${pct(main.right, main.tests)}** of ${main.tests} student faces (goal: about 95%)`);
+  L.push(`- **Named by the app itself: ${pct(main.clearRight, main.clear)}** of the ${main.clear} student faces it could see clearly (goal: about 95%)`);
+  L.push(`- Of all ${main.tests} student photos, including ones where the face is too small, turned away or not found: ${pct(main.right, main.tests)}`);
   L.push(`- **Named WRONG by itself: ${main.wrong}** (goal: 0)`);
   L.push(`- Shown as "Likely …" for one tap: ${main.sugRight} more right${main.sugWrong ? `, ${main.sugWrong} suggested wrong` : ""} → named or one tap away: ${pct(main.right + main.sugRight, main.tests)}`);
   if (main.strangers) L.push(`- People not on the list: ${main.strangerNamed} of ${main.strangers} faces named as a student (goal: 0)`);
@@ -445,12 +451,12 @@ function report(withNames) {
   if (few.length) L.push(`- ${few.length} student(s) with fewer than ${MAIN_K + 3} photos: their numbers say little${withNames ? ` (${few.map(([id, n]) => `${nameOf(id)} ${n}`).join(", ")})` : ""}`);
   L.push("");
   L.push(`## More or fewer confirmed faces`, "");
-  L.push(`| Confirmed faces | Matched against | Student faces | Named by itself | Wrong | Named or "Likely" (right) | Not named | Strangers named |`, `|---|---|---|---|---|---|---|---|`);
-  for (const r of runs) L.push(`| ${r.k} | ${r.scope === "class" ? "own class + staff" : "whole school"} | ${r.tests} | ${pct(r.right, r.tests)} | ${r.wrong} | ${pct(r.right + r.sugRight, r.tests)} | ${r.missed} | ${r.strangerNamed}/${r.strangers} |`);
+  L.push(`| Confirmed faces | Matched against | Student faces | Named by itself (clear faces) | Named by itself (all) | Wrong | Named or "Likely" (right) | Not named | Strangers named |`, `|---|---|---|---|---|---|---|---|---|`);
+  for (const r of runs) L.push(`| ${r.k} | ${r.scope === "class" ? "own class + staff" : "whole school"} | ${r.tests} | ${pct(r.clearRight, r.clear)} | ${pct(r.right, r.tests)} | ${r.wrong} | ${pct(r.right + r.sugRight, r.tests)} | ${r.missed} | ${r.strangerNamed}/${r.strangers} |`);
   L.push("", `"Whole school" is how an event photo with no class folder is matched; it is harder than a class photo.`, "");
   L.push(`## Each class (${MAIN_K} confirmed faces, own class)`, "");
-  L.push(`| Class | Student faces | Named by itself | Wrong | "Likely" (right) | Not named |`, `|---|---|---|---|---|---|`);
-  for (const [c, v] of Object.entries(main.perClass).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))) L.push(`| ${c} | ${v.tests} | ${pct(v.right, v.tests)} | ${v.wrong} | ${v.sugRight} | ${v.missed} |`);
+  L.push(`| Class | Student faces | Named by itself (clear faces) | Named by itself (all) | Wrong | "Likely" (right) | Not named |`, `|---|---|---|---|---|---|---|`);
+  for (const [c, v] of Object.entries(main.perClass).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))) L.push(`| ${c} | ${v.tests} | ${pct(v.clearRight, v.clear)} | ${pct(v.right, v.tests)} | ${v.wrong} | ${v.sugRight} | ${v.missed} |`);
   L.push("");
   L.push(`## Why faces were not named (${main.missed} faces)`, "");
   const whys = Object.entries(main.why).sort((a, b) => b[1] - a[1]);
@@ -486,7 +492,7 @@ function report(withNames) {
   return L.join("\n");
 }
 
-const strip = (r) => ({ k: r.k, scope: r.scope, tests: r.tests, right: r.right, wrong: r.wrong, sugRight: r.sugRight, sugWrong: r.sugWrong, missed: r.missed, why: r.why, strangers: r.strangers, strangerNamed: r.strangerNamed, classFaces: r.classFaces, classNamed: r.classNamed, perClass: r.perClass, hand: r.hand, learned: r.learned });
+const strip = (r) => ({ k: r.k, scope: r.scope, tests: r.tests, clear: r.clear, clearRight: r.clearRight, right: r.right, wrong: r.wrong, sugRight: r.sugRight, sugWrong: r.sugWrong, missed: r.missed, why: r.why, strangers: r.strangers, strangerNamed: r.strangerNamed, classFaces: r.classFaces, classNamed: r.classNamed, perClass: r.perClass, hand: r.hand, learned: r.learned });
 await mkdir(OUT, { recursive: true });
 const summary = report(false);
 await writeFile(path.join(OUT, "summary.md"), summary);

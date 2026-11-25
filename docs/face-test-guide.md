@@ -54,8 +54,8 @@ PowerSchool, Classera or Edunation, .xlsx or .csv). Nothing needs changing in it
 ## 4. Not in list (optional, but it is our "never wrong" check)
 
 10 to 30 photos of people who are **not** in the class list: parents at an
-event, visitors, staff from another school. The app must never give any of
-them a student's name.
+event, visitors, staff from another school, each the biggest face in its
+photo. The app must never give any of them a student's name.
 
 ## 5. Class photos (optional)
 
