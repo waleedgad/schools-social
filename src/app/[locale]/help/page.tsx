@@ -2,10 +2,13 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { AppShell } from "@/components/shell";
 import { Button, Card, Notice, Select, TextArea } from "@/components/ui";
 import { reportProblem } from "@/lib/actions/support";
+import { isOwner } from "@/lib/owner";
 import { requireMembership } from "@/lib/session";
 
-const GUIDES = ["start", "post", "approve", "calendar", "brand", "mac", "upload", "pause", "plan"] as const;
-const NEWS = ["n1", "n2", "n3", "n4", "n5", "n6"] as const;
+const GUIDES = ["start", "post", "captions", "approve", "posting", "check", "calendar", "brand", "inbox", "books", "mac", "upload", "cloud", "connections", "pause", "plan", "look"] as const;
+// The owner page guide is only for owners (schools never see the owner page).
+const OWNER_GUIDES = ["owner"] as const;
+const NEWS = ["n12", "n11", "n10", "n9", "n8", "n7", "n1", "n2", "n3", "n4", "n5", "n6"] as const;
 
 // Help centre: short guides, a guide for the person's own role, what's new,
 // keyboard shortcuts and "report a problem".
@@ -16,7 +19,8 @@ export default async function HelpPage({ params, searchParams }: { params: Promi
   const sp = await searchParams;
   const t = await getTranslations();
   const q = (sp.q ?? "").trim().toLowerCase();
-  const guides = GUIDES.filter((g) => !q || `${t(`help.guides.${g}.title`)} ${t(`help.guides.${g}.body`)}`.toLowerCase().includes(q));
+  const owner = await isOwner().catch(() => false);
+  const guides = [...GUIDES, ...(owner ? OWNER_GUIDES : [])].filter((g) => !q || `${t(`help.guides.${g}.title`)} ${t(`help.guides.${g}.body`)}`.toLowerCase().includes(q));
   const whatsapp = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "").replace(/\D/g, "");
 
   return (
@@ -31,7 +35,7 @@ export default async function HelpPage({ params, searchParams }: { params: Promi
       </Card>
       <div className="grid gap-3 md:grid-cols-2">
         {guides.map((g) => (
-          <details key={g} className="card p-4">
+          <details key={g} id={`guide-${g}`} className="card p-4">
             <summary className="cursor-pointer font-semibold">{t(`help.guides.${g}.title`)}</summary>
             <p className="mt-2 whitespace-pre-line text-sm text-muted">{t(`help.guides.${g}.body`)}</p>
           </details>

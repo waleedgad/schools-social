@@ -1282,6 +1282,42 @@
       "plan": {
         "title": "Your plan, read-only and renewing",
         "body": "Your plan sets how many managing users (Admin, Comms lead, Comms) and library computers your school can have. Teachers, staff, photographers and the principal are free.\nYou see it under Settings > Plan.\nFrom 14 days before the plan ends, the Admin and Comms lead see a yellow reminder.\nIf it isn't renewed, the school is read-only for 14 days: everyone can look, nobody can change anything, and scheduled posts wait (nothing is deleted).\nAfter that, access is paused until you renew. Your photo files always stay in your school's own folders, and renewing brings everything back."
+      },
+      "look": {
+        "title": "Easier reading, dark mode and the keyboard",
+        "body": "At the bottom of the menu, press the sun and moon button to switch between Auto (like your device), Dark and Light. Easier reading turns on Larger text and High contrast. Your choice is kept on this phone or computer.\nEverything works with the keyboard: Tab moves to the next button or box, Enter presses it, and a clear ring shows where you are. Press ? to see the shortcuts.\nIf your device is set to reduce motion, the website moves less too."
+      },
+      "captions": {
+        "title": "AI captions in your school's voice",
+        "body": "The AI writes three versions of each caption, in the voice you set on Brand and categories > Brand voice: the Arabic style (Modern Standard or Egyptian), the tone, words you like and words to avoid. Your saved hashtags come first.\nIt always says \"our students\" (طلابنا) for every grade, KG too.\nIf a caption has a student's full name, the person approving sees a warning. They can still approve it.\nWhat the AI learnt, on the Brand voice tab, shows what it picked up from your posts with results, the drafts the team edited and the captions people liked most.\nThe same rules are used for reply suggestions in the Inbox, yearbook texts, Make a week and Rewrite and Translate in the Mac app."
+      },
+      "books": {
+        "title": "Yearbooks and graduation books",
+        "body": "The comms team makes the book on the Mac and sends it for review. It then shows here under Yearbooks.\nTeachers check the names of their class (type the right spelling only if a name is wrong) and add texts: the class teacher's message, the principal's word or a student's quote. Pick the student for a quote, so it goes under their name.\nThe principal opens each page and presses Approve this page, or leaves a comment. The Mac locks approved pages, so they don't change when the book is drafted again.\nGraduation books (KG2 and Grade 12) work the same way, with a book for every graduate."
+      },
+      "inbox": {
+        "title": "Inbox, private messages and saved replies",
+        "body": "The Inbox shows comments on your posts from the last 3 weeks and, on the Private messages tab, messages people sent the Page on Messenger and Instagram.\nMeta lets the Page answer a private message only within 24 hours of the person's last message, so answer those first.\nPress Suggest replies for AI ideas in your school's voice, or tap a saved reply to put it in the box. Add saved replies (for example Fees or Admissions) under Saved replies.\nIf private messages don't show, the admin presses Reconnect on Accounts once."
+      },
+      "cloud": {
+        "title": "Photos from Google Drive, OneDrive or Dropbox",
+        "body": "On Upload, choose the event, then use From Google Drive, OneDrive or Dropbox.\nPaste the shared link of each photo. Share each one as \"Anyone with the link\". Folder links don't work: open the folder and copy each photo's link, or ask the comms team to watch the folder from the Mac app.\nWhen your school has switched them on, the Choose from buttons open your own Drive, OneDrive or Dropbox to pick photos.\nPhotos up to 40 MB each. Like every upload, they wait for the Mac check before anyone can post them."
+      },
+      "connections": {
+        "title": "Alerts, class lists and sign-in",
+        "body": "Settings > Connections (admin):\nSlack or Microsoft Teams: paste the channel's webhook address and choose which alerts go there (posts waiting for approval, posts that didn't go out, new photos, yearbooks to check, the principal's Sunday digest). Send a test alert to check it. Quiet hours hold alerts until they end.\nWhatsApp photo intake: staff send photos to the school's WhatsApp Business number. Only numbers saved on the People page are accepted, and the photos wait for the Mac check.\nClass lists from Google Classroom or Microsoft Teams: sign in once with the school account. Only names and classes are read. Then Download for the Mac and open the file in the Mac's Students tab.\nSign in with Google or Microsoft shows on the sign-in page once it is switched on for your school."
+      },
+      "posting": {
+        "title": "When a post doesn't go out",
+        "body": "If Facebook or Instagram is busy, the post waits and is tried again by itself after 5, 15 and 45 minutes. The post page shows when the next try is.\nIf there is a real problem (a photo refused, the text too long), the post stops at once and shows the reason in plain words, with what to do.\nIf Facebook signed the school out (a password change, or a permission taken away), Accounts and Today show Reconnect Facebook in red and the admin gets one alert. Nothing is posted until someone reconnects.\nA post is never posted twice on Instagram, even if the answer from Instagram got lost.\nBefore approval and again just before posting, the Instagram rules are checked: photo shape (4:5 to 1.91:1, Fix shape makes 4:5 copies), up to 2,200 characters, 30 hashtags and 20 photos.\nOnce a post is out, its page has View on Facebook and View on Instagram."
+      },
+      "check": {
+        "title": "Check connection",
+        "body": "On Accounts, press Check connection. It asks Facebook what the school's connection can do now and lists, in plain words: posting to the Facebook Page, posting to Instagram, reading and answering comments, results (reach, likes) and private messages in the Inbox.\nEach shows Works or Needs Reconnect. If anything needs it, the admin presses Reconnect Facebook and signs in with the account that manages the school's Page, then checks again."
+      },
+      "owner": {
+        "title": "The owner page and keys",
+        "body": "Only owners see the Owner page.\nSchools: every school with its plan, state and paid until. Filters show schools ending in 14 days, read-only, paused or on trial.\nOpen a school to change its plan and extras, record a payment (it moves paid until), set its state by hand with a reason, remove a computer or add notes. Every change goes in the Owner log.\nNew school: name, plan, a 14-day trial or a paid until date, and the Admin's email. The Admin gets an invite link.\nPlans and prices: the plans, extras and the contact schools see on their Plan page.\nKeys and switches: every free key the website can use, On or Off, the exact name to add in Vercel and where to get it. Test checks a key. Values are never shown. Redeploy the site after adding a key."
       }
     },
     "whatsNew": {
@@ -1290,7 +1326,13 @@
       "n3": "The AI writes three versions of each caption, rewrites, translates and checks them, and learns your school's voice.",
       "n4": "Live Facebook and Instagram preview, first comment, story and a separate Instagram caption.",
       "n5": "The comms lead approves inside the team, with an optional extra approver and approval links.",
-      "n6": "Today, Results, Inbox, posting times, frames and pausing posting."
+      "n6": "Today, Results, Inbox, posting times, frames and pausing posting.",
+      "n7": "Your plan and read-only: see Settings > Plan, with a reminder 14 days before it ends.",
+      "n8": "One calm look for the website and the Mac app, Easier reading (larger text, high contrast) and full keyboard use.",
+      "n9": "Yearbooks approved page by page, teachers' and students' texts, and a graduation book for every graduate.",
+      "n10": "Private messages and saved replies in the Inbox, photos from Drive, OneDrive and Dropbox, and alerts in Slack or Teams.",
+      "n11": "Captions that sound like your school, in Arabic and English, with What the AI learnt.",
+      "n12": "Safer posting: tries again by itself, clear reasons when a post fails, Reconnect Facebook and Check connection."
     }
   },
   "announce": {

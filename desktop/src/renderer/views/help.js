@@ -72,8 +72,15 @@ const GUIDES = () => [
   {
     id: "books", group: "screens", icon: "book-open", title: L("Yearbooks", "الكتب السنوية"),
     body: L(
-      `<ol><li><b>New yearbook</b>: a grade, a class, one student or a graduation (KG2 and Grade 12).</li><li>The Mac drafts the pages and spreads photos fairly. Lock a page (<span class="k">L</span>) to keep it when you redraft.</li><li>Checks show who is missing, low-resolution photos and anyone who can't appear.</li><li>Send it for review: class teachers check names on their phone and send texts for the class page.</li><li>Save a 300 dpi PDF with bleed and crop marks for the printer, or a flipbook for parents.</li></ol>`,
-      `<ol><li><b>كتاب سنوي جديد</b>: لصف أو فصل أو طالب واحد أو للتخرج (KG2 والصف 12).</li><li>يرسم الماك الصفحات ويوزّع الصور بعدل. اقفل صفحة (<span class="k">L</span>) لتبقى عند إعادة الرسم.</li><li>الفحوص تعرض الغائبين والصور منخفضة الدقة ومن لا يمكن ظهوره.</li><li>أرسله للمراجعة: يراجع معلمو الفصول الأسماء على الهاتف ويرسلون نصوص صفحة الفصل.</li><li>احفظ ملف PDF بدقة 300 مع هوامش القص للمطبعة، أو كتاباً تقلّب صفحاته لأولياء الأمور.</li></ol>`,
+      `<ol><li><b>New yearbook</b>: a grade, a class, one student or a graduation (KG2 and Grade 12).</li><li>The Mac lays out the pages by itself, spreads photos fairly and never cuts through a face. Lock a page (<span class="k">L</span>) to keep it when you redraft.</li><li>Checks show who is missing, low-resolution photos and anyone who can't appear.</li><li><b>Send for review</b>: on the website, class teachers check names and add texts (the class teacher's message, the principal's word, student quotes), and the principal approves the book page by page.</li><li><b>Review</b> brings their work back: pages approved on the website are locked here, and <b>Put them all in the book</b> places the texts, each student quote under that student's name.</li><li>Save a 300 dpi PDF with bleed and crop marks for the printer, or a flipbook for parents.</li></ol>`,
+      `<ol><li><b>كتاب سنوي جديد</b>: لصف أو فصل أو طالب واحد أو للتخرج (KG2 والصف 12).</li><li>يرتّب الماك الصفحات بنفسه ويوزّع الصور بعدل ولا يقطع وجهاً أبداً. اقفل صفحة (<span class="k">L</span>) لتبقى عند إعادة الرسم.</li><li>الفحوص تعرض الغائبين والصور منخفضة الدقة ومن لا يمكن ظهوره.</li><li><b>إرسال للمراجعة</b>: على الموقع يراجع معلمو الفصول الأسماء ويضيفون النصوص (رسالة معلم الفصل وكلمة المدير ومقولات الطلاب)، ويعتمد المدير الكتاب صفحة صفحة.</li><li><b>المراجعة</b> تعيد عملهم إلى هنا: الصفحات المعتمدة على الموقع تُقفل هنا، و<b>ضعها كلها في الكتاب</b> يضع النصوص، وكل مقولة تحت اسم صاحبها من الطلاب.</li><li>احفظ ملف PDF بدقة 300 مع هوامش القص للمطبعة، أو كتاباً تقلّب صفحاته لأولياء الأمور.</li></ol>`,
+    ),
+  },
+  {
+    id: "graduation", group: "screens", icon: "graduation-cap", title: L("Graduation", "التخرج"),
+    body: L(
+      `<ul><li><b>Graduation archive</b> (in Yearbooks) keeps every graduating class by class year, also after the students leave.</li><li>Make a graduation book for one graduate, or from the book's … menu <b>Make a graduation book for every graduate of the class</b>.</li><li>A graduation post has its own design and the <b>Graduation congratulations</b> prompt, which thanks teachers and parents. KG2 and Grade 12 are both “our students”.</li></ul>`,
+      `<ul><li><b>أرشيف التخرج</b> (في الكتب السنوية) يحفظ كل دفعة تخرج حسب سنة الدفعة، حتى بعد مغادرة الطلاب.</li><li>اعمل كتاب تخرج لخريج واحد، أو من قائمة … في الكتاب <b>عمل كتاب تخرج لكل خريج في الفصل</b>.</li><li>منشور التخرج له تصميمه الخاص وطلب <b>تهنئة الخريجين</b> الجاهز الذي يشكر المعلمين وأولياء الأمور. KG2 والصف 12 كلهم «طلابنا».</li></ul>`,
     ),
   },
   {
@@ -119,6 +126,34 @@ const GUIDES = () => [
       <tr><td><span class="k">⌘Z</span></td><td>${L("Undo", "تراجع")}</td></tr></tbody></table>`),
   },
   {
+    id: "look", group: "basics", icon: "eye", title: L("Easier reading", "قراءة أسهل"),
+    body: L(
+      `<p>In <b>Settings → General</b>:</p><ul><li><b>Appearance</b>: Light, Dark or like the computer.</li><li><b>Text size</b>: Small, Normal or Large.</li><li><b>High contrast</b>: darker text and clearer lines and buttons.</li><li><b>Less movement</b>: turns off the zoom and slide animations.</li><li><b>School colour</b> for buttons and highlights.</li></ul><p>Everything works with the keyboard: <span class="k">Tab</span> moves, <span class="k">Enter</span> presses, and a clear ring shows where you are. The website has the same look and an <b>Easier reading</b> button at the bottom of its menu.</p>`,
+      `<p>في <b>الإعدادات ← عام</b>:</p><ul><li><b>المظهر</b>: فاتح أو داكن أو مثل الجهاز.</li><li><b>حجم النص</b>: صغير أو عادي أو كبير.</li><li><b>تباين عالٍ</b>: نص أغمق وخطوط وأزرار أوضح.</li><li><b>حركة أقل</b>: يوقف حركات التكبير والانزلاق.</li><li><b>لون المدرسة</b> للأزرار والتمييز.</li></ul><p>كل شيء يعمل بلوحة المفاتيح: <span class="k">Tab</span> ينتقل و<span class="k">Enter</span> يضغط، وتُظهر حلقة واضحة مكانك. للموقع الشكل نفسه وزر <b>قراءة أسهل</b> في أسفل قائمته.</p>`,
+    ),
+  },
+  {
+    id: "captions", group: "basics", icon: "sparkles", title: L("AI captions", "نصوص الذكاء الاصطناعي"),
+    body: L(
+      `<ul><li>The AI writes in your school's voice, set on the website (Brand and categories → Brand voice): Modern Standard or Egyptian Arabic, the tone, words you like and words to avoid. Your saved hashtags come first.</li><li>It always says “our students” (طلابنا), for every grade, KG too.</li><li>Rewrite and Translate in a post, yearbook texts and Make a week all follow the same rules.</li><li>A caption with a student's full name shows a warning; it can still be approved.</li><li>The AI sees at most four small copies of the photos, never names or face data.</li></ul>`,
+      `<ul><li>يكتب الذكاء الاصطناعي بأسلوب مدرستك المضبوط على الموقع (الهوية والتصنيفات ← أسلوب المدرسة): الفصحى أو المصرية، والنبرة، والكلمات التي تحبونها والتي تتجنبونها. وسومكم المحفوظة تأتي أولاً.</li><li>يقول دائماً «طلابنا» لكل الصفوف، ومنهم KG.</li><li>إعادة الصياغة والترجمة في المنشور ونصوص الكتاب السنوي و«أنشئ منشورات أسبوع» كلها تتبع القواعد نفسها.</li><li>النص الذي فيه الاسم الكامل لطالب يُظهر تنبيهاً، ويمكن اعتماده رغم ذلك.</li><li>يرى الذكاء الاصطناعي أربع نسخ صغيرة من الصور على الأكثر، ولا يرى أسماء أو بيانات وجوه أبداً.</li></ul>`,
+    ),
+  },
+  {
+    id: "plan", group: "basics", icon: "badge-check", title: L("Your plan and this computer", "باقتكم وهذا الجهاز"),
+    body: L(
+      `<ul><li>This computer is one of the school's library computers. Your plan sets how many; the Admin sees them on the website (Settings → Computers).</li><li>The app checks with the school's account when it starts and every few hours. Offline it keeps working for up to 10 days; then the library is read-only until the computer is online again.</li><li>If the school's plan isn't renewed, the school is read-only for 14 days: you can look at everything, but import, AI picks, face matching and new posts are locked. After that only a notice shows until the plan is renewed.</li><li>The library's tags and faces are kept encrypted on this computer. Your original photos always stay in the school's own folders, and renewing brings everything back.</li></ul>`,
+      `<ul><li>هذا الجهاز أحد أجهزة مكتبة المدرسة. تحدد باقتكم عددها، ويراها مسؤول النظام على الموقع (الإعدادات ← الأجهزة).</li><li>يتحقق التطبيق من حساب المدرسة عند بدئه وكل بضع ساعات. دون إنترنت يستمر في العمل حتى 10 أيام، ثم تصبح المكتبة للقراءة فقط حتى يتصل الجهاز مرة أخرى.</li><li>إذا لم تُجدَّد الباقة، تصبح المدرسة للقراءة فقط لمدة 14 يوماً: يمكنك رؤية كل شيء، لكن الاستيراد والاختيار بالذكاء الاصطناعي ومطابقة الوجوه والمنشورات الجديدة مقفلة. بعد ذلك يظهر تنبيه فقط حتى التجديد.</li><li>وسوم المكتبة والوجوه محفوظة مشفّرة على هذا الجهاز. صوركم الأصلية باقية دائماً في مجلدات مدرستكم، وعند التجديد يعود كل شيء.</li></ul>`,
+    ),
+  },
+  {
+    id: "website", group: "basics", icon: "globe", title: L("On the website", "على الموقع"),
+    body: L(
+      `<p>Some work is done on the website, from any phone or computer:</p><ul><li><b>Inbox</b>: comments and private messages (Messenger and Instagram), reply suggestions and saved replies. Private messages can be answered within 24 hours.</li><li><b>Upload</b>: photos from phones and from Google Drive, OneDrive or Dropbox links. They come to this computer for the face and privacy check first.</li><li><b>Settings → Connections</b>: alerts in Slack or Microsoft Teams, WhatsApp photo intake and class lists from Google Classroom or Microsoft Teams (download them for the Mac and open the file in Students).</li><li><b>Accounts</b>: if a post doesn't go out, it is tried again by itself or shows the reason in plain words. <b>Check connection</b> shows what works, and <b>Reconnect Facebook</b> fixes a signed-out Page.</li></ul>`,
+      `<p>بعض العمل يتم على الموقع، من أي هاتف أو حاسوب:</p><ul><li><b>صندوق الرسائل</b>: التعليقات والرسائل الخاصة (ماسنجر وإنستجرام)، واقتراحات الردود والردود المحفوظة. يمكن الرد على الرسائل الخاصة خلال 24 ساعة.</li><li><b>رفع صور</b>: صور من الهواتف ومن روابط جوجل درايف أو ون درايف أو دروب بوكس. تأتي إلى هذا الجهاز لفحص الوجوه والخصوصية أولاً.</li><li><b>الإعدادات ← الاتصالات</b>: تنبيهات في سلاك أو مايكروسوفت تيمز، واستقبال الصور عبر واتساب، وقوائم الفصول من Google Classroom أو Microsoft Teams (نزّلها للماك وافتح الملف في الطلاب).</li><li><b>الحسابات</b>: إذا لم يُنشر منشور، تُعاد المحاولة تلقائياً أو يظهر السبب بكلمات بسيطة. <b>فحص الربط</b> يعرض ما يعمل، و<b>أعد ربط فيسبوك</b> يصلح الصفحة عند خروجها.</li></ul>`,
+    ),
+  },
+  {
     id: "privacy", group: "basics", icon: "shield-check", title: L("Privacy", "الخصوصية"),
     body: L(
       `<ul><li>Original photos stay on the school's computer. Only small web copies of chosen photos go to the website, without location data.</li><li>Faces and names are worked out on this Mac only. The AI sees at most four small copies of a post's photos to write captions, never names or face data.</li><li>Someone who can't appear is blurred on the website copy, and a post with them is blocked until they are blurred or removed.</li></ul>`,
@@ -153,6 +188,12 @@ function ROLE_GUIDES() {
 }
 
 const WHATS_NEW = () => [
+  ["0.17", L("Safer posting (on the website): tries again by itself when Facebook is busy, clear reasons when a post fails, never twice on Instagram, Reconnect Facebook and Check connection.", "نشر أكثر أماناً (على الموقع): يعيد المحاولة تلقائياً عندما يكون فيسبوك مشغولاً، وأسباب واضحة عند فشل المنشور، ولا يُنشر مرتين على إنستجرام، و«أعد ربط فيسبوك» و«فحص الربط».")],
+  ["0.16", L("Captions in your school's voice, in Arabic and English, everywhere the AI writes.", "نصوص بأسلوب مدرستك بالعربية والإنجليزية في كل مكان يكتب فيه الذكاء الاصطناعي.")],
+  ["0.15.0", L("Yearbooks lay themselves out, the principal approves page by page, texts go in by themselves, and a graduation book for every graduate with the graduation archive.", "الكتب السنوية ترتّب نفسها، ويعتمد المدير صفحة صفحة، وتدخل النصوص تلقائياً، وكتاب تخرج لكل خريج مع أرشيف التخرج.")],
+  ["0.15.0", L("On the website: private messages and saved replies in the Inbox, photos from Drive, OneDrive and Dropbox, alerts in Slack or Teams.", "على الموقع: الرسائل الخاصة والردود المحفوظة في صندوق الرسائل، وصور من درايف وون درايف ودروب بوكس، وتنبيهات في سلاك أو تيمز.")],
+  ["0.14.0", L("One calm look for the app and the website, clear keyboard focus, less movement and safety fixes.", "شكل واحد هادئ للتطبيق والموقع، وتركيز واضح بلوحة المفاتيح، وحركة أقل، وإصلاحات أمان.")],
+  ["0.13.0", L("Your plan: this computer checks the school's plan, works offline up to 10 days, and keeps tags and faces encrypted. High contrast in Settings → General.", "باقتكم: يتحقق هذا الجهاز من باقة المدرسة، ويعمل دون إنترنت حتى 10 أيام، ويحفظ الوسوم والوجوه مشفّرة. التباين العالي في الإعدادات ← عام.")],
   ["0.4.0", L("A new look everywhere, with right-click menus, Settings like System Settings, and a Today page you can arrange.", "شكل جديد في كل مكان مع قوائم الزر الأيمن، وإعدادات مثل إعدادات النظام، وصفحة اليوم قابلة للترتيب.")],
   ["0.4.0", L("Import: preview with untick, events named from the school calendar, camera clock fix, checked copies, iPhone and cards.", "الاستيراد: معاينة مع إلغاء التحديد، فعاليات مسماة من تقويم المدرسة، تصحيح ساعة الكاميرا، نسخ مفحوصة، آيفون وبطاقات.")],
   ["0.4.0", L("Faces: a better engine, big confirm view, look-alike groups, teachers, staff, parents and visitors, class photo mode and checks on the teacher's phone.", "الوجوه: محرك أفضل، عرض تأكيد كبير، مجموعات متشابهة، المعلمون والموظفون وأولياء الأمور والزوار، وضع صورة الفصل وأسئلة على هاتف المعلم.")],
