@@ -10,4 +10,9 @@ test("names match across spellings", () => {
   assert.ok(nameMatches("احمد", "أحمد علي"));
   assert.ok(nameMatches("فاطمه", "فاطمة"));
   assert.ok(!nameMatches("Sara", "Omar"));
+  // L-26 (random-input tests): the "Abd" names in every common spelling.
+  for (const a of ["Abdel Rahman", "Abdulrahman", "Abd El Rahman", "Abd-el-Rahman", "Abdul Rahman", "Abd Al Rahman"])
+    for (const b of ["Abdel Rahman Hassan", "Abdulrahman Hassan", "Abd El Rahman Hassan"]) assert.ok(nameMatches(a, b), `${a} / ${b}`);
+  assert.ok(nameMatches("Abdullah", "Abd Allah Omar"));
+  assert.ok(!nameMatches("Abdel Rahman", "Abdel Aziz"));
 });

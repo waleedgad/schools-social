@@ -81,8 +81,12 @@ export function safeName(name: string) {
   return out || "Event";
 }
 
+// A name starting with "-" or "_" would lose them when the folder is read
+// back (the date and name are split on spaces, "-" and "_"), so they are left
+// out here and the folder always reads back to the same name (L-26).
 export function eventFolder(library: string, date: Date, eventName: string) {
-  return path.join(library, schoolYear(date), term(date), `${isoDate(date)} ${safeName(eventName)}`);
+  const name = safeName(eventName).replace(/^[\s_-]+/, "") || "Event";
+  return path.join(library, schoolYear(date), term(date), `${isoDate(date)} ${name}`);
 }
 
 export type FolderEvent = { key: string; title: string; date: string | null };

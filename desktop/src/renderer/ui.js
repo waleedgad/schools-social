@@ -307,19 +307,27 @@ function hijri(d) {
 // Arabic and English spelling variations: Mohamed / Muhammad / Mohammed,
 // Ahmed / Ahmad, Youssef / Yusuf, and Arabic letters that are often
 // written either way (أ إ آ ا, ة ه, ى ي).
+// Same rules as src/core/names.ts (a robot test keeps them the same).
 function nameKey(s) {
   return String(s ?? "")
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[ً-ٰٟ]/g, "")
+    .replace(/[ً-ٰٟ̀-ͯ]/g, "")
     .replace(/[أإآٱ]/g, "ا")
     .replace(/ة/g, "ه")
     .replace(/ى/g, "ي")
+    // Longest first (L-26 found "abd" always won, so "Abdel Rahman" never
+    // found "Abdulrahman").
+    .replace(/^abd(?:[- ]?(?:el|al|ul))?[- ]?/g, "abd")
+    .replace(/\b(el|al)[- ]/g, "")
+    .replace(/ph/g, "f")
     .replace(/ou|oo|u/g, "o")
-    .replace(/ee|i/g, "e")
+    .replace(/ee|i|y/g, "e")
+    .replace(/kh/g, "k")
     .replace(/(.)\1+/g, "$1")
     .replace(/[aeo]/g, "")
     .replace(/[^a-z؀-ۿ0-9 ]/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 

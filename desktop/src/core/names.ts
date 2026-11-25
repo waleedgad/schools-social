@@ -9,7 +9,9 @@ export function nameKey(s: string | null | undefined) {
     .replace(/[أإآٱ]/g, "ا")
     .replace(/ة/g, "ه")
     .replace(/ى/g, "ي")
-    .replace(/^(abd|abdel|abdul|abd el|abd al)\s*/g, "abd")
+    // Longest first (L-26 found "abd" always won, so "Abdel Rahman" never
+    // found "Abdulrahman").
+    .replace(/^abd(?:[- ]?(?:el|al|ul))?[- ]?/g, "abd")
     .replace(/\b(el|al)[- ]/g, "")
     .replace(/ph/g, "f")
     .replace(/ou|oo|u/g, "o")
